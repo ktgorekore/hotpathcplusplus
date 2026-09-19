@@ -1,0 +1,73 @@
+# Copyright 2025 Cognitas Trading Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "memory_map",
+    srcs = ["memory_map.cc"],
+    hdrs = ["memory_map.h"],
+    deps = [
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "memory_map_test",
+    srcs = ["memory_map_test.cc"],
+    deps = [
+        ":memory_map",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "broadcast_ring_buffer",
+    srcs = ["broadcast_ring_buffer.cc"],
+    hdrs = ["broadcast_ring_buffer.h"],
+    deps = [
+        ":memory_map",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings:str_format",
+    ],
+)
+
+cc_test(
+    name = "broadcast_ring_buffer_test",
+    srcs = ["broadcast_ring_buffer_test.cc"],
+    deps = [
+        ":broadcast_ring_buffer",
+        ":memory_map",
+        "@abseil-cpp//absl/strings",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "broadcast_ring_buffer_benchmark",
+    srcs = ["broadcast_ring_buffer_benchmark.cc"],
+    tags = ["benchmark"],
+    deps = [
+        ":broadcast_ring_buffer",
+        ":memory_map",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@google_benchmark//:benchmark_main",
+    ],
+)

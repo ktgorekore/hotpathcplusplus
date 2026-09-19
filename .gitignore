@@ -1,0 +1,19 @@
+# Bazel build outputs and symlinks
+bazel-*
+.bazelrc.local
+
+# Build artifacts and compiled objects
+*.o
+*.a
+*.so
+*.dylib
+*.out
+
+# Editor and OS caches
+__pycache__/
+*.pyc
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store
