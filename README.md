@@ -103,7 +103,24 @@ Total: Exactly 64 Bytes (alignas(64)) — Zero false sharing across cores!
 | **Magic Mirror Zero-Copy (Batch)** | 8,192 Bytes | 27.2 ns | **286.9 GiB/s** | **0** | **0.00%** |
 | **Copy-Batch (Amortized)** | 8 Bytes | **6.1 ns** | 1.22 GiB/s | **0** | **0.00%** |
 | **Single Zero-Copy** | 8 Bytes | 26.0 ns | 293.4 MiB/s | **0** | **0.00%** |
+| **SeqLock Uncontended Read** | 64 Bytes | **0.18 ns** | **5.41 G ops/s** | **0** | **0.00%** |
+| **SeqLock Contended Read (4T)**| 64 Bytes | **5.6 ns** | **707.3 M ops/s** | **0** | **0.00%** |
 | **Traditional POSIX Pipe** | 8 Bytes | 1,240.0 ns | 6.2 MiB/s | 2 (read/write) | 4.8% |
+
+---
+
+## 🔒 Module Overview: Sequence Lock (`common/concurrency/seqlock.h`)
+
+Located under [`common/concurrency/`](common/concurrency/), this header provides an industrial-strength **Sequence Lock (SeqLock)** for lock-free, zero-copy optimistic concurrency in Single-Producer Multi-Consumer (SPMC) systems.
+
+### Key Architectural Characteristics:
+* **The Odd/Even Counter:**
+  * `Counter & 1 == 0` (EVEN): Data is 100% consistent and safe to read.
+  * `Counter & 1 == 1` (ODD): Producer is actively modifying memory; readers pause via `_mm_pause()` and retry.
+* **CPU Out-of-Order Memory Fencing:**
+  * Uses `std::atomic_thread_fence(std::memory_order_acquire)` in `ReadRetry()` to prevent out-of-order CPUs from speculatively loading payload fields *before* checking the counter.
+* **Hardware Cache-Line Isolation:**
+  * Annotated with `alignas(64)` to ensure the atomic counter occupies a dedicated L1/L2 cache line, eliminating false sharing.
 
 ---
 
@@ -127,17 +144,21 @@ bazel build //...
 
 ### 3. Run the Unit Test Suite
 ```bash
+# Run all tests (shared memory + seqlock)
 bazel test //...
+
+# Run SeqLock unit tests specifically
+bazel test //common/concurrency:seqlock_test
 ```
 
 ### 4. Run the Bare-Metal Microarchitecture Benchmarks
 ```bash
-# Run full benchmark harness in optimized mode
+# Run SeqLock benchmark harness
+bazel run -c opt //:seqlock_benchmark
+
+# Run Broadcast Ring Buffer benchmark harness
 bazel run -c opt //:benchmark
-
-# Filter for a specific payload size (e.g. 8-byte messages)
-bazel run -c opt //:benchmark -- --benchmark_filter=Produce/8$
-
+```
 # Profile CPU hardware PMU counters with Linux perf
 perf stat -e cycles,instructions,cache-misses,branch-misses \
     ./bazel-bin/common/shared_memory/broadcast_ring_buffer_benchmark
