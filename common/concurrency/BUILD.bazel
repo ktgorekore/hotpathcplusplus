@@ -41,3 +41,41 @@ cc_binary(
         "@google_benchmark//:benchmark_main",
     ],
 )
+
+cc_library(
+    name = "ebr",
+    srcs = ["ebr.cc"],
+    hdrs = ["ebr.h"],
+    copts = ["-std=c++20"],
+)
+
+cc_library(
+    name = "rcu_hash_map",
+    hdrs = ["rcu_hash_map.h"],
+    copts = ["-std=c++20"],
+    deps = [
+        ":ebr",
+        "@abseil-cpp//absl/hash",
+    ],
+)
+
+cc_test(
+    name = "rcu_hash_map_test",
+    srcs = ["rcu_hash_map_test.cc"],
+    copts = ["-std=c++20"],
+    deps = [
+        ":rcu_hash_map",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_binary(
+    name = "rcu_hash_map_benchmark",
+    srcs = ["rcu_hash_map_benchmark.cc"],
+    copts = ["-std=c++20"],
+    deps = [
+        ":rcu_hash_map",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@google_benchmark//:benchmark_main",
+    ],
+)
