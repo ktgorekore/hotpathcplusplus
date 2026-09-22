@@ -76,6 +76,7 @@ cc_binary(
     deps = [
         ":rcu_hash_map",
         "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/synchronization",
         "@google_benchmark//:benchmark_main",
     ],
 )

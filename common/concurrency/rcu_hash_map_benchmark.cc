@@ -27,6 +27,7 @@
 #include <unordered_map>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/synchronization/mutex.h"
 #include "common/concurrency/ebr.h"
 #include "common/concurrency/rcu_hash_map.h"
 
@@ -72,10 +73,11 @@ void BM_StdUnorderedMap_SharedMutex_Reads(benchmark::State& state) {
 }
 
 struct LockedAbslMap {
-  std::shared_mutex mutex;
+  absl::Mutex mutex;
   absl::flat_hash_map<int, int> map;
 
   LockedAbslMap() {
+    absl::MutexLock lock(mutex);
     for (int i = 0; i < kKeySpace; ++i) {
       map[i] = i ^ 0x5a5a;
     }
@@ -87,7 +89,7 @@ static LockedAbslMap& GetLockedAbslMap() {
   return instance;
 }
 
-void BM_AbslFlatHashMap_SharedMutex_Reads(benchmark::State& state) {
+void BM_AbslFlatHashMap_AbslMutex_Reads(benchmark::State& state) {
   auto& fixture = GetLockedAbslMap();
   std::mt19937 rng(1337 + state.thread_index());
   std::uniform_int_distribution<int> dist(0, kKeySpace - 1);
@@ -96,7 +98,7 @@ void BM_AbslFlatHashMap_SharedMutex_Reads(benchmark::State& state) {
     int key = dist(rng);
     int value = 0;
     {
-      std::shared_lock<std::shared_mutex> lock(fixture.mutex);
+      absl::ReaderMutexLock lock(fixture.mutex);
       auto it = fixture.map.find(key);
       if (it != fixture.map.end()) {
         value = it->second;
@@ -149,7 +151,7 @@ BENCHMARK(cognitas::trading::BM_StdUnorderedMap_SharedMutex_Reads)
     ->Threads(16)
     ->UseRealTime();
 
-BENCHMARK(cognitas::trading::BM_AbslFlatHashMap_SharedMutex_Reads)
+BENCHMARK(cognitas::trading::BM_AbslFlatHashMap_AbslMutex_Reads)
     ->Threads(1)
     ->Threads(4)
     ->Threads(8)
