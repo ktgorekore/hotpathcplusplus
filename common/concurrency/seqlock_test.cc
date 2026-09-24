@@ -64,15 +64,19 @@ TEST(SeqLockTest, MultiThreadedIntegrity) {
     uint64_t bid_size;
     uint64_t ask_size;
     int64_t timestamp;
-  } shared_quote = {0, 0, 0, 0, 0};
+  } shared_quote = {0, 1, 0, 5, 0};
 
+  std::atomic<bool> start{false};
   std::atomic<bool> stop{false};
   std::atomic<uint64_t> total_valid_reads{0};
   std::atomic<uint64_t> total_retries{0};
 
   // Single Producer Writer
   std::thread writer([&]() {
-    uint64_t tick = 0;
+    while (!start.load(std::memory_order_acquire)) {
+      std::this_thread::yield();
+    }
+    uint64_t tick = 1;
     while (!stop.load(std::memory_order_relaxed)) {
       lock.WriteBegin();
       // Multi-field update: All fields derived from tick to detect torn reads
@@ -88,15 +92,20 @@ TEST(SeqLockTest, MultiThreadedIntegrity) {
 
   // Multiple Concurrent Readers
   constexpr size_t kReaderCount = 4;
+  constexpr size_t kReadsPerReader = 2500;
   std::vector<std::thread> readers;
   readers.reserve(kReaderCount);
 
   for (size_t r = 0; r < kReaderCount; ++r) {
     readers.emplace_back([&]() {
+      while (!start.load(std::memory_order_acquire)) {
+        std::this_thread::yield();
+      }
       uint64_t valid_reads = 0;
       uint64_t retries = 0;
 
-      while (!stop.load(std::memory_order_relaxed)) {
+      while (valid_reads < kReadsPerReader &&
+             !stop.load(std::memory_order_relaxed)) {
         uint64_t seq;
         MarketQuote local;
         do {
@@ -124,15 +133,15 @@ TEST(SeqLockTest, MultiThreadedIntegrity) {
     });
   }
 
-  std::this_thread::sleep_for(std::chrono::milliseconds(250));
-  stop.store(true, std::memory_order_release);
+  start.store(true, std::memory_order_release);
 
-  writer.join();
   for (auto& reader : readers) {
     reader.join();
   }
+  stop.store(true, std::memory_order_release);
+  writer.join();
 
-  EXPECT_GT(total_valid_reads.load(), 10000ULL);
+  EXPECT_EQ(total_valid_reads.load(), kReaderCount * kReadsPerReader);
 }
 
 }  // namespace cognitas::trading

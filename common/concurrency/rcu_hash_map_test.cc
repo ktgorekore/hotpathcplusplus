@@ -78,7 +78,7 @@ TEST(RcuHashMapTest, ConcurrentReadersAndWriters) {
 
   // 4 reader threads
   for (int t = 0; t < 4; ++t) {
-    readers.emplace_back([&map, &stop_flag, t] {
+    readers.emplace_back([&map, &stop_flag] {
       EpochBasedReclamation::RegisterThread();
       while (!stop_flag.load(std::memory_order_relaxed)) {
         for (int i = 0; i < 50; ++i) {

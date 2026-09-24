@@ -19,19 +19,32 @@
 #include <unistd.h>
 
 #include <cstring>
+#include <string>
+
+#include "absl/strings/str_cat.h"
 
 namespace cognitas::trading {
 
 class MemoryMapTest : public ::testing::Test {
  protected:
-  void SetUp() override { shm_unlink("/test_shm"); }
+  void SetUp() override {
+    shm_name_ = absl::StrCat("/test_shm_map_", getpid(), "_",
+                             testing::UnitTest::GetInstance()->random_seed(),
+                             "_", test_counter_++);
+    shm_unlink(shm_name_.c_str());
+  }
 
-  void TearDown() override { shm_unlink("/test_shm"); }
+  void TearDown() override { shm_unlink(shm_name_.c_str()); }
+
+  std::string shm_name_;
+  static int test_counter_;
 };
+
+int MemoryMapTest::test_counter_ = 0;
 
 TEST_F(MemoryMapTest, BasicCreateAndOpen) {
   size_t size = 4096;
-  auto map_or = MemoryMap::Create("/test_shm", size);
+  auto map_or = MemoryMap::Create(shm_name_, size);
   ASSERT_TRUE(map_or.ok()) << map_or.status();
 
   auto& map = *map_or;
@@ -42,7 +55,7 @@ TEST_F(MemoryMapTest, BasicCreateAndOpen) {
   static_cast<char*>(map.addr())[0] = 'A';
 
   // Open it
-  auto map_open_or = MemoryMap::Open("/test_shm", size);
+  auto map_open_or = MemoryMap::Open(shm_name_, size);
   ASSERT_TRUE(map_open_or.ok()) << map_open_or.status();
   EXPECT_EQ(static_cast<char*>(map_open_or->addr())[0], 'A');
 }
@@ -51,7 +64,7 @@ TEST_F(MemoryMapTest, MagicMirror) {
   long page_size = sysconf(_SC_PAGESIZE);
   size_t size = page_size;
 
-  auto map_or = MemoryMap::Create("/test_shm", size, true);
+  auto map_or = MemoryMap::Create(shm_name_, size, true);
   ASSERT_TRUE(map_or.ok()) << map_or.status();
 
   auto& map = *map_or;
@@ -90,7 +103,7 @@ TEST_F(MemoryMapTest, MagicMirror) {
 
 TEST_F(MemoryMapTest, InvalidSizeForMagicMirror) {
   // Magic mirror requires page alignment.
-  auto map_or = MemoryMap::Create("/test_shm", 1024, true);
+  auto map_or = MemoryMap::Create(shm_name_, 1024, true);
   EXPECT_FALSE(map_or.ok());
   EXPECT_EQ(map_or.status().code(), absl::StatusCode::kInvalidArgument);
 }

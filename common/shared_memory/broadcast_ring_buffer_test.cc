@@ -59,8 +59,8 @@ TEST_F(BroadcastRingBufferTest, CreateAndAttach) {
   auto consumer_or = BroadcastRingBuffer::Attach(shm_name_);
   ASSERT_TRUE(consumer_or.ok()) << consumer_or.status();
 
-  EXPECT_EQ(producer_or.value()->GetLatestCursor(), 0);
-  EXPECT_EQ(consumer_or.value()->GetLatestCursor(), 0);
+  EXPECT_EQ(producer_or.value()->GetLatestCursor(), 0ULL);
+  EXPECT_EQ(consumer_or.value()->GetLatestCursor(), 0ULL);
 }
 
 TEST_F(BroadcastRingBufferTest, ProduceAndConsumeSingleMessage) {
@@ -124,8 +124,8 @@ TEST_F(BroadcastRingBufferTest, WrapAroundMagicMirror) {
   FrameHeader header2;
   auto res = consumer->PollZeroCopy(reader, header2);
   ASSERT_TRUE(res.ok()) << res.status();
-  EXPECT_EQ(header2.type, 2);
-  EXPECT_EQ(res->size(), 100);
+  EXPECT_EQ(header2.type, 2u);
+  EXPECT_EQ(res->size(), 100u);
   EXPECT_EQ((*res)[0], 'B');
 
   consumer->Advance(reader, header2.TotalFrameSize());
@@ -222,10 +222,14 @@ TEST_F(BroadcastRingBufferTest, ReadOnlyCannotReserve) {
 TEST_F(BroadcastRingBufferTest, DataIntegrityStress) {
   const size_t kPageSize = sysconf(_SC_PAGESIZE);
   const size_t kCapacity = kPageSize * 16;
-  auto producer = *BroadcastRingBuffer::Create(shm_name_, kCapacity);
+  // Use a 30s eviction timeout so CPU starvation/scheduling jitter under heavy
+  // CI test loads does not falsely evict active readers.
+  auto producer = *BroadcastRingBuffer::Create(
+      shm_name_, kCapacity, /*evict_timeout_ns=*/30'000'000'000LL);
 
   const int kNumMessages = 5000;
   std::atomic<bool> start{false};
+  std::atomic<int> registered_readers{0};
 
   auto consumer_fn = [&](int id) {
     auto consumer_or = BroadcastRingBuffer::Attach(shm_name_);
@@ -234,7 +238,9 @@ TEST_F(BroadcastRingBufferTest, DataIntegrityStress) {
     BroadcastReader reader;
     ASSERT_TRUE(consumer->RegisterReader(reader).ok());
 
-    while (!start.load()) std::this_thread::yield();
+    registered_readers.fetch_add(1, std::memory_order_release);
+
+    while (!start.load(std::memory_order_acquire)) std::this_thread::yield();
 
     int messages_received = 0;
     uint32_t last_val = 0;
@@ -269,7 +275,13 @@ TEST_F(BroadcastRingBufferTest, DataIntegrityStress) {
   std::vector<std::thread> consumers;
   for (int i = 0; i < 4; ++i) consumers.emplace_back(consumer_fn, i);
 
-  start.store(true);
+  // Ensure all 4 consumers have registered their reader slots at cursor 0
+  // before producing messages.
+  while (registered_readers.load(std::memory_order_acquire) < 4) {
+    std::this_thread::yield();
+  }
+
+  start.store(true, std::memory_order_release);
   for (int i = 1; i <= kNumMessages; ++i) {
     uint32_t val = i;
     auto buf = producer->Reserve(sizeof(uint32_t), 1);

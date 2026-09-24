@@ -32,6 +32,7 @@ cc_test(
     srcs = ["memory_map_test.cc"],
     deps = [
         ":memory_map",
+        "@abseil-cpp//absl/strings",
         "@googletest//:gtest_main",
     ],
 )
