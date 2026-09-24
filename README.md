@@ -20,6 +20,7 @@
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://en.cppreference.com/w/cpp/20)
 [![Bazel 9](https://img.shields.io/badge/Bazel-9.2.0-green.svg)](https://bazel.build/)
 [![Google Benchmark](https://img.shields.io/badge/Google_Benchmark-1.9.5-brightgreen.svg)](https://github.com/google/benchmark)
+[![CI](https://github.com/ktgorekore/hotpathcplusplus/actions/workflows/ci.yml/badge.svg)](https://github.com/ktgorekore/hotpathcplusplus/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
 > **Official companion code repository for the [Hot Path C++ YouTube Channel](https://youtube.com/@HotPathCpp).**  

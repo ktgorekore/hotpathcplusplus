@@ -1,0 +1,113 @@
+# Copyright 2026 Hot Path C++ Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Continuous Integration
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  format-check:
+    name: Code Formatting (Google C++)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install clang-format
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y clang-format
+
+      - name: Verify clang-format version
+        run: clang-format --version
+
+      - name: Enforce Google C++ formatting
+        run: |
+          find common -name '*.h' -o -name '*.cc' | xargs clang-format --dry-run --Werror -style=Google
+
+  build-and-test:
+    name: Build & Test (${{ matrix.compiler.name }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler:
+          - name: GCC 14
+            cc: gcc
+            cxx: g++
+          - name: Clang 18
+            cc: clang
+            cxx: clang++
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Setup Compiler Environment (${{ matrix.compiler.name }})
+        run: |
+          if [ "${{ matrix.compiler.cc }}" = "clang" ]; then
+            sudo apt-get update -qq
+            sudo apt-get install -y clang
+          fi
+          ${{ matrix.compiler.cc }} --version
+
+      - name: Setup Bazel
+        uses: bazelbuild/setup-bazelisk@v3
+
+      - name: Verify Bazel Version
+        run: bazel --version
+
+      - name: Mount Bazel Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/bazel
+          key: bazel-${{ matrix.compiler.cc }}-${{ runner.os }}-${{ hashFiles('MODULE.bazel', 'MODULE.bazel.lock', '.bazelrc', '.bazelversion') }}-${{ github.sha }}
+          restore-keys: |
+            bazel-${{ matrix.compiler.cc }}-${{ runner.os }}-${{ hashFiles('MODULE.bazel', 'MODULE.bazel.lock', '.bazelrc', '.bazelversion') }}-
+            bazel-${{ matrix.compiler.cc }}-${{ runner.os }}-
+
+      - name: Bazel Build All Targets (//...)
+        env:
+          CC: ${{ matrix.compiler.cc }}
+          CXX: ${{ matrix.compiler.cxx }}
+        run: |
+          bazel build //... \
+            --color=yes \
+            --curses=no \
+            --verbose_failures
+
+      - name: Bazel Test Unit Targets (//...)
+        env:
+          CC: ${{ matrix.compiler.cc }}
+          CXX: ${{ matrix.compiler.cxx }}
+        run: |
+          bazel test //... \
+            --color=yes \
+            --curses=no \
+            --verbose_failures \
+            --test_output=errors \
+            --test_tag_filters=-benchmark
