@@ -38,3 +38,18 @@ alias(
     name = "seqlock_benchmark",
     actual = "//common/concurrency:seqlock_benchmark",
 )
+
+alias(
+    name = "measurement_harness",
+    actual = "//common/measurement:measurement_harness",
+)
+
+alias(
+    name = "entropy_generator",
+    actual = "//common/measurement:entropy_generator",
+)
+
+alias(
+    name = "measurement_benchmark",
+    actual = "//common/measurement:measurement_benchmark",
+)

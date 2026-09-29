@@ -34,6 +34,7 @@
 | :--- | :--- | :--- |
 | **Episode 03** | **Zero-Copy IPC at 286 GiB/s in C++20 (The Linux MMU Magic Mirror Hack!)** | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
 | **Episode 04** | **Stop Locking Your Hash Maps! (perf, pprof & 831M Ops/Sec RCU Teaser)** | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
+| **Episode 05** | **4 Microbenchmarking Traps That Lie to Your Compiler (and How Silicon Actually Behaves)** | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
 
 In Episode 04, Marcus deconstructs how Linux `perf`, `pprof`, flamegraphs, and assembly instruction disassembly reveal why mutex-locked hash maps collapse under multi-threaded read contention—and presents the production-grade C++20 `RcuHashMap` with Epoch-Based Reclamation (EBR) achieving **831.6M ops/sec** (a **28.7x speedup** over `absl::flat_hash_map`).
 
@@ -287,6 +288,62 @@ int main() {
   EpochBasedReclamation::UnregisterThread();
   return 0;
 }
+```
+
+---
+
+## 🔬 Module Overview: Empirical Microbenchmarking & Silicon Measurement Suite
+
+Located under [`common/measurement/`](common/measurement/), this package provides an industrial-grade benchmarking harness designed to prevent the 4 classic microarchitectural measurement traps in high-frequency and low-latency C++20 systems.
+
+### The 4 Microbenchmarking Pitfalls
+
+1. **The Compiler Trap (Dead Code Elimination under ISO "as-if" rule):**  
+   Optimizing compilers (`-O3`) detect unobserved loop results and evaporate multi-stage computations down to `0.00 ns` (`xor eax, eax; ret`).  
+   - **Remedy:** `ForceOptimizationBarrier(val)` and `benchmark::DoNotOptimize(val)` establish an inline assembly constraint barrier, forcing values to materialize in registers/memory without adding synthetic instruction overhead.
+
+2. **The CPU Trap (Branch Predictor Omniscience & Zero Entropy):**  
+   Modern TAGE and Branch Target Buffer (BTB) predictors memorize repetitive test data patterns, exhibiting >99% prediction accuracy that evaporates in production.  
+   - **Remedy:** `DatasetGenerator::GenerateUniformRandom` generates high-entropy inputs to measure realistic pipeline stall penalties (15–20 cycles per misprediction).
+
+3. **The Memory Trap (Cache Residency Illusion & Hardware Prefetchers):**  
+   Testing small buffers repeatedly measures L1/L2 cache latency (~1–3 ns) rather than cold DRAM access latency (~65–85 ns). Hardware stream prefetchers mask memory latency on sequential arrays.  
+   - **Remedy:** `DatasetGenerator::GeneratePointerChaseRing` constructs pseudo-random Hamiltonian cycles that defeat stride prefetchers across L1 (16 KiB), L2 (256 KiB), L3 (8 MiB), and DRAM (64 MiB). `FlushCacheRange` leverages `_mm_clflush` + `_mm_mfence` to force cache evictions.
+
+4. **The Setup & Timer Overhead Trap:**  
+   Allocating dynamic buffers inside the hot measurement loop measures OS page faults, `mmap` kernel locks, and heap allocation rather than algorithm latency.  
+   - **Remedy:** Pre-warming buffers outside the timed scope, and using hardware cycle counters (`ReadTscSerialized` / `__rdtscp`) for sub-nanosecond timestamping.
+
+### 📊 Empirical Silicon Measurement Results
+
+*Measured on 32-core x86-64 Linux Host with GCC 13.3 (`-O3 -march=native`):*
+
+```text
+---------------------------------------------------------------------------
+Benchmark                                 Time             CPU   Iterations
+---------------------------------------------------------------------------
+BM_DeadCode_Eliminated                0.000 ns        0.000 ns   1000000000000  <-- Evaporated!
+BM_DeadCode_DoNotOptimize              67.7 ns         67.7 ns     10026811     <-- Real compute
+BM_DeadCode_ForceBarrier               67.0 ns         67.0 ns     10350584     <-- Hardware materialized
+BM_Branch_BranchlessCmov               4459 ns         4459 ns       160997     <-- Immune to entropy (3.67G items/s)
+BM_Cache_L1Resident                    0.93 ns/hop     0.93 ns      7527093     <-- L1 Data Cache
+BM_Cache_L2Resident                    2.47 ns/hop     2.47 ns      2853544     <-- L2 Unified Cache
+BM_Cache_L3Resident                    10.5 ns/hop     10.5 ns       671279     <-- L3 Shared Cache
+BM_Cache_DRAM                          85.2 ns/hop     85.2 ns        81415     <-- DRAM Wall (91x L1 latency!)
+BM_TimerOverhead_StdChrono             17.0 ns         17.0 ns     41614245
+BM_TimerOverhead_RDTSCP                13.1 ns         13.1 ns     52924453
+BM_Trap_SetupAllocationPollution        121 ns          121 ns      5754914     <-- 4x slower from heap in loop
+BM_Trap_SetupPreAllocated              30.8 ns         30.8 ns     23280655     <-- Pure compute
+```
+
+### Running Tests & Benchmarks
+
+```bash
+# Run unit tests
+bazel test //common/measurement/...
+
+# Run optimized microbenchmarks
+bazel run -c opt //common/measurement:measurement_benchmark
 ```
 
 ---
