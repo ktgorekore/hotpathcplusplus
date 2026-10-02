@@ -34,9 +34,9 @@
 | :--- | :--- | :--- |
 | **Episode 03** | **Zero-Copy IPC at 286 GiB/s in C++20 (The Linux MMU Magic Mirror Hack!)** | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
 | **Episode 04** | **Stop Locking Your Hash Maps! (perf, pprof & 831M Ops/Sec RCU Teaser)** | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
-| **Episode 05** | **4 Microbenchmarking Traps That Lie to Your Compiler (and How Silicon Actually Behaves)** | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
+| **Episode 05** | **How to Measure C++ Performance Without Fooling Yourself (Microbenchmarks & PMUs)** | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
 
-In Episode 04, Marcus deconstructs how Linux `perf`, `pprof`, flamegraphs, and assembly instruction disassembly reveal why mutex-locked hash maps collapse under multi-threaded read contention—and presents the production-grade C++20 `RcuHashMap` with Epoch-Based Reclamation (EBR) achieving **831.6M ops/sec** (a **28.7x speedup** over `absl::flat_hash_map`).
+In Episode 05, Marcus tackles the classic traps in microbenchmarking (Dead Code Elimination, Branch Predictor Omniscience, Cache Residency Mirages, and Heap Allocator setup overhead) using C++20, Google Benchmark 1.9.5, and Linux hardware PMUs (`perf stat`). Includes the **Community Measurement Challenge** (`//:challenge`) to audit and fix three hidden benchmarking pitfalls.
 
 ---
 
@@ -336,6 +336,22 @@ BM_Trap_SetupAllocationPollution        121 ns          121 ns      5754914     
 BM_Trap_SetupPreAllocated              30.8 ns         30.8 ns     23280655     <-- Pure compute
 ```
 
+### 🏆 Episode 05 Community Measurement Challenge (3 Hidden Traps)
+
+Featured in [Episode 05](https://youtube.com/@HotPathCpp), [`common/measurement/challenge.cc`](common/measurement/challenge.cc) presents three subtle, real-world microbenchmarking traps designed to audit your intuition against optimizing compilers and bare-metal CPU silicon:
+
+1. **Trap 1: The Invisible Workload (Dead Code Elimination):**  
+   The accumulator `sum` is never escaped outside the benchmark loop. At `-O3`, the compiler evaporates the entire 500-iteration loop under the ISO "as-if" rule into `0.00 ns` (`xor eax, eax; ret`).  
+   - **Fix:** Prevent dead code elimination with `benchmark::DoNotOptimize(sum)`.
+
+2. **Trap 2: Measuring the Allocator (Setup Overhead):**  
+   Allocating and deallocating `std::vector<int64_t>(1024)` *inside* the benchmark loop pollutes timing with heap allocation, `malloc` thread lock contention, and OS page faults, dominating pure compute latency by ~4x.  
+   - **Fix:** Pre-allocate and populate the vector outside the timed benchmark loop.
+
+3. **Trap 3: The All-Knowing CPU (Predictor Omniscience / Zero Entropy):**  
+   Evaluating a conditional branch against a repeating pattern (`[1, -1, 1, -1]`) allows the hardware branch predictor (TAGE/BTB) to learn the history pattern and achieve ~0% mispredictions, hiding the catastrophic 15–20 cycle pipeline flush penalty.  
+   - **Fix:** Inject uniform pseudo-random entropy via `DatasetGenerator::GenerateUniformRandom`.
+
 ### Running Tests & Benchmarks
 
 ```bash
@@ -344,6 +360,14 @@ bazel test //common/measurement/...
 
 # Run optimized microbenchmarks
 bazel run -c opt //common/measurement:measurement_benchmark
+
+# Run Episode 05 Community Measurement Challenge (all 3 traps)
+bazel run -c opt //:challenge
+
+# Filter specific challenge traps:
+bazel-bin/common/measurement/challenge --benchmark_filter="BM_Challenge_Trap1.*"
+bazel-bin/common/measurement/challenge --benchmark_filter="BM_Challenge_Trap2.*"
+bazel-bin/common/measurement/challenge --benchmark_filter="BM_Challenge_Trap3.*"
 ```
 
 ---

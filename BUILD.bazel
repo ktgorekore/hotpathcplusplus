@@ -53,3 +53,13 @@ alias(
     name = "measurement_benchmark",
     actual = "//common/measurement:measurement_benchmark",
 )
+
+alias(
+    name = "challenge",
+    actual = "//common/measurement:challenge",
+)
+
+alias(
+    name = "measurement_challenge",
+    actual = "//common/measurement:challenge",
+)
