@@ -35,8 +35,9 @@
 | **Episode 03** | **Zero-Copy IPC at 286 GiB/s in C++20 (The Linux MMU Magic Mirror Hack!)** | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
 | **Episode 04** | **Stop Locking Your Hash Maps! (perf, pprof & 831M Ops/Sec RCU Teaser)** | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
 | **Episode 05** | **How to Measure C++ Performance Without Fooling Yourself (Microbenchmarks & PMUs)** | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
+| **Episode 06** | **Stop Chasing Pointers: The Cost of Abstraction (OOP vs. std::variant)** | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
 
-In Episode 05, Marcus tackles the classic traps in microbenchmarking (Dead Code Elimination, Branch Predictor Omniscience, Cache Residency Mirages, and Heap Allocator setup overhead) using C++20, Google Benchmark 1.9.5, and Linux hardware PMUs (`perf stat`). Includes the **Community Measurement Challenge** (`//:challenge`) to audit and fix three hidden benchmarking pitfalls.
+In Episode 06, Marcus and Byte deconstruct the hidden silicon tax of Object-Oriented Polymorphism (vptr dereferences, fragmented heap allocations, and indirect branch target mispredictions) versus modern Data-Oriented Design with C++17 `std::variant` and `std::visit`. Includes the **Episode 06 Community Challenge** (`//common/dispatch:challenge` or `//episodes/06_cost_of_abstraction:challenge`) to diagnose and fix the subtle "Accidental Copy Trap" in variant visitors.
 
 ---
 
@@ -368,6 +369,64 @@ bazel run -c opt //:challenge
 bazel-bin/common/measurement/challenge --benchmark_filter="BM_Challenge_Trap1.*"
 bazel-bin/common/measurement/challenge --benchmark_filter="BM_Challenge_Trap2.*"
 bazel-bin/common/measurement/challenge --benchmark_filter="BM_Challenge_Trap3.*"
+```
+
+---
+
+## 🏎️ Module Overview: Dynamic Dispatch & Data-Oriented Design (`common/dispatch/`)
+
+Located under [`common/dispatch/`](common/dispatch/), this package provides production-grade dynamic dispatch comparisons and market order matching engines contrasting classical Object-Oriented polymorphism against modern C++17/C++20 Data-Oriented Design (`std::variant` & `std::visit`).
+
+### The Silicon Cost of Classical OOP Abstraction
+
+1. **The Double-Pointer Dereference Penalty:**  
+   Classical virtual dispatch requires dereferencing an object instance pointer to locate its 8-byte `vptr`, then dereferencing the `vtable` to obtain the target function pointer before issuing `call *%rax`. In a polymorphic vector of `std::unique_ptr<BaseOrder>`, every single call forces two dependent memory loads before instruction execution can even begin.
+
+2. **Cache-Line Fragmentation:**  
+   Heap-allocated polymorphic objects scatter memory allocations randomly across DRAM pages. When iterating through a vector of 100,000 pointers, the CPU hardware stream prefetcher cannot anticipate pointer destinations, resulting in massive L1 data cache line misses and TLB churn.
+
+3. **Indirect Branch Target Buffer (BTB) Mispredictions:**  
+   While standard `if` statements are direct branches with two static targets, virtual function calls compile to indirect jumps (`call *%rax`). If the order stream contains interleaved types (`BuyLimit`, `SellMarket`, `Cancel`), the CPU branch target buffer cannot predict the destination, suffering 15–20 cycle pipeline flushes per misprediction.
+
+### Data-Oriented Design (DOD) with `std::variant`
+
+- **Contiguous Cache Packing:** All order variants (`OrderVariant`) are stored inline in flat arrays. Contiguous layout ensures sequential cache line prefetching (64 bytes per line transfers 2 complete 32-byte variants into L1 cache per bus transaction).
+- **Zero Heap Chasing:** Zero individual heap allocations; no pointer chasing across the heap.
+- **Predictable Jump Tables:** Compilers generate dense switch/jump tables for `std::visit`, allowing the branch predictor to achieve near-100% accuracy when data streams are sorted or clustered.
+
+### 📊 Bare-Metal Microarchitecture Benchmarks (100,000 Batch)
+
+*Audited on AMD Zen 5 (32 vCPUs @ 4.8 GHz boost, 48 KiB L1D, 1 MiB L2, 32 MiB L3) running Linux 6.8 with GCC 13.3 `-O3 -march=native`:*
+
+| Benchmark Variant | Latency (ns/batch) | Throughput (Items/s) | Bandwidth (GiB/s) | Speedup Factor |
+| :--- | :--- | :--- | :--- | :--- |
+| **OOP Virtual Dispatch (Randomized)** | 588,198 ns | 170.0M items/s | 1.27 GiB/s | 1.0x (Baseline) |
+| **OOP Virtual Dispatch (Sorted by Type)** | 269,731 ns | 370.8M items/s | 2.76 GiB/s | 2.18x |
+| **Data-Oriented `std::variant` (Randomized)**| 446,413 ns | 224.0M items/s | 6.68 GiB/s | 1.32x |
+| **Data-Oriented `std::variant` (Sorted)** | **72,823 ns** | **1,373.2M items/s** | **40.93 GiB/s** | **8.08x 🚀** |
+| **Financial Feed OOP (Randomized)** | 630,866 ns | 158.5M items/s | 1.18 GiB/s | 1.0x |
+| **Financial Feed `std::variant`** | **365,758 ns** | **273.4M items/s** | **10.19 GiB/s** | **1.72x** |
+
+### 🏆 Episode 06 Community Challenge: The Accidental Copy Trap
+
+Featured in [Episode 06](https://youtube.com/@HotPathCpp), [`common/dispatch/challenge.cc`](common/dispatch/challenge.cc) presents a subtle, high-impact performance bug frequently introduced when refactoring from OOP to `std::variant`:
+
+- **The Trap:** Writing `[](auto item) { return item.Process(); }` inside `std::visit` forces an accidental pass-by-value copy of the entire 40+ byte variant payload onto the stack on every iteration.
+- **The Silicon Fix:** Change the visitor lambda parameter signature to `[](const auto& item)` to pass variant elements directly by reference, eliminating all stack copies and memory bandwidth waste.
+
+### Running Tests & Benchmarks
+
+```bash
+# Run unit tests
+bazel test //common/dispatch/...
+
+# Run dynamic dispatch benchmarks (direct & episode alias)
+bazel run -c opt //common/dispatch:dispatch_benchmark
+bazel run -c opt //episodes/06_cost_of_abstraction:benchmark
+
+# Run Episode 06 Community Challenge
+bazel run -c opt //common/dispatch:challenge
+bazel run -c opt //episodes/06_cost_of_abstraction:challenge
 ```
 
 ---

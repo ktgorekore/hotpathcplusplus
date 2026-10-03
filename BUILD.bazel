@@ -63,3 +63,24 @@ alias(
     name = "measurement_challenge",
     actual = "//common/measurement:challenge",
 )
+
+alias(
+    name = "order_dispatcher",
+    actual = "//common/dispatch:order_dispatcher",
+)
+
+alias(
+    name = "instrument_feed",
+    actual = "//common/dispatch:instrument_feed",
+)
+
+alias(
+    name = "dispatch_benchmark",
+    actual = "//common/dispatch:dispatch_benchmark",
+)
+
+alias(
+    name = "dispatch_challenge",
+    actual = "//common/dispatch:challenge",
+)
+
