@@ -98,7 +98,9 @@ jobs:
           bazel build //... \
             --color=yes \
             --curses=no \
-            --verbose_failures
+            --verbose_failures \
+            --copt=-march=x86-64-v3 \
+            --copt=-mpclmul
 
       - name: Bazel Test Unit Targets (//...)
         env:
@@ -110,4 +112,6 @@ jobs:
             --curses=no \
             --verbose_failures \
             --test_output=errors \
-            --test_tag_filters=-benchmark
+            --test_tag_filters=-benchmark \
+            --copt=-march=x86-64-v3 \
+            --copt=-mpclmul
