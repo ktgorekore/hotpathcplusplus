@@ -84,3 +84,18 @@ alias(
     actual = "//common/dispatch:challenge",
 )
 
+alias(
+    name = "execution_pipeline",
+    actual = "//common/execution:execution_pipeline",
+)
+
+alias(
+    name = "execution_benchmark",
+    actual = "//common/execution:execution_benchmark",
+)
+
+alias(
+    name = "execution_challenge",
+    actual = "//common/execution:challenge",
+)
+
