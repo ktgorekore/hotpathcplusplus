@@ -47,5 +47,5 @@ TEST(ExecutionPipelineTest, FloatSumEquivalence) {
   EXPECT_NEAR(result_4way, expected, 1e-6);
 }
 
-} // namespace
-} // namespace hotpath::execution
+}  // namespace
+}  // namespace hotpath::execution

@@ -135,5 +135,5 @@ void BM_IndependentFloatSum4Way(benchmark::State &state) {
 }
 BENCHMARK(BM_IndependentFloatSum4Way);
 
-} // namespace
-} // namespace hotpath::execution
+}  // namespace
+}  // namespace hotpath::execution

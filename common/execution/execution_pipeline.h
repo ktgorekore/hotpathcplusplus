@@ -31,7 +31,7 @@ namespace hotpath::execution {
  * ALUs) to execute at an Instructions Per Cycle (IPC) close to 1.0.
  */
 class DependentPipeline {
-public:
+ public:
   /**
    * @brief Calculates a non-associative hash accumulation over a data span.
    * @param data The input stream of 64-bit integers.
@@ -84,7 +84,7 @@ public:
  * hardware limits (IPC > 3.5).
  */
 class IndependentPipeline {
-public:
+ public:
   /**
    * @brief 4-way independent multi-accumulator summation.
    * @param data Input 64-bit integer stream.
@@ -182,6 +182,6 @@ public:
   }
 };
 
-} // namespace hotpath::execution
+}  // namespace hotpath::execution
 
-#endif // HOTPATH_COMMON_EXECUTION_EXECUTION_PIPELINE_H_
+#endif  // HOTPATH_COMMON_EXECUTION_EXECUTION_PIPELINE_H_

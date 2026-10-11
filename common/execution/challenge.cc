@@ -134,7 +134,7 @@ FilterResult RunOptimizedChallenge(const std::vector<double> &x, double alpha) {
           static_cast<double>(n) / (elapsed.count() / 1000.0)};
 }
 
-} // namespace hotpath::execution
+}  // namespace hotpath::execution
 
 int main() {
   std::cout << "=========================================================\n"
