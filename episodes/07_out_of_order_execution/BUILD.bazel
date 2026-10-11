@@ -12,14 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load("@rules_cc//cc:defs.bzl", "cc_binary")
+
 package(default_visibility = ["//visibility:public"])
 
-alias(
+cc_binary(
     name = "benchmark",
-    actual = "//common/execution:execution_benchmark",
+    srcs = ["benchmark.cc"],
+    deps = [
+        "@google_benchmark//:benchmark_main",
+    ],
 )
 
-alias(
+cc_binary(
     name = "challenge",
-    actual = "//common/execution:challenge",
+    srcs = ["challenge.cc"],
 )
