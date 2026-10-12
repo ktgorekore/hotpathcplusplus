@@ -12,6 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+/**
+ * @file execution_pipeline_test.cc
+ * @brief Unit tests for dependent and independent execution pipeline
+ * primitives.
+ */
+
 #include "common/execution/execution_pipeline.h"
 
 #include <cmath>
@@ -22,6 +28,17 @@
 
 namespace hotpath::execution {
 namespace {
+
+TEST(ExecutionPipelineTest, HashAccumulationProducesConsistentOutput) {
+  std::vector<uint64_t> data = {10, 20, 30, 40, 50};
+  uint64_t expected = 0;
+  for (uint64_t val : data) {
+    expected = (expected * 33) ^ val;
+  }
+
+  const uint64_t result = DependentPipeline::AccumulateHash(data);
+  EXPECT_EQ(result, expected);
+}
 
 TEST(ExecutionPipelineTest, IntegerSumEquivalence) {
   std::vector<uint64_t> data(1027);

@@ -16,7 +16,7 @@
 
 # 🎬 Episode 07: The Silicon Time Machine (Out-of-Order Execution)
 
-> **Subtitle:** Your CPU is Lying to You: Out-of-Order Execution, Instruction-Level Parallelism & The Superscalar Pipeline  
+> **Subtitle:** The Silicon Time Machine: Out-of-Order Execution, Instruction-Level Parallelism & The Superscalar Pipeline  
 > **Duration Target:** ~07:30 (Masterclass Deep Dive) | 3 Companion YouTube Shorts (7A, 7B, 7C)  
 > **Host:** Marcus (Systems Architect, 16+ Years Experience in Low-Latency Systems Architecture)  
 > **Status:** Production Ready (Full HeyGen Masterclass + 3 Companion Shorts Packages Fully Rendered)  
@@ -50,7 +50,7 @@ All telemetry and performance metrics are measured on bare-metal silicon running
 
 In Episode 05, we learned how to measure hardware. In Episode 06, we saw how C++ syntax dictates memory layout and branch prediction. Now, in **Episode 07**, we open up the black box of the CPU core itself.
 
-Most software engineers envision the CPU executing assembly instructions like a sequential script from top to bottom. **The CPU is lying to you.** Modern x86-64 microarchitectures (Intel Golden Cove, AMD Zen 4/5) treat your compiled instructions as a *polite suggestion*, not a rulebook.
+Most software engineers envision the CPU executing assembly instructions like a sequential script from top to bottom. **In reality, that is an illusion.** Modern x86-64 microarchitectures (Intel Golden Cove, AMD Zen 4/5) treat your compiled instructions as a *polite suggestion*, not a rulebook.
 
 The processor looks 200 to 500+ instructions ahead into the future, dynamically renaming architectural registers via the Register Alias Table (RAT), scheduling independent operations out of order across 4 parallel integer ALUs, and literally executing tomorrow's math today while stalled on a slow 200-cycle DRAM access.
 

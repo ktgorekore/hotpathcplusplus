@@ -40,12 +40,31 @@ namespace hotpath::episode07 {
 
 constexpr size_t kSampleSize = 1'000'000;
 
+/**
+ * @struct FilterResult
+ * @brief Encapsulates verification checksum and timing metrics for the
+ * challenge filter.
+ */
 struct FilterResult {
-  double checksum;
-  double duration_ms;
-  double elements_per_sec;
+  double checksum;          ///< Total accumulated sum of filtered outputs.
+  double duration_ms;       ///< Execution latency in milliseconds.
+  double elements_per_sec;  ///< Processed throughput in elements per second.
 };
 
+/**
+ * @brief Baseline naive 1st-order IIR autoregressive filter with loop-carried
+ * recurrence.
+ *
+ * Mathematical recurrence:
+ *   y[i] = x[i] + alpha * y[i - 1]
+ *
+ * This loop contains a true Read-After-Write (RAW) data dependency chain that
+ * serializes instruction dispatch to IPC ~ 1.0.
+ *
+ * @param x Input sequence of double-precision floating-point samples.
+ * @param alpha Feedback decay coefficient.
+ * @return FilterResult containing the checksum and duration metrics.
+ */
 FilterResult RunBaseline(const std::vector<double> &x, double alpha) {
   const size_t n = x.size();
   std::vector<double> y(n, 0.0);
@@ -70,6 +89,22 @@ FilterResult RunBaseline(const std::vector<double> &x, double alpha) {
           static_cast<double>(n) / (elapsed.count() / 1000.0)};
 }
 
+/**
+ * @brief Optimized 4-step lookahead parallel IIR autoregressive filter.
+ *
+ * Mathematical expansion over 4 steps:
+ *   y0 = x0 + alpha * y_prev
+ *   y1 = x1 + alpha * x0 + alpha^2 * y_prev
+ *   y2 = x2 + alpha * x1 + alpha^2 * x0 + alpha^3 * y_prev
+ *   y3 = x3 + alpha * x2 + alpha^2 * x1 + alpha^3 * x0 + alpha^4 * y_prev
+ *
+ * Exposes independent sub-terms that modern out-of-order execution pipelines
+ * can schedule across parallel superscalar ALU ports (IPC > 3.0).
+ *
+ * @param x Input sequence of double-precision floating-point samples.
+ * @param alpha Feedback decay coefficient.
+ * @return FilterResult containing the checksum and duration metrics.
+ */
 FilterResult RunOptimizedChallenge(const std::vector<double> &x, double alpha) {
   const size_t n = x.size();
   std::vector<double> y(n, 0.0);
@@ -121,6 +156,10 @@ FilterResult RunOptimizedChallenge(const std::vector<double> &x, double alpha) {
 
 }  // namespace hotpath::episode07
 
+/**
+ * @brief Main entrypoint for the Episode 07 community challenge harness.
+ * @return 0 if validation passes within numerical epsilon (1e-4), 1 otherwise.
+ */
 int main() {
   std::cout << "=========================================================\n"
             << "🔥 Hot Path C++ — Episode 07 Community Challenge 🔥\n"

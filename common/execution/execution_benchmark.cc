@@ -34,6 +34,10 @@ namespace {
 
 constexpr size_t kDataSize = 65'536;
 
+/**
+ * @brief Generates pseudo-random 64-bit unsigned integer data.
+ * @return Vector of 64-bit random values.
+ */
 std::vector<uint64_t> CreateData() {
   std::vector<uint64_t> data(kDataSize);
   std::mt19937_64 rng(42);
@@ -43,11 +47,19 @@ std::vector<uint64_t> CreateData() {
   return data;
 }
 
+/**
+ * @brief Retrieves cached static 64-bit integer benchmark data.
+ * @return Const reference to static dataset.
+ */
 const std::vector<uint64_t> &GetData() {
   static const auto kData = CreateData();
   return kData;
 }
 
+/**
+ * @brief Generates pseudo-random double precision floating-point data.
+ * @return Vector of random double values.
+ */
 std::vector<double> CreateFloatData() {
   std::vector<double> data(kDataSize);
   std::mt19937_64 rng(1337);
@@ -58,11 +70,21 @@ std::vector<double> CreateFloatData() {
   return data;
 }
 
+/**
+ * @brief Retrieves cached static double precision floating-point benchmark
+ * data.
+ * @return Const reference to static float dataset.
+ */
 const std::vector<double> &GetFloatData() {
   static const auto kData = CreateFloatData();
   return kData;
 }
 
+/**
+ * @brief Benchmarks non-linear hash accumulation with a serialized RAW
+ * dependency chain.
+ * @param state Google Benchmark runner state.
+ */
 void BM_DependentChain(benchmark::State &state) {
   const auto &data = GetData();
 
@@ -75,6 +97,10 @@ void BM_DependentChain(benchmark::State &state) {
 }
 BENCHMARK(BM_DependentChain);
 
+/**
+ * @brief Benchmarks scalar integer summation with a single accumulator.
+ * @param state Google Benchmark runner state.
+ */
 void BM_DependentSum(benchmark::State &state) {
   const auto &data = GetData();
 
@@ -87,6 +113,10 @@ void BM_DependentSum(benchmark::State &state) {
 }
 BENCHMARK(BM_DependentSum);
 
+/**
+ * @brief Benchmarks 4-way independent multi-accumulator integer summation.
+ * @param state Google Benchmark runner state.
+ */
 void BM_IndependentSum4Way(benchmark::State &state) {
   const auto &data = GetData();
 
@@ -99,6 +129,11 @@ void BM_IndependentSum4Way(benchmark::State &state) {
 }
 BENCHMARK(BM_IndependentSum4Way);
 
+/**
+ * @brief Benchmarks 8-way independent multi-accumulator integer summation (Zen
+ * 5 width).
+ * @param state Google Benchmark runner state.
+ */
 void BM_IndependentSum8Way(benchmark::State &state) {
   const auto &data = GetData();
 
@@ -111,6 +146,11 @@ void BM_IndependentSum8Way(benchmark::State &state) {
 }
 BENCHMARK(BM_IndependentSum8Way);
 
+/**
+ * @brief Benchmarks scalar floating-point accumulation (IEEE 754 serialized
+ * dependency).
+ * @param state Google Benchmark runner state.
+ */
 void BM_DependentFloatSum(benchmark::State &state) {
   const auto &data = GetFloatData();
 
@@ -123,6 +163,11 @@ void BM_DependentFloatSum(benchmark::State &state) {
 }
 BENCHMARK(BM_DependentFloatSum);
 
+/**
+ * @brief Benchmarks 4-way independent floating-point accumulation unlocking
+ * superscalar ILP.
+ * @param state Google Benchmark runner state.
+ */
 void BM_IndependentFloatSum4Way(benchmark::State &state) {
   const auto &data = GetFloatData();
 

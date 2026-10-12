@@ -33,6 +33,10 @@ namespace {
 
 constexpr size_t kDataSize = 65'536;
 
+/**
+ * @brief Generates pseudo-random 64-bit unsigned integer data.
+ * @return Vector of 64-bit random values.
+ */
 std::vector<uint64_t> CreateData() {
   std::vector<uint64_t> data(kDataSize);
   std::mt19937_64 rng(42);
@@ -42,11 +46,19 @@ std::vector<uint64_t> CreateData() {
   return data;
 }
 
+/**
+ * @brief Retrieves cached static 64-bit integer benchmark data.
+ * @return Const reference to static dataset.
+ */
 const std::vector<uint64_t> &GetData() {
   static const auto kData = CreateData();
   return kData;
 }
 
+/**
+ * @brief Generates pseudo-random double precision floating-point data.
+ * @return Vector of random double values.
+ */
 std::vector<double> CreateFloatData() {
   std::vector<double> data(kDataSize);
   std::mt19937_64 rng(1337);
@@ -57,6 +69,11 @@ std::vector<double> CreateFloatData() {
   return data;
 }
 
+/**
+ * @brief Retrieves cached static double precision floating-point benchmark
+ * data.
+ * @return Const reference to static float dataset.
+ */
 const std::vector<double> &GetFloatData() {
   static const auto kData = CreateFloatData();
   return kData;
@@ -64,7 +81,8 @@ const std::vector<double> &GetFloatData() {
 
 /**
  * @brief Serialized dependency chain: each iteration depends on the previous
- * result.
+ * result (RAW hazard).
+ * @param state Benchmark runner state.
  */
 void BM_DependentChain(benchmark::State &state) {
   const auto &data = GetData();
@@ -84,6 +102,7 @@ BENCHMARK(BM_DependentChain);
 /**
  * @brief Independent multi-pipeline accumulation: allows out-of-order execution
  * to dispatch 4 operations concurrently across superscalar execution ports.
+ * @param state Benchmark runner state.
  */
 void BM_IndependentPipelines(benchmark::State &state) {
   const auto &data = GetData();
@@ -105,7 +124,38 @@ void BM_IndependentPipelines(benchmark::State &state) {
 BENCHMARK(BM_IndependentPipelines);
 
 /**
+ * @brief Independent 8-way multi-pipeline accumulation: saturates wide
+ * superscalar execution engines (e.g. AMD Zen 5 integer ALU ports).
+ * @param state Benchmark runner state.
+ */
+void BM_IndependentPipelines8Way(benchmark::State &state) {
+  const auto &data = GetData();
+
+  for (auto _ : state) {
+    uint64_t acc0 = 0, acc1 = 0, acc2 = 0, acc3 = 0;
+    uint64_t acc4 = 0, acc5 = 0, acc6 = 0, acc7 = 0;
+    for (size_t i = 0; i < data.size(); i += 8) {
+      acc0 += data[i];
+      acc1 += data[i + 1];
+      acc2 += data[i + 2];
+      acc3 += data[i + 3];
+      acc4 += data[i + 4];
+      acc5 += data[i + 5];
+      acc6 += data[i + 6];
+      acc7 += data[i + 7];
+    }
+    uint64_t total =
+        ((acc0 + acc1) + (acc2 + acc3)) + ((acc4 + acc5) + (acc6 + acc7));
+    benchmark::DoNotOptimize(total);
+  }
+
+  state.SetItemsProcessed(state.iterations() * data.size());
+}
+BENCHMARK(BM_IndependentPipelines8Way);
+
+/**
  * @brief Floating-point scalar accumulation (IEEE 754 serialized dependency).
+ * @param state Benchmark runner state.
  */
 void BM_DependentFloatSum(benchmark::State &state) {
   const auto &data = GetFloatData();
@@ -124,6 +174,7 @@ BENCHMARK(BM_DependentFloatSum);
 
 /**
  * @brief 4-way independent floating-point accumulation unlocking ILP.
+ * @param state Benchmark runner state.
  */
 void BM_IndependentFloatSum4Way(benchmark::State &state) {
   const auto &data = GetFloatData();

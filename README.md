@@ -36,7 +36,7 @@
 | **Episode 04** | **Stop Locking Your Hash Maps! (perf, pprof & 831M Ops/Sec RCU Teaser)** | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
 | **Episode 05** | **How to Measure C++ Performance Without Fooling Yourself (Microbenchmarks & PMUs)** | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
 | **Episode 06** | **Stop Chasing Pointers: The Cost of Abstraction (OOP vs. std::variant)** | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
-| **Episode 07** | **Your CPU is Lying to You: Out-of-Order Execution & The Superscalar Pipeline** | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
+| **Episode 07** | **The Silicon Time Machine: Out-of-Order Execution & The Superscalar Pipeline** | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
 
 In Episode 07, Marcus deconstructs the Silicon Time Machine: how modern superscalar processors execute C++ instructions out of order using Tomasulo's algorithm, Register Renaming (eliminating false WAW/WAR hazards), and Reorder Buffers (ROBs). Learn why naive loops create fatal loop-carried dependency chains (RAW) that collapse 4-to-8-wide superscalar backends into 1-wide dirt roads, and how multi-accumulator pipelines unlock an 11.2x speedup! Includes the **Episode 07 Community Challenge** (`//common/execution:challenge` or `//episodes/07_out_of_order_execution:challenge`).
 
