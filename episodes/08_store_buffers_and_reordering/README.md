@@ -34,17 +34,19 @@ All benchmarks and multi-core hardware litmus experiments are measured on bare-m
 | Benchmark / Litmus Experiment | Batch / Trials | Latency | Per-Op Latency | Throughput | Speedup |
 | :--- | :---: | :---: | :---: | :---: | :---: |
 | `BM_StoreLoad_Relaxed` | 4,096 ops | **812 ns** | **0.20 ns/op** | **5.04 G ops/s** | **18.59x** |
-| `BM_StoreLoad_AcquireRelease` | 4,096 ops | **834 ns** | **0.20 ns/op** | **4.91 G ops/s** | **18.10x 🚀** |
-| `BM_StoreLoad_SeqCst` (`xchg` Drain) | 4,096 ops | 15,094 ns | 3.69 ns/op | 271.39 M ops/s | 1.00x (Baseline) |
-| `BM_SpscQueue_AcquireRelease` | 4,096 msgs | **3,717 ns** | **0.91 ns/msg** | **1.10 G msgs/s** | **8.82x 🚀** |
-| `BM_SpscQueue_SeqCst` | 4,096 msgs | 32,802 ns | 8.01 ns/msg | 124.89 M msgs/s | 1.00x (Baseline) |
+| `BM_StoreLoad_AcquireRelease` | 4,096 ops | **828 ns** | **0.20 ns/op** | **4.95 G ops/s** | **18.28x 🚀** |
+| `BM_StoreLoad_SeqCst` (`xchg` Drain) | 4,096 ops | 15,133 ns | 3.69 ns/op | 270.66 M ops/s | 1.00x (Baseline) |
+| `perf stat`: `AcquireRelease` IPC | 4,013,693,127 cycles | 23,496,748,990 insns | — | **5.85 IPC** | **16.71x Higher IPC 🚀** |
+| `perf stat`: `SeqCst` (`xchg`) IPC | 4,740,643,626 cycles | 1,673,438,885 insns | — | **0.35 IPC** | 1.00x (Pipeline Stalled) |
+| `BM_SpscQueue_AcquireRelease` | 4,096 msgs | **3,670 ns** | **0.90 ns/msg** | **1.12 G msgs/s** | **8.93x 🚀** |
+| `BM_SpscQueue_SeqCst` | 4,096 msgs | 32,764 ns | 8.00 ns/msg | 125.02 M msgs/s | 1.00x (Baseline) |
 | `BM_AtomicRMW_FetchAdd` (`threads:1`) | 4,096 ops | 15,125 ns | 3.69 ns/op | 270.84 M ops/s | Uncontended `lock add` |
 | `BM_AtomicRMW_FetchAdd` (`threads:2`) | 4,096 ops | 45,097 ns | 11.01 ns/op | 181.67 M ops/s | Cross-Core MESI RFO |
 | `BM_AtomicRMW_FetchAdd` (`threads:4`) | 4,096 ops | 86,447 ns | 21.11 ns/op | 189.55 M ops/s | 4-Core RFO Contention |
-| `challenge`: Dekker 4-Line (`relaxed`) | 200,000 trials | — | — | **755 (`r1=0, r2=0`)** | Reordered in Silicon! ⚡ |
+| `challenge`: Dekker 4-Line (`relaxed`) | 200,000 trials | — | — | **870 (`r1=0, r2=0`)** | Reordered in Silicon! ⚡ |
 | `challenge`: Dekker 4-Line (`seq_cst`) | 200,000 trials | — | — | **0 (`r1=0, r2=0`)** | 100% Consistent ✅ |
-| `challenge`: 2-Core SPSC (`seq_cst`) | 2,000,000 msgs | 61.93 ms | 30.97 ns/msg | 32.30 M msgs/s | 1.00x (Baseline) |
-| `challenge`: 2-Core SPSC (`acq_rel`) | 2,000,000 msgs | **14.02 ms** | **7.01 ns/msg** | **142.61 M msgs/s** | **4.42x 🚀** |
+| `challenge`: 2-Core SPSC (`seq_cst`) | 2,000,000 msgs | 62.78 ms | 31.39 ns/msg | 31.86 M msgs/s | 1.00x (Baseline) |
+| `challenge`: 2-Core SPSC (`acq_rel`) | 2,000,000 msgs | **13.52 ms** | **6.76 ns/msg** | **147.92 M msgs/s** | **4.64x 🚀** |
 
 ---
 
