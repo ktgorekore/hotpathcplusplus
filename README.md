@@ -491,7 +491,60 @@ bazel run -c opt //episodes/07_out_of_order_execution:challenge
 
 ---
 
+## 🧠 Episode 08: Store Buffers, Hardware Reordering & C++20 Atomics
+
+Located under [`common/store_buffer/`](common/store_buffer/) and [`episodes/08_store_buffers_and_reordering/`](episodes/08_store_buffers_and_reordering/), this module demonstrates how hardware Store Buffers and MESI cache coherency cause observable Store-Load reordering on real x86-64 silicon—and how C++20 `std::atomic` memory orderings (`relaxed`, `acquire`/`release`, and `seq_cst`) map to native CPU instructions.
+
+### Microarchitectural Fundamentals
+
+1. **The Hardware Store Buffer (Private FIFO Outbox):**
+   - Writing directly to L1D/L3 cache requires acquiring Exclusive/Modified ownership of the 64-byte cache line via the MESI coherency protocol (~12–40+ ns across cores).
+   - To avoid stalling the execution pipeline, each CPU core writes into its private **Store Buffer** in ~1 cycle and immediately moves on to subsequent instructions.
+2. **Store Forwarding vs. Store-Load Reordering:**
+   - A core snoops its own Store Buffer before querying L1D (**Store Forwarding**), preserving the single-threaded illusion.
+   - However, a core *cannot* see another core's Store Buffer. In Dekker's 4-line litmus test (`x = 1; r1 = y` on Core 0 and `y = 1; r2 = x` on Core 1), both loads bypass the buffered stores, reading `r1 == 0 && r2 == 0` from L1D before the Store Buffers drain!
+3. **x86-64 Total Store Order (TSO) vs. Weakly Ordered ARM64:**
+   - Under x86-64 TSO, hardware naturally preserves `Load->Load`, `Load->Store`, and `Store->Store` ordering, making `std::memory_order_acquire` and `std::memory_order_release` compile to plain `mov` instructions with **zero hardware fence overhead**.
+   - Only `std::memory_order_seq_cst` stores emit a locked `xchg` (or `mfence`), stalling the core until its entire Store Buffer drains to L1D.
+
+### 📊 Bare-Metal Benchmarks (AMD Ryzen 9 9950X Zen 5, 4,096 Ops/Batch)
+
+*Audited on AMD Ryzen 9 9950X 16-Core / 32-Thread (Zen 5 @ 5.1 GHz, 48 KiB L1D, 1 MiB L2, 64 MiB L3) with GCC 13.3 `-O3 -std=c++20 -march=native`:*
+
+| Benchmark Variant | Batch Latency | Per-Op / Per-Msg | Throughput | Speedup vs `seq_cst` |
+| :--- | :--- | :--- | :--- | :--- |
+| **`BM_StoreLoad_Relaxed`** | 812 ns | 0.20 ns/op | 5.04 G ops/s | **18.59x 🚀** |
+| **`BM_StoreLoad_AcquireRelease`** | **834 ns** | **0.20 ns/op** | **4.91 G ops/s** | **18.10x 🚀** |
+| **`BM_StoreLoad_SeqCst` (`xchg` drain)** | 15,094 ns | 3.69 ns/op | 271.39 M ops/s | 1.0x (Baseline) |
+| **`BM_SpscQueue_AcquireRelease`** | **3,717 ns** | **0.91 ns/msg** | **1.10 G msgs/s** | **8.82x 🚀** |
+| **`BM_SpscQueue_SeqCst`** | 32,802 ns | 8.01 ns/msg | 124.89 M msgs/s | 1.0x (Baseline) |
+| **`BM_AtomicRMW_FetchAdd` (1T / 2T / 4T)** | 15.1 / 45.1 / 86.4 µs | 3.69 / 11.01 / 21.11 ns/op | 270.9 / 90.8 / 47.4 M/s | `lock xadd` MESI Scaling |
+
+### 🏆 Episode 08 Community Challenge: Dekker Litmus & 2-Core SPSC Handoff
+
+[`common/store_buffer/challenge.cc`](common/store_buffer/challenge.cc) runs two live multi-threaded hardware experiments:
+- **Part 1 (Dekker 4-Line Store-Load Litmus Test, 200,000 trials):** Observes **755 / 200,000** impossible `r1 == 0 && r2 == 0` outcomes under `memory_order_relaxed` on Zen 5 silicon, and **0 / 200,000** under `memory_order_seq_cst`.
+- **Part 2 (2-Core SPSC Ring Buffer Handoff, 2,000,000 messages):** Replacing `seq_cst` (`61.93 ms`, `32.30 M msgs/s`) with `acquire`/`release` (`14.02 ms`, `142.61 M msgs/s`) delivers a **4.42x cross-core speedup** with verified checksum integrity (`0xac387236efc80`).
+
+### Running Episode 08 Tests & Benchmarks
+
+```bash
+# Run store_buffer unit tests
+bazel test //common/store_buffer:store_buffer_test
+
+# Run benchmarks (direct & episode alias)
+bazel run -c opt //common/store_buffer:store_buffer_benchmark
+bazel run -c opt //episodes/08_store_buffers_and_reordering:benchmark
+
+# Run Episode 08 Community Challenge
+bazel run -c opt //common/store_buffer:challenge
+bazel run -c opt //episodes/08_store_buffers_and_reordering:challenge
+```
+
+---
+
 ## 📜 License
 
 Licensed under the [Apache License, Version 2.0](LICENSE).  
 Copyright 2026 Hot Path C++ Authors.
+

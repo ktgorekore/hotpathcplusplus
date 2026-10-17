@@ -99,3 +99,18 @@ alias(
     actual = "//common/execution:challenge",
 )
 
+alias(
+    name = "store_buffer",
+    actual = "//common/store_buffer:store_buffer",
+)
+
+alias(
+    name = "store_buffer_benchmark",
+    actual = "//common/store_buffer:store_buffer_benchmark",
+)
+
+alias(
+    name = "store_buffer_challenge",
+    actual = "//common/store_buffer:challenge",
+)
+
