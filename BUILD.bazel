@@ -114,3 +114,19 @@ alias(
     actual = "//common/store_buffer:challenge",
 )
 
+alias(
+    name = "mesi_coherency",
+    actual = "//common/mesi_coherency:mesi_coherency",
+)
+
+alias(
+    name = "mesi_coherency_benchmark",
+    actual = "//common/mesi_coherency:mesi_coherency_benchmark",
+)
+
+alias(
+    name = "mesi_coherency_challenge",
+    actual = "//common/mesi_coherency:challenge",
+)
+
+

@@ -28,18 +28,28 @@
 
 ---
 
-## 📺 Featured Deep-Dive Episode
+## 📺 Featured Deep-Dive Tracks & Episodes
 
-| Episode | Title | Companion Video |
-| :--- | :--- | :--- |
-| **Episode 02 (AI)** | **How AI Actually Learns: Feed-Forward, Backprop, Mini-Batch SGD & C++ Kernels** | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
-| **Episode 03** | **Zero-Copy IPC at 286 GiB/s in C++20 (The Linux MMU Magic Mirror Hack!)** | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
-| **Episode 04** | **Stop Locking Your Hash Maps! (perf, pprof & 831M Ops/Sec RCU Teaser)** | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
-| **Episode 05** | **How to Measure C++ Performance Without Fooling Yourself (Microbenchmarks & PMUs)** | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
-| **Episode 06** | **Stop Chasing Pointers: The Cost of Abstraction (OOP vs. std::variant)** | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
-| **Episode 07** | **The Silicon Time Machine: Out-of-Order Execution & The Superscalar Pipeline** | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
+All episode companion benchmarks, challenges, and hardware verification suites are organized into two dedicated tracks under [`episodes/`](episodes/) to prevent path collisions:
 
-In Episode 07, Marcus deconstructs the Silicon Time Machine: how modern superscalar processors execute C++ instructions out of order using Tomasulo's algorithm, Register Renaming (eliminating false WAW/WAR hazards), and Reorder Buffers (ROBs). Learn why naive loops create fatal loop-carried dependency chains (RAW) that collapse 4-to-8-wide superscalar backends into 1-wide dirt roads, and how multi-accumulator pipelines unlock an 11.2x speedup! Includes the **Episode 07 Community Challenge** (`//common/execution:challenge` or `//episodes/07_out_of_order_execution:challenge`).
+### 🏎️ Track 1: High-Performance C++ & Bare-Metal Microarchitecture (`episodes/high_performance/`)
+
+| Episode | Title | Directory / Bazel Package | Companion Video |
+| :--- | :--- | :--- | :--- |
+| **Episode 03** | **Zero-Copy IPC at 286 GiB/s in C++20 (The Linux MMU Magic Mirror Hack!)** | [`common/shared_memory/`](common/shared_memory/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
+| **Episode 04** | **Stop Locking Your Hash Maps! (perf, pprof & 831M Ops/Sec RCU Teaser)** | [`common/concurrency/`](common/concurrency/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
+| **Episode 05** | **How to Measure C++ Performance Without Fooling Yourself (Microbenchmarks & PMUs)** | [`common/measurement/`](common/measurement/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
+| **Episode 06** | **Stop Chasing Pointers: The Cost of Abstraction (OOP vs. std::variant)** | [`episodes/high_performance/06_cost_of_abstraction/`](episodes/high_performance/06_cost_of_abstraction/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
+| **Episode 07** | **The Silicon Time Machine: Out-of-Order Execution & The Superscalar Pipeline** | [`episodes/high_performance/07_out_of_order_execution/`](episodes/high_performance/07_out_of_order_execution/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
+| **Episode 08** | **The Concurrency Mystery: Store Buffers, Total Store Order & C++20 Atomics** | [`episodes/high_performance/08_store_buffers_and_reordering/`](episodes/high_performance/08_store_buffers_and_reordering/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
+| **Episode 09** | **Inside the Silicon Switchboard: MESI Coherency, Split Locks & CAS Storms** | [`episodes/high_performance/09_mesi_and_atomics/`](episodes/high_performance/09_mesi_and_atomics/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
+
+### 🧠 Track 2: AI & Deep Learning Systems (`episodes/ai/`)
+
+| Episode | Title | Directory / Bazel Package | Companion Video |
+| :--- | :--- | :--- | :--- |
+| **Episode 01 (AI)** | **Deep Learning Foundations & Shortcut Learning Audits (Depth vs. Shallow & Grad-CAM)** | [`episodes/ai/01_deep_learning_foundations/`](episodes/ai/01_deep_learning_foundations/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
+| **Episode 02 (AI)** | **How AI Actually Learns: Feed-Forward, Backprop, Mini-Batch SGD & C++ Kernels** | [`episodes/ai/02_how_ai_learns/`](episodes/ai/02_how_ai_learns/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
 
 ---
 
@@ -424,18 +434,18 @@ bazel test //common/dispatch/...
 
 # Run dynamic dispatch benchmarks (direct & episode alias)
 bazel run -c opt //common/dispatch:dispatch_benchmark
-bazel run -c opt //episodes/06_cost_of_abstraction:benchmark
+bazel run -c opt //episodes/high_performance/06_cost_of_abstraction:benchmark
 
 # Run Episode 06 Community Challenge
 bazel run -c opt //common/dispatch:challenge
-bazel run -c opt //episodes/06_cost_of_abstraction:challenge
+bazel run -c opt //episodes/high_performance/06_cost_of_abstraction:challenge
 ```
 
 ---
 
 ## ⚡ Episode 07: Out-of-Order Execution & The Superscalar Pipeline
 
-Located under [`common/execution/`](common/execution/) and [`episodes/07_out_of_order_execution/`](episodes/07_out_of_order_execution/), this module demonstrates how modern superscalar processors execute C++ instructions out of order and how software dependency chains dictate real silicon throughput.
+Located under [`common/execution/`](common/execution/) and [`episodes/high_performance/07_out_of_order_execution/`](episodes/high_performance/07_out_of_order_execution/), this module demonstrates how modern superscalar processors execute C++ instructions out of order and how software dependency chains dictate real silicon throughput.
 
 ### Microarchitectural Fundamentals
 
@@ -483,18 +493,18 @@ bazel test //common/execution:execution_pipeline_test
 
 # Run benchmarks (direct & episode alias)
 bazel run -c opt //common/execution:execution_benchmark
-bazel run -c opt //episodes/07_out_of_order_execution:benchmark
+bazel run -c opt //episodes/high_performance/07_out_of_order_execution:benchmark
 
 # Run Episode 07 Community Challenge
 bazel run -c opt //common/execution:challenge
-bazel run -c opt //episodes/07_out_of_order_execution:challenge
+bazel run -c opt //episodes/high_performance/07_out_of_order_execution:challenge
 ```
 
 ---
 
 ## 🧠 Episode 08: Store Buffers, Hardware Reordering & C++20 Atomics
 
-Located under [`common/store_buffer/`](common/store_buffer/) and [`episodes/08_store_buffers_and_reordering/`](episodes/08_store_buffers_and_reordering/), this module demonstrates how hardware Store Buffers and MESI cache coherency cause observable Store-Load reordering on real x86-64 silicon—and how C++20 `std::atomic` memory orderings (`relaxed`, `acquire`/`release`, and `seq_cst`) map to native CPU instructions.
+Located under [`common/store_buffer/`](common/store_buffer/) and [`episodes/high_performance/08_store_buffers_and_reordering/`](episodes/high_performance/08_store_buffers_and_reordering/), this module demonstrates how hardware Store Buffers and MESI cache coherency cause observable Store-Load reordering on real x86-64 silicon—and how C++20 `std::atomic` memory orderings (`relaxed`, `acquire`/`release`, and `seq_cst`) map to native CPU instructions.
 
 ### Microarchitectural Fundamentals
 
@@ -535,11 +545,45 @@ bazel test //common/store_buffer:store_buffer_test
 
 # Run benchmarks (direct & episode alias)
 bazel run -c opt //common/store_buffer:store_buffer_benchmark
-bazel run -c opt //episodes/08_store_buffers_and_reordering:benchmark
+bazel run -c opt //episodes/high_performance/08_store_buffers_and_reordering:benchmark
 
 # Run Episode 08 Community Challenge
 bazel run -c opt //common/store_buffer:challenge
-bazel run -c opt //episodes/08_store_buffers_and_reordering:challenge
+bazel run -c opt //episodes/high_performance/08_store_buffers_and_reordering:challenge
+```
+
+---
+
+## 🔄 Episode 09: Inside the Silicon Switchboard (MESI, Split Locks & CAS Storms)
+
+Located under [`common/mesi_coherency/`](common/mesi_coherency/) and [`episodes/high_performance/09_mesi_and_atomics/`](episodes/high_performance/09_mesi_and_atomics/), this module explores how 64-byte cache lines physically move across multi-core processors under the MESI/MOESI cache coherency protocol, how hardware Invalidation Queues operate, why unaligned atomics trigger catastrophic Global Bus Locks, and how Read-Before-CAS (TTAS) tames 16-core `compare_exchange` RFO storms.
+
+### Microarchitectural Fundamentals
+
+1. **MESI / MOESI Coherency & Request For Ownership (RFO):**
+   - **Shared (`S`):** Up to 16 cores can simultaneously cache and read a 64-byte line at L1D speed (`0.23 ns/op`, `69.60 G ops/s` aggregate) with **zero interconnect broadcasts**.
+   - **Exclusive (`E`) $\rightarrow$ Modified (`M`):** A single core reading a cold line enters `Exclusive (E)` and upgrades silently to `Modified (M)` in **0 interconnect cycles**.
+   - **Shared (`S`) $\rightarrow$ Modified (`M`):** Writing to a shared line (`fetch_add`) broadcasts a **Request For Ownership (RFO)** across the L3 ring and Infinity Fabric (GMI3), invalidating all 15 peer cores (`S` $\rightarrow$ `I`).
+2. **Hardware Invalidation Queues ("The Monday 8:01 AM Inbox"):**
+   - Cores immediately enqueue incoming `INV` probes into a hardware **Invalidation Queue** and fire an instant `INV-ACK` without stalling the local L1D port, draining the queue on `std::memory_order_acquire`.
+3. **The Split-Lock Trap (`#pragma pack(1)` Straddling a 64-Byte Boundary):**
+   - Placing an 8-byte `std::atomic<uint64_t>` at byte offset 60 straddles Cache Line A (`bytes 60..63`) and Cache Line B (`bytes 64..67`), forcing a **Global Bus Lock** (`795.96 ns/op` vs `3.67 ns/op` — **214x slower!**).
+4. **The `compare_exchange` RFO Storm & Read-Before-CAS (TTAS):**
+   - On x86-64, `lock cmpxchg` demands `Modified (M)` ownership **before** comparing. Under 16-core contention, failing threads flood the bus with RFOs. Spinning on `load(std::memory_order_relaxed)` + `_mm_pause()` keeps waiting cores in `Shared (S)` inside L1D (`130.7M L1-dcache-loads`).
+
+### Running Episode 09 Tests & Benchmarks
+
+```bash
+# Run mesi_coherency unit tests
+bazel test //common/mesi_coherency:mesi_coherency_test
+
+# Run benchmarks (direct & episode alias)
+bazel run -c opt //common/mesi_coherency:mesi_coherency_benchmark
+bazel run -c opt //episodes/high_performance/09_mesi_and_atomics:benchmark
+
+# Run Episode 09 Community Challenge
+bazel run -c opt //common/mesi_coherency:challenge
+bazel run -c opt //episodes/high_performance/09_mesi_and_atomics:challenge
 ```
 
 ---
