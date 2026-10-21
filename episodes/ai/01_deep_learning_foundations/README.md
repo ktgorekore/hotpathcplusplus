@@ -18,7 +18,7 @@
 
 [![YouTube Channel](https://img.shields.io/badge/YouTube-Hot%20Path%20C%2B%2B-red?logo=youtube)](https://youtube.com/@HotPathCpp)
 [![PyTorch 2.14](https://img.shields.io/badge/PyTorch-2.14%20CUDA-orange.svg)](https://pytorch.org/)
-[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](../../LICENSE)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](../../../LICENSE)
 
 Official companion code for **Hot Path C++ Episode 01 Shorts Part 2 & Part 3**:
 - **Part 2:** *What is "Deep" Learning Anyway? (The Middle Management Metaphor & Dimensionality Reduction)*
@@ -73,7 +73,7 @@ python3 husky_wolf_shortcut_audit.py
 
 ```bash
 # Clone and run
-cd episodes/01_deep_learning_foundations
+cd episodes/ai/01_deep_learning_foundations
 python3 benchmark_depth_reduction.py
 python3 husky_wolf_shortcut_audit.py
 ```

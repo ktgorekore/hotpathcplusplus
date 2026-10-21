@@ -100,10 +100,10 @@ Following our single-threaded deep dive into Out-of-Order Execution in Episode 0
 
 ```bash
 # 1. Run Google Benchmark suite
-bazel run -c opt //episodes/08_store_buffers_and_reordering:benchmark
+bazel run -c opt //episodes/high_performance/08_store_buffers_and_reordering:benchmark
 
 # 2. Run Community Concurrency Challenge (Dekker Litmus + Cross-Core SPSC)
-bazel run -c opt //episodes/08_store_buffers_and_reordering:challenge
+bazel run -c opt //episodes/high_performance/08_store_buffers_and_reordering:challenge
 
 # 3. Render Short 8A audioless animated slides (8 scenes)
 python3 episodes/08_store_buffers_and_reordering/shorts/tools/generate_shorts_8a_materials.py

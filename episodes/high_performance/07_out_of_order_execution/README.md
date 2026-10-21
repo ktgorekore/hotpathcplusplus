@@ -157,10 +157,10 @@ double total = (sum0 + sum1) + (sum2 + sum3);
 
 ```bash
 # 1. Run Google Benchmark suite
-bazel run -c opt //episodes/07_out_of_order_execution:benchmark
+bazel run -c opt //episodes/high_performance/07_out_of_order_execution:benchmark
 
 # 2. Run community challenge
-bazel run -c opt //episodes/07_out_of_order_execution:challenge
+bazel run -c opt //episodes/high_performance/07_out_of_order_execution:challenge
 
 # 3. Re-render Short 7A materials
 python3 episodes/07_out_of_order_execution/shorts/tools/generate_shorts_materials.py

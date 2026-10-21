@@ -19,7 +19,7 @@
 [![YouTube Channel](https://img.shields.io/badge/YouTube-Hot%20Path%20C%2B%2B-red?logo=youtube)](https://youtube.com/@HotPathCpp)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://en.cppreference.com/w/cpp/20)
 [![PyTorch CUDA](https://img.shields.io/badge/PyTorch-CUDA-orange.svg)](https://pytorch.org/)
-[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](../../LICENSE)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](../../../LICENSE)
 
 Official open-source C++20 and PyTorch companion code for **Episode 02**:
 - **Full Masterclass:** *How AI Actually Learns: From 99% Wrong to 99.8% Right (Inside an AI Brain)*
@@ -42,8 +42,8 @@ Audited on 32-thread x86-64 Linux (`-O3 -std=c++20 -march=native`):
 
 ### Run with Bazel 9
 ```bash
-bazel run -c opt //episodes/02_how_ai_learns:benchmark
-bazel run -c opt //episodes/02_how_ai_learns:challenge
+bazel run -c opt //episodes/ai/02_how_ai_learns:benchmark
+bazel run -c opt //episodes/ai/02_how_ai_learns:challenge
 ```
 
 ---
@@ -56,8 +56,8 @@ bazel run -c opt //episodes/02_how_ai_learns:challenge
 4. **`optimizers_saddle_ravine.py`**: Simulates IEEE-754 `NaN` overflow when the learning rate exceeds `2 / lambda_max`, and compares Vanilla SGD wall-bouncing against Heavy-Ball Momentum in a narrow 50:1 ravine.
 
 ```bash
-python3 episodes/02_how_ai_learns/vram_activation_benchmark.py
-python3 episodes/02_how_ai_learns/symmetry_and_initialization.py
-python3 episodes/02_how_ai_learns/backprop_chain_rule_autograd.py
-python3 episodes/02_how_ai_learns/optimizers_saddle_ravine.py
+python3 episodes/ai/02_how_ai_learns/vram_activation_benchmark.py
+python3 episodes/ai/02_how_ai_learns/symmetry_and_initialization.py
+python3 episodes/ai/02_how_ai_learns/backprop_chain_rule_autograd.py
+python3 episodes/ai/02_how_ai_learns/optimizers_saddle_ravine.py
 ```

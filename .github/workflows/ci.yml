@@ -46,7 +46,7 @@ jobs:
 
       - name: Enforce Google C++ formatting
         run: |
-          find common -name '*.h' -o -name '*.cc' | xargs clang-format --dry-run --Werror -style=Google
+          find common episodes -name '*.h' -o -name '*.cc' | xargs clang-format --dry-run --Werror -style=Google
 
   build-and-test:
     name: Build & Test (${{ matrix.compiler.name }})
