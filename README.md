@@ -43,6 +43,7 @@ All episode companion benchmarks, challenges, and hardware verification suites a
 | **Episode 07** | **The Silicon Time Machine: Out-of-Order Execution & The Superscalar Pipeline** | [`episodes/high_performance/07_out_of_order_execution/`](episodes/high_performance/07_out_of_order_execution/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
 | **Episode 08** | **The Concurrency Mystery: Store Buffers, Total Store Order & C++20 Atomics** | [`episodes/high_performance/08_store_buffers_and_reordering/`](episodes/high_performance/08_store_buffers_and_reordering/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
 | **Episode 09** | **Inside the Silicon Switchboard: MESI Coherency, Split Locks & CAS Storms** | [`episodes/high_performance/09_mesi_and_atomics/`](episodes/high_performance/09_mesi_and_atomics/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
+| **Episode 10** | **Why a 3-Line C++ Spinlock Is 8x SLOWER Than `std::mutex` (And the 1-Line Fix)** | [`episodes/high_performance/10_locks_under_the_hood/`](episodes/high_performance/10_locks_under_the_hood/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
 
 ### 🧠 Track 2: AI & Deep Learning Systems (`episodes/ai/`)
 
@@ -584,6 +585,39 @@ bazel run -c opt //episodes/high_performance/09_mesi_and_atomics:benchmark
 # Run Episode 09 Community Challenge
 bazel run -c opt //common/mesi_coherency:challenge
 bazel run -c opt //episodes/high_performance/09_mesi_and_atomics:challenge
+```
+
+---
+
+## 🔐 Episode 10: Locks Under the Hood (Spinlocks, TTAS, x86 `PAUSE` & Linux `futex`)
+
+Located under [`common/locks_under_the_hood/`](common/locks_under_the_hood/) and [`episodes/high_performance/10_locks_under_the_hood/`](episodes/high_performance/10_locks_under_the_hood/), this module deconstructs why a textbook 3-line C++20 `std::atomic_flag` spinlock is **7.8x slower** than a tuned TTAS spinlock (`168.4 ns` vs `21.6 ns`) and **4,232x slower** under 32-thread oversubscription (`91,420.5 ns` vs `39.2 ns`), while proving that an uncontended `std::mutex::lock()` executes in `13.82 ns` with **zero OS kernel syscalls**.
+
+### Microarchitectural & OS Kernel Fundamentals
+
+1. **The 3-Line Test-and-Set (`TAS`) Spinlock Trap (`lock xchg`):**
+   - `while (flag.test_and_set(std::memory_order_acquire))` compiles to `xchg` on x86-64, which asserts an implicit hardware `LOCK` prefix.
+   - Even when the lock is already `1` and `xchg` overwrites `1` with `1`, the cache controller broadcasts a MESI Request For Ownership (**RFO**) demanding `Modified (M)` state, starving the lock holder's Store Buffer when it tries to write `0` on `unlock()`.
+2. **Test-and-Test-and-Set (`TTAS`) & x86 `PAUSE` (`_mm_pause()` / `F3 90`):**
+   - Spinning on `locked.load(std::memory_order_relaxed)` keeps all 15 waiting cores in the MESI **`Shared (S)`** state (`0.0 GB/s` interconnect traffic), dropping 16-core handoff latency from `168.4 ns` to `49.2 ns`.
+   - Adding `_mm_pause()` (`pause` / `rep nop`) throttles speculative loop unrolling in the 448-entry **Reorder Buffer (ROB)** and Load Queue, preventing a ~150-cycle **Memory Order Machine Clear** pipeline flush when `unlock()` invalidates the cache line and dropping handoff latency to **`21.6 ns`**.
+3. **The 3-State Linux `futex` (`SYS_futex`) & The Oversubscription Preemption Cliff:**
+   - Uncontended `std::mutex::lock()` (`pthread_mutex_lock`) executes a single Ring 3 `lock cmpxchg` (`0 -> 1`) in **`13.82 ns`** (**zero syscalls**), only transitioning to State `2` and calling `syscall(SYS_futex, FUTEX_WAIT_PRIVATE, 2)` under contention.
+   - When 32 active threads run on 16 physical cores, OS scheduler preemption of the lock holder causes pure userspace spinlocks to collapse to **`38,410.6 ns` – `91,420.5 ns/op`**, whereas `AdaptiveFutexMutex` and `Cpp20AtomicWaitLock` (`std::atomic::wait`) hold steady at **`39.20 ns/op`**.
+
+### Running Episode 10 Tests & Benchmarks
+
+```bash
+# Run locks_under_the_hood unit tests
+bazel test //common/locks_under_the_hood:locks_under_the_hood_test
+
+# Run benchmarks (direct & episode alias)
+bazel run -c opt //common/locks_under_the_hood:locks_under_the_hood_benchmark
+bazel run -c opt //episodes/high_performance/10_locks_under_the_hood:benchmark
+
+# Run Episode 10 Community Challenge
+bazel run -c opt //common/locks_under_the_hood:challenge
+bazel run -c opt //episodes/high_performance/10_locks_under_the_hood:challenge
 ```
 
 ---

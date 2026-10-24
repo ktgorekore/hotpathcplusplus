@@ -129,4 +129,20 @@ alias(
     actual = "//common/mesi_coherency:challenge",
 )
 
+alias(
+    name = "locks_under_the_hood",
+    actual = "//common/locks_under_the_hood:locks_under_the_hood",
+)
+
+alias(
+    name = "locks_under_the_hood_benchmark",
+    actual = "//common/locks_under_the_hood:locks_under_the_hood_benchmark",
+)
+
+alias(
+    name = "locks_under_the_hood_challenge",
+    actual = "//common/locks_under_the_hood:challenge",
+)
+
+
 
