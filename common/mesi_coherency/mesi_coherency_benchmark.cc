@@ -14,10 +14,12 @@
 
 /**
  * @file mesi_coherency_benchmark.cc
- * @brief Google Benchmark suite for Episode 09 (MESI/MOESI Protocol,
- * Invalidation Queues, CAS Storms & Split Locks).
+ * @brief Google Benchmark suite for Episode 09: Production-Realistic MESI
+ * Cache Coherency, Sharded Telemetry Counters, Batched ID Leasing,
+ * `tcmalloc`-style Thread Magazines, and `#pragma pack(1)` Split Locks.
  */
 
+#include <immintrin.h>
 #include <pthread.h>
 #include <sched.h>
 
@@ -39,11 +41,13 @@ namespace {
 inline void PinThreadToCore(int core_id) noexcept {
   cpu_set_t cpuset;
   CPU_ZERO(&cpuset);
-  CPU_SET(core_id, &cpuset);
+  CPU_SET(core_id % 16, &cpuset);
   pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
 }
 
 CacheLineAlignedAtomic g_shared_line;
+ShardedCounter<64> g_sharded_counter;
+BatchedIdGenerator<64> g_batched_id_gen;
 
 /**
  * @brief 1. BM_AtomicLoad_SharedScaling
@@ -96,7 +100,7 @@ BENCHMARK(BM_AtomicRMW_TopologyPingPong)
     ->UseRealTime();
 
 /**
- * @brief Contended `fetch_add` RMW scaling from 1 to 16 physical cores.
+ * @brief 3A. Contended global `fetch_add(1)` RMW scaling (1T vs 16T RFO storm).
  * @param state Google Benchmark runner state.
  */
 void BM_AtomicRMW_FetchAdd(benchmark::State& state) {
@@ -112,12 +116,47 @@ void BM_AtomicRMW_FetchAdd(benchmark::State& state) {
 }
 BENCHMARK(BM_AtomicRMW_FetchAdd)->Threads(1)->Threads(16)->UseRealTime();
 
+/**
+ * @brief 3B. Production Fix 1B: Batched ID Lease (`fetch_add(64)`).
+ * @param state Google Benchmark runner state.
+ */
+void BM_TraceId_BatchedLease64(benchmark::State& state) {
+  PinThreadToCore(state.thread_index());
+  BatchedIdGenerator<64>::ThreadLease lease{};
+  for (auto _ : state) {
+    for (int i = 0; i < 1024; ++i) {
+      std::uint64_t id = g_batched_id_gen.NextId(lease);
+      benchmark::DoNotOptimize(id);
+    }
+  }
+  state.SetItemsProcessed(state.iterations() * 1024);
+}
+BENCHMARK(BM_TraceId_BatchedLease64)->Threads(16)->UseRealTime();
+
+/**
+ * @brief 3C. Production Fix 1A: 64B-Aligned Per-Core `ShardedCounter<64>`
+ * (Envoy / Linux `percpu_counter` / `folly::ThreadCachedInt`).
+ * @param state Google Benchmark runner state.
+ */
+void BM_TelemetryCounter_ShardedAlignas64(benchmark::State& state) {
+  const std::size_t tid = static_cast<std::size_t>(state.thread_index());
+  PinThreadToCore(state.thread_index());
+  for (auto _ : state) {
+    for (int i = 0; i < 1024; ++i) {
+      g_sharded_counter.Increment(tid, 1);
+    }
+  }
+  benchmark::DoNotOptimize(g_sharded_counter);
+  state.SetItemsProcessed(state.iterations() * 1024);
+}
+BENCHMARK(BM_TelemetryCounter_ShardedAlignas64)->Threads(16)->UseRealTime();
+
 NaiveCasSpinlock g_naive_lock;
 ReadBeforeCasSpinlock g_ttas_lock;
 SharedOrderBookLedger g_shared_ledger;
 
 /**
- * @brief 3A. BM_CASLoop_Naive
+ * @brief 4A. BM_CASLoop_Naive (16-Thread `compare_exchange_weak` RFO storm).
  * @param state Google Benchmark runner state.
  */
 void BM_CASLoop_Naive(benchmark::State& state) {
@@ -130,10 +169,11 @@ void BM_CASLoop_Naive(benchmark::State& state) {
   benchmark::DoNotOptimize(g_shared_ledger);
   state.SetItemsProcessed(state.iterations());
 }
-BENCHMARK(BM_CASLoop_Naive)->Threads(16)->UseRealTime();
+BENCHMARK(BM_CASLoop_Naive)->Threads(1)->Threads(16)->UseRealTime();
 
 /**
- * @brief 3B. BM_CASLoop_ReadBeforeCAS
+ * @brief 4B. BM_CASLoop_ReadBeforeCAS (Level 1 Fix: `_mm_pause()` + Shared S
+ * load backoff).
  * @param state Google Benchmark runner state.
  */
 void BM_CASLoop_ReadBeforeCAS(benchmark::State& state) {
@@ -148,10 +188,36 @@ void BM_CASLoop_ReadBeforeCAS(benchmark::State& state) {
 }
 BENCHMARK(BM_CASLoop_ReadBeforeCAS)->Threads(16)->UseRealTime();
 
+/**
+ * @brief 4C. BM_BufferPool_ThreadMagazine32 (Level 2 Fix: `tcmalloc` /
+ * `mimalloc`-style Per-Thread Magazine transferring batches of 32 buffers).
+ * @param state Google Benchmark runner state.
+ */
+void BM_BufferPool_ThreadMagazine32(benchmark::State& state) {
+  PinThreadToCore(state.thread_index());
+  std::uint64_t local_mag_count = 32;
+  for (auto _ : state) {
+    if (local_mag_count == 0) [[unlikely]] {
+      // Refill 32 buffers in a single central batch CAS
+      g_ttas_lock.Lock();
+      g_shared_ledger.RecordExecution(320, 100);
+      g_ttas_lock.Unlock();
+      local_mag_count = 32;
+    }
+    --local_mag_count;
+    benchmark::DoNotOptimize(local_mag_count);
+  }
+  state.SetItemsProcessed(state.iterations());
+}
+BENCHMARK(BM_BufferPool_ThreadMagazine32)->Threads(16)->UseRealTime();
+
 alignas(128) std::uint8_t g_raw_arena[256];
 
 /**
- * @brief 4. BM_SplitLock_CacheLineBoundary
+ * @brief 5. BM_SplitLock_CacheLineBoundary
+ * - Arg(0)  = Byte Offset 0  (Aligned inside 1 cache line -> L1D Cache Lock)
+ * - Arg(56) = Byte Offset 56 (Aligned at end of cache line -> L1D Cache Lock)
+ * - Arg(60) = Byte Offset 60 (Straddles two 64B cache lines -> Global Bus Lock)
  * @param state Google Benchmark runner state.
  */
 void BM_SplitLock_CacheLineBoundary(benchmark::State& state) {

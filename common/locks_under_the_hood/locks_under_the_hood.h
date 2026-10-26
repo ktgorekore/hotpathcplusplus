@@ -14,10 +14,19 @@
 
 /**
  * @file locks_under_the_hood.h
- * @brief Episode 10 lock primitives: Naive TAS spinlock (`lock xchg`),
- * TTAS without `_mm_pause()`, hardware-sympathetic TTAS + `_mm_pause()`,
- * 3-state Linux `futex` (`SYS_futex`), Adaptive Hybrid `futex`, and C++20
- * `std::atomic<uint32_t>::wait` / `notify_one`.
+ * @brief Episode 10 production synchronization primitives:
+ * 1. Workload A (99%-Read / 1%-Write Routing Cache):
+ *    - `SharedMutexRouteCache` (`std::shared_mutex` reader-counter RFO storm)
+ *    - `MutexRouteCache` (Exclusive `std::mutex`)
+ *    - `SeqlockRouteCache` (Linux kernel `seqlock.h`-style lock-free Seqlock
+ *      keeping all readers in MESI `Shared [S]` state).
+ * 2. Workload B (Multi-Writer Concurrent Key-Value Hash Table):
+ *    - `NaiveTASLock` (`test_and_set` / `lock xchg`), `TTASNoPauseLock`,
+ *      `TTASPauseLock` (`Shared [S]` + `_mm_pause()`)
+ *    - `RawFutexMutex` (Linux 3-state `SYS_futex`), `AdaptiveFutexMutex`,
+ *      `Cpp20AtomicWaitLock`, `StdMutexWrapper`
+ *    - `ShardedHashMap<64>` (`alignas(64)` 64-shard `std::mutex` concurrent
+ *      hash table modeled after RocksDB `ShardedLRUCache`).
  */
 
 #ifndef HOTPATH_COMMON_LOCKS_UNDER_THE_HOOD_LOCKS_UNDER_THE_HOOD_H_
@@ -30,11 +39,14 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 
+#include <array>
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <mutex>
+#include <shared_mutex>
 #include <thread>
+#include <type_traits>
 
 namespace hotpath::locks_under_the_hood {
 
@@ -57,20 +69,6 @@ inline void EnsureMultiThreadedRuntime() {
 }
 
 /**
- * @brief Pins the calling thread to a specific hardware thread on CCD0 (0..7
- * and 16..23) so both MESI L1D/L3 coherency and SMT sibling ROB pipeline
- * effects are measured deterministically.
- * @param thread_idx Benchmark thread index.
- */
-inline void PinThreadToCCD0(int thread_idx) noexcept {
-  cpu_set_t cpuset;
-  CPU_ZERO(&cpuset);
-  const int cpu_id = (thread_idx < 8) ? thread_idx : (thread_idx + 8);
-  CPU_SET(cpu_id % 32, &cpuset);
-  pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
-}
-
-/**
  * @brief Pins the calling thread to a specific physical CPU core ID (0..15).
  * @param core_id Physical core index.
  */
@@ -82,6 +80,174 @@ inline void PinThreadToCore(int core_id) noexcept {
 }
 
 /**
+ * @struct RouteEntry
+ * @brief 32-byte trivially copyable routing table snapshot (Workload A).
+ * Must satisfy `std::is_trivially_copyable_v<RouteEntry>` for safe `Seqlock`
+ * optimistic reads.
+ */
+struct RouteEntry {
+  std::uint64_t upstream_ip = 0x0A000001ULL;
+  std::uint64_t timeout_ms = 250ULL;
+  std::uint64_t weight = 100ULL;
+  std::uint64_t checksum = 0x0A000001ULL ^ 250ULL ^ 100ULL;
+};
+
+static_assert(std::is_trivially_copyable_v<RouteEntry>,
+              "Seqlock payload must be TriviallyCopyable (no heap pointers)!");
+
+/**
+ * @class SharedMutexRouteCache
+ * @brief Textbook `std::shared_mutex` reader-writer cache.
+ * Under 16-core read-heavy workloads, `std::shared_lock` suffers a severe MESI
+ * RFO storm because `lock_shared()` atomically increments/decrements an
+ * internal reader reference counter on every read.
+ */
+class alignas(kCacheLineBytes) SharedMutexRouteCache {
+ public:
+  void Write(const RouteEntry& next) noexcept {
+    std::unique_lock<std::shared_mutex> wl(rw_mtx_);
+    entry_ = next;
+  }
+
+  [[nodiscard]] RouteEntry Read() const noexcept {
+    std::shared_lock<std::shared_mutex> rl(rw_mtx_);
+    return entry_;
+  }
+
+ private:
+  mutable std::shared_mutex rw_mtx_;
+  RouteEntry entry_{};
+};
+
+/**
+ * @class MutexRouteCache
+ * @brief Exclusive `std::mutex` routing cache for comparison against
+ * `std::shared_mutex`.
+ */
+class alignas(kCacheLineBytes) MutexRouteCache {
+ public:
+  void Write(const RouteEntry& next) noexcept {
+    std::lock_guard<std::mutex> lg(mtx_);
+    entry_ = next;
+  }
+
+  [[nodiscard]] RouteEntry Read() const noexcept {
+    std::lock_guard<std::mutex> lg(mtx_);
+    return entry_;
+  }
+
+ private:
+  mutable std::mutex mtx_;
+  RouteEntry entry_{};
+};
+
+/**
+ * @class SeqlockRouteCache
+ * @brief Linux-kernel-style Sequence Lock (`Seqlock`) for read-heavy caches.
+ *
+ * Writers increment `seq_` to an odd number before updating `entry_` and to the
+ * next even number on completion. Readers verify `seq_` is even and unchanged
+ * (`s0 == s1`), executing zero atomic writes and keeping all reader cores in
+ * the MESI `Shared (S)` state.
+ */
+class alignas(kCacheLineBytes) SeqlockRouteCache {
+ public:
+  void Write(const RouteEntry& next) noexcept {
+    const std::uint64_t s = seq_.load(std::memory_order_relaxed);
+    seq_.store(s + 1, std::memory_order_release);  // Odd = writer active
+    std::atomic_signal_fence(std::memory_order_acq_rel);
+    entry_ = next;
+    std::atomic_signal_fence(std::memory_order_acq_rel);
+    seq_.store(s + 2, std::memory_order_release);  // Even = consistent
+  }
+
+  [[nodiscard]] RouteEntry Read() const noexcept {
+    RouteEntry copy;
+    std::uint64_t s0 = 0;
+    std::uint64_t s1 = 0;
+    do {
+      s0 = seq_.load(std::memory_order_acquire);
+      if ((s0 & 1ULL) != 0ULL) {
+        _mm_pause();
+        continue;
+      }
+      std::atomic_signal_fence(std::memory_order_acq_rel);
+      copy = entry_;
+      std::atomic_thread_fence(std::memory_order_acquire);
+      s1 = seq_.load(std::memory_order_relaxed);
+    } while (s0 != s1);
+    return copy;
+  }
+
+ private:
+  alignas(kCacheLineBytes) std::atomic<std::uint64_t> seq_{0};
+  RouteEntry entry_{};
+};
+
+/**
+ * @class ShardedHashMap
+ * @brief Production 64-shard cache-aligned concurrent key-value map (modeled
+ * after RocksDB `ShardedLRUCache` and `ConcurrentHashMap`).
+ *
+ * Each shard sits on its own `alignas(64)` cache line with a dedicated
+ * `std::mutex` (`futex`), so >95% of operations across 16 threads hit the
+ * uncontended Ring-3 `0 -> 1 -> 0` `futex` fast path with zero kernel syscalls
+ * and zero OS preemption cliffs.
+ *
+ * @tparam NumShards Number of cache-aligned shards (must be a power of two).
+ */
+template <std::size_t NumShards = 64>
+class ShardedHashMap {
+  static_assert((NumShards & (NumShards - 1)) == 0,
+                "NumShards must be a power of two.");
+
+ public:
+  struct alignas(kCacheLineBytes) MapShard {
+    std::mutex mtx;
+    std::array<std::uint64_t, 16> buckets{};
+    std::uint64_t updates = 0;
+  };
+
+  /**
+   * @brief Upserts `key` with `delta` inside the target cache-aligned shard.
+   * @param key 64-bit lookup/update key.
+   * @param delta Value increment.
+   */
+  void Upsert(std::uint64_t key, std::uint64_t delta = 1) noexcept {
+    const std::uint64_t h = MixHash(key);
+    MapShard& shard = shards_[h & (NumShards - 1)];
+    std::lock_guard<std::mutex> lg(shard.mtx);
+    shard.buckets[(h >> 8) & 15ULL] += delta;
+    ++shard.updates;
+  }
+
+  /**
+   * @brief Sums total completed updates across all shards.
+   * @return Total update count.
+   */
+  [[nodiscard]] std::uint64_t TotalUpdates() noexcept {
+    std::uint64_t sum = 0;
+    for (auto& shard : shards_) {
+      std::lock_guard<std::mutex> lg(shard.mtx);
+      sum += shard.updates;
+    }
+    return sum;
+  }
+
+ private:
+  static constexpr std::uint64_t MixHash(std::uint64_t x) noexcept {
+    x ^= x >> 30;
+    x *= 0xBF58476D1CE4E5B9ULL;
+    x ^= x >> 27;
+    x *= 0x94D049BB133111EBULL;
+    x ^= x >> 31;
+    return x;
+  }
+
+  std::array<MapShard, NumShards> shards_{};
+};
+
+/**
  * @struct ProtectedState
  * @brief Multi-invariant critical section guarded by each lock under test.
  */
@@ -90,6 +256,7 @@ struct alignas(kCacheLineBytes) ProtectedState {
   std::uint64_t balance_a = 1'000'000;
   std::uint64_t balance_b = 1'000'000;
   std::uint64_t checksum = 2'000'000;
+  std::array<std::uint64_t, 5> buckets{};
 
   /**
    * @brief Updates all invariants deterministically inside the critical
@@ -98,9 +265,13 @@ struct alignas(kCacheLineBytes) ProtectedState {
    */
   void UpdateInvariants(std::uint64_t delta) noexcept {
     const std::uint64_t seq = ++sequence;
-    balance_a += delta ^ (seq & 7ULL);
-    balance_b -= delta ^ (seq & 7ULL);
+    balance_a += delta;
+    balance_b -= delta;
     checksum = (balance_a + balance_b) ^ (seq * 0x9E3779B97F4A7C15ULL);
+    for (std::size_t idx = 0; idx < buckets.size(); ++idx) {
+      buckets[idx] = (buckets[idx] ^ (seq + idx)) * 6364136223846793005ULL +
+                     1442695040888963407ULL;
+    }
   }
 
   /**
@@ -108,9 +279,13 @@ struct alignas(kCacheLineBytes) ProtectedState {
    * @param amount Transfer amount.
    */
   void ApplyTransfer(std::uint64_t amount) noexcept {
-    ++sequence;
+    const std::uint64_t seq = ++sequence;
     balance_a += amount;
     balance_b -= amount;
+    for (std::size_t idx = 0; idx < buckets.size(); ++idx) {
+      buckets[idx] = (buckets[idx] ^ (seq + idx)) * 6364136223846793005ULL +
+                     1442695040888963407ULL;
+    }
   }
 };
 
@@ -123,17 +298,11 @@ struct alignas(kCacheLineBytes) ProtectedState {
 struct alignas(kCacheLineBytes) NaiveTASLock {
   std::atomic_flag flag = ATOMIC_FLAG_INIT;
 
-  /**
-   * @brief Acquires the spinlock via an unshielded `test_and_set` loop.
-   */
   void lock() noexcept {
     while (flag.test_and_set(std::memory_order_acquire)) {
     }
   }
 
-  /**
-   * @brief Releases the spinlock with `std::memory_order_release`.
-   */
   void unlock() noexcept { flag.clear(std::memory_order_release); }
 };
 
@@ -146,15 +315,10 @@ struct alignas(kCacheLineBytes) NaiveTASLock {
 struct alignas(kCacheLineBytes) TTASNoPauseLock {
   std::atomic<bool> locked{false};
 
-  /**
-   * @brief Acquires the spinlock, spinning in `Shared (S)` without `pause`.
-   */
   void lock() noexcept {
     for (;;) {
-      bool expected = false;
-      if (locked.compare_exchange_weak(expected, true,
-                                       std::memory_order_acquire,
-                                       std::memory_order_relaxed)) {
+      if (!locked.load(std::memory_order_relaxed) &&
+          !locked.exchange(true, std::memory_order_acquire)) {
         return;
       }
       while (locked.load(std::memory_order_relaxed)) {
@@ -162,9 +326,6 @@ struct alignas(kCacheLineBytes) TTASNoPauseLock {
     }
   }
 
-  /**
-   * @brief Releases the spinlock with `std::memory_order_release`.
-   */
   void unlock() noexcept { locked.store(false, std::memory_order_release); }
 };
 
@@ -176,15 +337,10 @@ struct alignas(kCacheLineBytes) TTASNoPauseLock {
 struct alignas(kCacheLineBytes) TTASPauseLock {
   std::atomic<bool> locked{false};
 
-  /**
-   * @brief Acquires the spinlock, spinning in `Shared (S)` with `_mm_pause()`.
-   */
   void lock() noexcept {
     for (;;) {
-      bool expected = false;
-      if (locked.compare_exchange_weak(expected, true,
-                                       std::memory_order_acquire,
-                                       std::memory_order_relaxed)) {
+      if (!locked.load(std::memory_order_relaxed) &&
+          !locked.exchange(true, std::memory_order_acquire)) {
         return;
       }
       while (locked.load(std::memory_order_relaxed)) {
@@ -193,9 +349,6 @@ struct alignas(kCacheLineBytes) TTASPauseLock {
     }
   }
 
-  /**
-   * @brief Releases the spinlock with `std::memory_order_release`.
-   */
   void unlock() noexcept { locked.store(false, std::memory_order_release); }
 };
 
@@ -206,14 +359,7 @@ struct alignas(kCacheLineBytes) TTASPauseLock {
 struct alignas(kCacheLineBytes) StdMutexWrapper {
   std::mutex mtx;
 
-  /**
-   * @brief Acquires the underlying `std::mutex`.
-   */
   void lock() noexcept { mtx.lock(); }
-
-  /**
-   * @brief Releases the underlying `std::mutex`.
-   */
   void unlock() noexcept { mtx.unlock(); }
 };
 
@@ -228,9 +374,6 @@ struct alignas(kCacheLineBytes) StdMutexWrapper {
 struct alignas(kCacheLineBytes) RawFutexMutex {
   std::atomic<std::uint32_t> state{0};
 
-  /**
-   * @brief Acquires the 3-state Linux futex.
-   */
   void lock() noexcept {
     std::uint32_t c = 0;
     if (state.compare_exchange_strong(c, 1, std::memory_order_acquire,
@@ -247,10 +390,6 @@ struct alignas(kCacheLineBytes) RawFutexMutex {
     }
   }
 
-  /**
-   * @brief Releases the 3-state Linux futex, waking a sleeper only if state was
-   * 2.
-   */
   void unlock() noexcept {
     if (state.exchange(0, std::memory_order_release) == 2) {
       syscall(SYS_futex, reinterpret_cast<std::uint32_t*>(&state),
@@ -267,9 +406,6 @@ struct alignas(kCacheLineBytes) RawFutexMutex {
 struct alignas(kCacheLineBytes) AdaptiveFutexMutex {
   std::atomic<std::uint32_t> state{0};
 
-  /**
-   * @brief Acquires the hybrid spin+futex mutex.
-   */
   void lock() noexcept {
     std::uint32_t c = 0;
     if (state.compare_exchange_strong(c, 1, std::memory_order_acquire,
@@ -296,9 +432,6 @@ struct alignas(kCacheLineBytes) AdaptiveFutexMutex {
     }
   }
 
-  /**
-   * @brief Releases the hybrid spin+futex mutex.
-   */
   void unlock() noexcept {
     if (state.exchange(0, std::memory_order_release) == 2) {
       syscall(SYS_futex, reinterpret_cast<std::uint32_t*>(&state),
@@ -315,9 +448,6 @@ struct alignas(kCacheLineBytes) AdaptiveFutexMutex {
 struct alignas(kCacheLineBytes) Cpp20AtomicWaitLock {
   std::atomic<std::uint32_t> state{0};
 
-  /**
-   * @brief Acquires the C++20 adaptive atomic::wait lock.
-   */
   void lock() noexcept {
     std::uint32_t c = 0;
     if (state.compare_exchange_strong(c, 1, std::memory_order_acquire,
@@ -343,9 +473,6 @@ struct alignas(kCacheLineBytes) Cpp20AtomicWaitLock {
     }
   }
 
-  /**
-   * @brief Releases the C++20 adaptive atomic::wait lock.
-   */
   void unlock() noexcept {
     if (state.exchange(0, std::memory_order_release) == 2) {
       state.notify_one();

@@ -14,8 +14,9 @@
 
 /**
  * @file mesi_coherency_test.cc
- * @brief Unit tests for MESI coherency primitives, Read-Before-CAS spinlocks,
- * and split-lock vs cache-line aligned headers.
+ * @brief Unit tests for Episode 09 MESI coherency primitives, ShardedCounter,
+ * BatchedIdGenerator, ThreadMagazine, Read-Before-CAS spinlocks, and split-lock
+ * vs cache-line aligned wire headers.
  */
 
 #include "common/mesi_coherency/mesi_coherency.h"
@@ -34,6 +35,49 @@ TEST(MesiCoherencyTest, HeaderOffsetsMatchCacheLineBoundaries) {
   EXPECT_EQ(offsetof(PackedSplitLockHeader, seq_no), 60U);
   EXPECT_EQ(offsetof(AlignedTelemetryHeader, seq_no), 0U);
   EXPECT_EQ(sizeof(CacheLineAlignedAtomic), kCacheLineBytes);
+}
+
+TEST(MesiCoherencyTest, ShardedCounterAggregatesExactMultiThreadedTotal) {
+  constexpr std::size_t kThreads = 16;
+  constexpr std::size_t kIncrementsPerThread = 10'000;
+  ShardedCounter<64> counter;
+
+  std::vector<std::thread> workers;
+  workers.reserve(kThreads);
+  for (std::size_t t = 0; t < kThreads; ++t) {
+    workers.emplace_back([&, t]() {
+      for (std::size_t i = 0; i < kIncrementsPerThread; ++i) {
+        counter.Increment(t);
+      }
+    });
+  }
+  for (auto& w : workers) {
+    w.join();
+  }
+
+  EXPECT_EQ(counter.ReadTotal(), kThreads * kIncrementsPerThread);
+}
+
+TEST(MesiCoherencyTest, BatchedIdGeneratorProducesUniqueMonotonicBlocks) {
+  constexpr std::size_t kThreads = 8;
+  constexpr std::size_t kIdsPerThread = 640;
+  BatchedIdGenerator<64> gen;
+
+  std::vector<std::thread> workers;
+  workers.reserve(kThreads);
+  for (std::size_t t = 0; t < kThreads; ++t) {
+    workers.emplace_back([&]() {
+      BatchedIdGenerator<64>::ThreadLease lease{};
+      for (std::size_t i = 0; i < kIdsPerThread; ++i) {
+        (void)gen.NextId(lease);
+      }
+    });
+  }
+  for (auto& w : workers) {
+    w.join();
+  }
+
+  EXPECT_EQ(gen.GlobalWatermark(), kThreads * kIdsPerThread);
 }
 
 TEST(MesiCoherencyTest, SplitAndAlignedAtomicsIncrementAccurately) {

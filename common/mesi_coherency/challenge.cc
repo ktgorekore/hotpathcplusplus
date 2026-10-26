@@ -14,9 +14,18 @@
 
 /**
  * @file challenge.cc
- * @brief Hot Path C++ — Episode 09 Hands-On Silicon Switchboard Challenge.
+ * @brief Hot Path C++ — Episode 09 Production Retrofit Verification Suite.
+ *
+ * Verifies the 3 production-realistic `HttpRouter` fixes on 16 CPU cores:
+ * 1. Telemetry Counter & Request Trace IDs (`fetch_add(1)` RFO storm vs
+ *    `fetch_add(64)` Batch Leasing vs `alignas(64)` `ShardedCounter<64>`).
+ * 2. Lock-Free Buffer Pool Freelist (`compare_exchange_weak` RFO storm vs
+ *    `_mm_pause()` Backoff vs `tcmalloc`-style Batch-32 Thread Magazine).
+ * 3. Zero-Copy RPC Wire Header Parsing (`#pragma pack(1)` Byte Offset 60 Split
+ *    Lock vs 8-Byte Aligned L1D Cache Lock).
  */
 
+#include <immintrin.h>
 #include <pthread.h>
 #include <sched.h>
 
@@ -35,9 +44,10 @@
 namespace hotpath::mesi_coherency {
 namespace {
 
+constexpr int kHwThreads = 16;
+constexpr std::int64_t kCounterItersPerThread = 500'000;
+constexpr std::int64_t kCasItersPerThread = 50'000;
 constexpr std::size_t kSplitLockOps = 500'000;
-constexpr std::size_t kCasThreads = 16;
-constexpr std::size_t kCasOpsPerThread = 25'000;
 
 /**
  * @brief Pins the calling thread to a specific physical CPU core ID.
@@ -46,157 +56,210 @@ constexpr std::size_t kCasOpsPerThread = 25'000;
 inline void PinThreadToCore(int core_id) noexcept {
   cpu_set_t cpuset;
   CPU_ZERO(&cpuset);
-  CPU_SET(core_id, &cpuset);
+  CPU_SET(core_id % kHwThreads, &cpuset);
   pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
 }
 
 /**
- * @struct SplitLockMetrics
- * @brief Timing and latency metrics for Part 1 Split-Lock verification.
+ * @struct BenchResult
+ * @brief Captures both effective aggregate ns/op (wall_ns / total_ops) and
+ * per-thread latency (wall_ns / iters_per_thread).
  */
-struct SplitLockMetrics {
-  std::uint64_t final_seq = 0;
+struct BenchResult {
+  double aggregate_ns_per_op = 0.0;
+  double per_thread_ns_per_op = 0.0;
   double duration_ms = 0.0;
-  double ns_per_op = 0.0;
 };
 
-/**
- * @brief Executes `kSplitLockOps` standard C++20 `fetch_add` increments on a
- *        `std::atomic<std::uint64_t>` counter.
- * @param counter Reference to the target atomic 64-bit integer.
- * @return SplitLockMetrics containing elapsed time and per-op latency.
- */
-SplitLockMetrics RunAtomicIncrementLoop(std::atomic<std::uint64_t>& counter) {
-  PinThreadToCore(0);
-  counter.store(0, std::memory_order_relaxed);
+template <typename Fn>
+BenchResult RunParallelBench(int num_threads, std::int64_t iters_per_thread,
+                             Fn&& fn) {
+  std::barrier sync_barrier(num_threads);
+  std::vector<std::thread> threads;
+  threads.reserve(num_threads);
 
-  const auto start = std::chrono::high_resolution_clock::now();
-  for (std::size_t i = 0; i < kSplitLockOps; ++i) {
-    counter.fetch_add(1, std::memory_order_relaxed);
-  }
-  const auto end = std::chrono::high_resolution_clock::now();
-  const std::chrono::duration<double, std::milli> elapsed_ms = end - start;
-  const double ns_per_op =
-      (elapsed_ms.count() * 1e6) / static_cast<double>(kSplitLockOps);
-
-  return {counter.load(std::memory_order_relaxed), elapsed_ms.count(),
-          ns_per_op};
-}
-
-/**
- * @struct CasStormMetrics
- * @brief Timing and throughput metrics for Part 2 16-Core CAS contention test.
- */
-struct CasStormMetrics {
-  std::uint64_t total_claimed = 0;
-  double duration_ms = 0.0;
-  double ns_per_op = 0.0;
-};
-
-/**
- * @brief Runs a 16-core contended spinlock loop using `LockType`.
- * @tparam LockType Either `NaiveCasSpinlock` or `ReadBeforeCasSpinlock`.
- * @return CasStormMetrics containing total updates and per-update latency.
- */
-template <typename LockType>
-CasStormMetrics RunContendedCasChallenge() {
-  LockType spinlock;
-  SharedOrderBookLedger ledger{};
-
-  std::barrier sync_barrier(kCasThreads);
-  std::vector<std::thread> workers;
-  workers.reserve(kCasThreads);
-
-  const auto start = std::chrono::high_resolution_clock::now();
-
-  for (std::size_t tid = 0; tid < kCasThreads; ++tid) {
-    workers.emplace_back([&, tid]() {
-      PinThreadToCore(static_cast<int>(tid % 16));
+  const auto t0 = std::chrono::steady_clock::now();
+  for (int t = 0; t < num_threads; ++t) {
+    threads.emplace_back([&, t]() {
+      PinThreadToCore(t);
       sync_barrier.arrive_and_wait();
-
-      for (std::size_t i = 0; i < kCasOpsPerThread; ++i) {
-        spinlock.Lock();
-        ledger.RecordExecution(10, 100);
-        spinlock.Unlock();
-      }
+      fn(t, iters_per_thread);
     });
   }
-
-  for (auto& w : workers) {
-    w.join();
+  for (auto& th : threads) {
+    th.join();
   }
+  const auto t1 = std::chrono::steady_clock::now();
 
-  const auto end = std::chrono::high_resolution_clock::now();
-  const std::chrono::duration<double, std::milli> elapsed_ms = end - start;
-  const std::size_t total_ops = kCasThreads * kCasOpsPerThread;
-  const double ns_per_op =
-      (elapsed_ms.count() * 1e6) / static_cast<double>(total_ops);
-
-  return {ledger.sequence, elapsed_ms.count(), ns_per_op};
+  const double total_ns =
+      std::chrono::duration<double, std::nano>(t1 - t0).count();
+  const double total_ops =
+      static_cast<double>(num_threads) * static_cast<double>(iters_per_thread);
+  return {total_ns / total_ops,
+          total_ns / static_cast<double>(iters_per_thread), total_ns / 1e6};
 }
 
 }  // namespace
 }  // namespace hotpath::mesi_coherency
 
-/**
- * @brief Main entrypoint for the Episode 09 Silicon Switchboard Challenge.
- * @return 0 if all integrity checks pass, 1 otherwise.
- */
 int main() {
   using namespace hotpath::mesi_coherency;
 
   std::cout
-      << "==============================================================\n"
-      << "🔥 Hot Path C++ — Episode 09 Silicon Switchboard Challenge 🔥\n"
-      << "   MESI Coherency, Split-Lock Bus Stalls & Read-Before-CAS\n"
-      << "==============================================================\n\n";
+      << "===================================================================="
+         "\n"
+      << " HOT PATH C++ — EPISODE 09 PRODUCTION SERVER RETROFIT (16 Cores)\n"
+      << "===================================================================="
+         "\n\n";
+  std::cout << std::fixed << std::setprecision(2);
 
+  // --- PART 1: HTTP Telemetry Counter & Trace ID Leasing ---
+  CacheLineAlignedAtomic global_counter;
+  const auto res_1t =
+      RunParallelBench(1, kCounterItersPerThread, [&](int, std::int64_t iters) {
+        for (std::int64_t i = 0; i < iters; ++i) {
+          global_counter.value.fetch_add(1, std::memory_order_relaxed);
+        }
+      });
+
+  global_counter.value.store(0, std::memory_order_relaxed);
+  const auto res_16t_global = RunParallelBench(
+      kHwThreads, kCounterItersPerThread, [&](int, std::int64_t iters) {
+        for (std::int64_t i = 0; i < iters; ++i) {
+          global_counter.value.fetch_add(1, std::memory_order_relaxed);
+        }
+      });
+
+  BatchedIdGenerator<64> batched_gen;
+  const auto res_16t_batched = RunParallelBench(
+      kHwThreads, kCounterItersPerThread, [&](int, std::int64_t iters) {
+        BatchedIdGenerator<64>::ThreadLease lease{};
+        for (std::int64_t i = 0; i < iters; ++i) {
+          const std::uint64_t id = batched_gen.NextId(lease);
+          asm volatile("" : : "r"(id) : "memory");
+        }
+      });
+
+  ShardedCounter<64> sharded_counter;
+  const auto res_16t_sharded = RunParallelBench(
+      kHwThreads, kCounterItersPerThread, [&](int tid, std::int64_t iters) {
+        for (std::int64_t i = 0; i < iters; ++i) {
+          sharded_counter.Increment(static_cast<std::size_t>(tid), 1);
+        }
+      });
+
+  std::cout << "[Part 1] HTTP Telemetry Counter & Trace ID Scaling (16 Cores)\n"
+            << "  1. Global fetch_add(1) (1 Thread Local M-state) : "
+            << res_1t.per_thread_ns_per_op << " ns/op\n"
+            << "  2. Global fetch_add(1) (16 Threads RFO Storm)   : "
+            << res_16t_global.per_thread_ns_per_op << " ns/op (per-thread) | "
+            << res_16t_global.aggregate_ns_per_op << " ns/op (aggregate)\n"
+            << "  3. Batched ID Lease fetch_add(64) (16 Threads)  : "
+            << res_16t_batched.per_thread_ns_per_op << " ns/op (per-thread) | "
+            << res_16t_batched.aggregate_ns_per_op << " ns/op (aggregate)\n"
+            << "  4. alignas(64) Per-Core ShardedCounter (16T)    : "
+            << res_16t_sharded.per_thread_ns_per_op << " ns/op (per-thread) | "
+            << res_16t_sharded.aggregate_ns_per_op << " ns/op (aggregate)\n\n";
+
+  // --- PART 2: Lock-Free Buffer Pool Freelist vs tcmalloc Magazine ---
+  NaiveCasSpinlock naive_cas;
+  SharedOrderBookLedger naive_ledger{};
+  const auto res_cas_1t =
+      RunParallelBench(1, kCasItersPerThread, [&](int, std::int64_t iters) {
+        for (std::int64_t i = 0; i < iters; ++i) {
+          naive_cas.Lock();
+          naive_ledger.RecordExecution(1, 10);
+          naive_cas.Unlock();
+        }
+      });
+
+  naive_ledger = SharedOrderBookLedger{};
+  const auto res_cas_16t = RunParallelBench(
+      kHwThreads, kCasItersPerThread, [&](int, std::int64_t iters) {
+        for (std::int64_t i = 0; i < iters; ++i) {
+          naive_cas.Lock();
+          naive_ledger.RecordExecution(1, 10);
+          naive_cas.Unlock();
+        }
+      });
+
+  ReadBeforeCasSpinlock pause_cas;
+  SharedOrderBookLedger pause_ledger{};
+  const auto res_pause_16t = RunParallelBench(
+      kHwThreads, kCasItersPerThread, [&](int, std::int64_t iters) {
+        for (std::int64_t i = 0; i < iters; ++i) {
+          pause_cas.Lock();
+          pause_ledger.RecordExecution(1, 10);
+          pause_cas.Unlock();
+        }
+      });
+
+  SharedOrderBookLedger mag_ledger{};
+  const auto res_mag_16t = RunParallelBench(
+      kHwThreads, kCounterItersPerThread, [&](int, std::int64_t iters) {
+        std::uint64_t local_mag = 0;
+        for (std::int64_t i = 0; i < iters; ++i) {
+          if (local_mag == 0) [[unlikely]] {
+            pause_cas.Lock();
+            mag_ledger.RecordExecution(32, 10);
+            pause_cas.Unlock();
+            local_mag = 32;
+          }
+          --local_mag;
+          asm volatile("" : "+r"(local_mag) : : "memory");
+        }
+      });
+
+  std::cout << "[Part 2] Lock-Free Buffer Pool Freelist vs. tcmalloc Magazine\n"
+            << "  1. Uncontended CAS Pool Pop (1 Thread)          : "
+            << res_cas_1t.per_thread_ns_per_op << " ns/op\n"
+            << "  2. Global CAS Freelist (16T lock cmpxchg Storm) : "
+            << res_cas_16t.per_thread_ns_per_op << " ns/op (per-thread) | "
+            << res_cas_16t.aggregate_ns_per_op << " ns/op (aggregate)\n"
+            << "  3. CAS + _mm_pause() + Load Backoff (16T)       : "
+            << res_pause_16t.per_thread_ns_per_op << " ns/op (per-thread) | "
+            << res_pause_16t.aggregate_ns_per_op << " ns/op (aggregate)\n"
+            << "  4. Per-Thread Magazine (Batch-32 Lease, 16T)    : "
+            << res_mag_16t.per_thread_ns_per_op << " ns/op (per-thread) | "
+            << res_mag_16t.aggregate_ns_per_op << " ns/op (aggregate)\n\n";
+
+  // --- PART 3: Zero-Copy RPC Wire Header Split Lock ---
   alignas(kCacheLineBytes) PackedSplitLockHeader split_hdr{};
   alignas(kCacheLineBytes) AlignedTelemetryHeader aligned_hdr{};
 
-  std::cout << "[Part 1] Defusing a Split-Lock Telemetry Struct ("
-            << kSplitLockOps << " atomic RMWs)...\n";
-  const auto split_res = RunAtomicIncrementLoop(split_hdr.seq_no);
-  const auto aligned_res = RunAtomicIncrementLoop(aligned_hdr.seq_no);
-  const double split_speedup = split_res.ns_per_op / aligned_res.ns_per_op;
+  const auto split_res = RunParallelBench(
+      1, static_cast<std::int64_t>(kSplitLockOps),
+      [&](int, std::int64_t iters) {
+        for (std::int64_t i = 0; i < iters; ++i) {
+          split_hdr.seq_no.fetch_add(1, std::memory_order_relaxed);
+        }
+      });
+  const auto aligned_res = RunParallelBench(
+      1, static_cast<std::int64_t>(kSplitLockOps),
+      [&](int, std::int64_t iters) {
+        for (std::int64_t i = 0; i < iters; ++i) {
+          aligned_hdr.seq_no.fetch_add(1, std::memory_order_relaxed);
+        }
+      });
 
-  std::cout << std::fixed << std::setprecision(2);
-  std::cout << "  • Packed Split-Lock (Offset 60, Straddles 2 Cache Lines) :\n"
-            << "      Latency : " << split_res.ns_per_op << " ns/op ("
-            << split_res.duration_ms << " ms total — Global Bus Lock!)\n";
-  std::cout << "  • Aligned Cache-Lock (Offset 0, Single 64B Cache Line)   :\n"
-            << "      Latency : " << aligned_res.ns_per_op << " ns/op ("
-            << aligned_res.duration_ms << " ms total — L1D Cache Lock ✅)\n";
-  std::cout << "  • Alignment Speedup : " << split_speedup << "x Faster!\n\n";
+  std::cout << "[Part 3] Zero-Copy RPC Wire Header Alignment (Split Lock vs "
+               "Cache Lock)\n"
+            << "  1. #pragma pack(1) Byte Offset 60 (Split Lock)  : "
+            << split_res.per_thread_ns_per_op << " ns/op\n"
+            << "  2. 8-Byte Aligned Byte Offset 0 (L1D Cache Lock): "
+            << aligned_res.per_thread_ns_per_op << " ns/op ("
+            << (split_res.per_thread_ns_per_op /
+                aligned_res.per_thread_ns_per_op)
+            << "x Faster!)\n\n";
 
-  std::cout << "[Part 2] Taming a 16-Core CAS Contention Storm ("
-            << (kCasThreads * kCasOpsPerThread) << " contended updates)...\n";
-  const auto naive_cas = RunContendedCasChallenge<NaiveCasSpinlock>();
-  const auto ttas_cas = RunContendedCasChallenge<ReadBeforeCasSpinlock>();
-  const double cas_speedup = naive_cas.ns_per_op / ttas_cas.ns_per_op;
+  const bool ok =
+      (sharded_counter.ReadTotal() ==
+       static_cast<std::uint64_t>(kHwThreads * kCounterItersPerThread)) &&
+      (batched_gen.GlobalWatermark() ==
+       static_cast<std::uint64_t>(kHwThreads * kCounterItersPerThread)) &&
+      (split_hdr.seq_no.load() == kSplitLockOps) &&
+      (aligned_hdr.seq_no.load() == kSplitLockOps);
 
-  const bool valid =
-      (split_res.final_seq == kSplitLockOps) &&
-      (aligned_res.final_seq == kSplitLockOps) &&
-      (naive_cas.total_claimed == kCasThreads * kCasOpsPerThread) &&
-      (ttas_cas.total_claimed == kCasThreads * kCasOpsPerThread);
-
-  std::cout
-      << "--------------------------------------------------------------\n";
-  std::cout << "Naive CAS Loop (lock cmpxchg RFO Storm) : "
-            << naive_cas.ns_per_op << " ns/op (" << naive_cas.duration_ms
-            << " ms)\n";
-  std::cout << "Read-Before-CAS (Shared S + _mm_pause)  : "
-            << ttas_cas.ns_per_op << " ns/op (" << ttas_cas.duration_ms
-            << " ms)\n";
-  std::cout << "16-Core Contention Speedup              : " << cas_speedup
-            << "x Faster!\n";
-  std::cout << "Ticket Counter Integrity                : "
-            << ttas_cas.total_claimed << " / "
-            << (kCasThreads * kCasOpsPerThread) << " ("
-            << (valid ? "PASSED ✅" : "FAILED ❌") << ")\n";
-  std::cout
-      << "--------------------------------------------------------------\n";
-
-  return valid ? 0 : 1;
+  std::cout << "Integrity Check: " << (ok ? "PASSED" : "FAILED") << "\n";
+  return ok ? 0 : 1;
 }

@@ -14,12 +14,14 @@
 
 /**
  * @file locks_under_the_hood_test.cc
- * @brief Unit tests for Episode 10 spinlocks, TTAS + `_mm_pause()`, 3-state
- * Linux `futex`, Adaptive Hybrid `futex`, and C++20 `std::atomic::wait` locks.
+ * @brief Unit tests for Episode 10 SeqlockRouteCache, SharedMutexRouteCache,
+ * ShardedHashMap<64>, spinlocks, TTAS + `_mm_pause()`, and 3-state Linux
+ * `futex` locks.
  */
 
 #include "common/locks_under_the_hood/locks_under_the_hood.h"
 
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <thread>
@@ -62,6 +64,59 @@ TEST(LocksUnderTheHoodTest, CacheLineAlignmentAndSizes) {
   EXPECT_EQ(alignof(RawFutexMutex), kCacheLineBytes);
   EXPECT_EQ(alignof(AdaptiveFutexMutex), kCacheLineBytes);
   EXPECT_EQ(alignof(Cpp20AtomicWaitLock), kCacheLineBytes);
+  EXPECT_EQ(alignof(SeqlockRouteCache), kCacheLineBytes);
+}
+
+TEST(LocksUnderTheHoodTest, SeqlockGuaranteesTearFreeMultiFieldReads) {
+  SeqlockRouteCache cache;
+  std::atomic<bool> stop{false};
+
+  std::thread writer([&]() {
+    for (std::uint64_t i = 1; i <= 20'000; ++i) {
+      const std::uint64_t ip = 0x0A000000ULL + i;
+      const std::uint64_t timeout = 100ULL + (i & 255ULL);
+      const std::uint64_t weight = i * 3ULL;
+      const std::uint64_t checksum = ip ^ timeout ^ weight;
+      cache.Write(RouteEntry{ip, timeout, weight, checksum});
+    }
+    stop.store(true, std::memory_order_release);
+  });
+
+  std::vector<std::thread> readers;
+  for (int r = 0; r < 8; ++r) {
+    readers.emplace_back([&]() {
+      while (!stop.load(std::memory_order_acquire)) {
+        const RouteEntry e = cache.Read();
+        EXPECT_EQ(e.upstream_ip ^ e.timeout_ms ^ e.weight, e.checksum);
+      }
+    });
+  }
+
+  writer.join();
+  for (auto& th : readers) {
+    th.join();
+  }
+}
+
+TEST(LocksUnderTheHoodTest, ShardedHashMapPreservesConcurrentUpsertCount) {
+  constexpr std::size_t kThreads = 16;
+  constexpr std::size_t kOpsPerThread = 5'000;
+  ShardedHashMap<64> map;
+
+  std::vector<std::thread> workers;
+  workers.reserve(kThreads);
+  for (std::size_t t = 0; t < kThreads; ++t) {
+    workers.emplace_back([&, t]() {
+      for (std::size_t i = 0; i < kOpsPerThread; ++i) {
+        map.Upsert((t << 32) | i, 1);
+      }
+    });
+  }
+  for (auto& w : workers) {
+    w.join();
+  }
+
+  EXPECT_EQ(map.TotalUpdates(), kThreads * kOpsPerThread);
 }
 
 TEST(LocksUnderTheHoodTest, AllSpinlocksPreserveInvariantsUnderContention) {
