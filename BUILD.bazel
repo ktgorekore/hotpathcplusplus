@@ -144,5 +144,20 @@ alias(
     actual = "//common/locks_under_the_hood:challenge",
 )
 
+alias(
+    name = "syscalls_traps_and_mmu",
+    actual = "//common/syscalls_traps_and_mmu:syscalls_traps_and_mmu",
+)
+
+alias(
+    name = "syscalls_traps_and_mmu_benchmark",
+    actual = "//common/syscalls_traps_and_mmu:syscalls_traps_and_mmu_benchmark",
+)
+
+alias(
+    name = "syscalls_traps_and_mmu_challenge",
+    actual = "//common/syscalls_traps_and_mmu:challenge",
+)
+
 
 

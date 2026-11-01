@@ -44,6 +44,7 @@ All episode companion benchmarks, challenges, and hardware verification suites a
 | **Episode 08** | **The Concurrency Mystery: Store Buffers, Total Store Order & C++20 Atomics** | [`episodes/high_performance/08_store_buffers_and_reordering/`](episodes/high_performance/08_store_buffers_and_reordering/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
 | **Episode 09** | **Inside the Silicon Switchboard: MESI Coherency, Split Locks & CAS Storms** | [`episodes/high_performance/09_mesi_and_atomics/`](episodes/high_performance/09_mesi_and_atomics/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
 | **Episode 10** | **Why a 3-Line C++ Spinlock Is 3.3x SLOWER Than `std::mutex` (And the 1-Line Fix)** | [`episodes/high_performance/10_locks_under_the_hood/`](episodes/high_performance/10_locks_under_the_hood/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
+| **Episode 11** | **Every Pointer Is a Lie: Syscalls, Page Faults & the Hardware MMU in C++20** | [`episodes/high_performance/11_syscalls_traps_and_mmu/`](episodes/high_performance/11_syscalls_traps_and_mmu/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
 
 ### 🧠 Track 2: AI & Deep Learning Systems (`episodes/ai/`)
 
@@ -618,6 +619,30 @@ bazel run -c opt //episodes/high_performance/10_locks_under_the_hood:benchmark
 # Run Episode 10 Community Challenge
 bazel run -c opt //common/locks_under_the_hood:challenge
 bazel run -c opt //episodes/high_performance/10_locks_under_the_hood:challenge
+```
+
+---
+
+## 🗺️ Episode 11: Every Pointer Is a Lie (Syscalls, Demand Paging `#PF` Traps & the Hardware MMU)
+
+Located under [`common/syscalls_traps_and_mmu/`](common/syscalls_traps_and_mmu/) and [`episodes/high_performance/11_syscalls_traps_and_mmu/`](episodes/high_performance/11_syscalls_traps_and_mmu/), this module crosses the silicon border from Ring 3 userspace into Ring 0 kernel mode on AMD Zen 5 (`AMD Ryzen 9 9950X`), demonstrating:
+1. **Ring 3 `vDSO` & `%fs` TLS vs. Ring 0 Syscalls:** How `clock_gettime(CLOCK_MONOTONIC)` reads kernel time in **`18.0 ns`** (`0` syscalls via `[vvar]` Seqlock + `rdtscp`, **3.83x faster** than `68.9 ns` `syscall(SYS_clock_gettime)`), how caching `SYS_gettid` (`41.7 ns`) in a `thread_local` variable (`mov eax, fs:[offset]`) executes in **`0.21 ns`** (**199x faster**), and why interleaving a single syscall with a `48 KiB` L1D working set imposes a **`+126 ns` effective latency tax** (**3.0x worse** than tight-loop microbenchmarks).
+2. **Optimistic Demand Paging, Interrupt Vector 14 (`#PF`) & `MAP_POPULATE` Pools:** Why `mmap(2 MiB)` returns a virtual `vm_area_struct` IOU in **`0.69 µs` (`686 ns`)** with `0` bytes of physical RAM wired, while the first write pass across `512` $\times$ `4 KiB` pages fires **`512` hardware `#PF` traps** (`do_anonymous_page()` + `clear_page_erms` `rep stosb`), stalling the thread for **`217.6 µs` (`425 ns/page` — `317x` slower than allocation)**—and why `std::vector<uint8_t>(2 MiB)` hits `glibc`'s `128 KiB` `M_MMAP_THRESHOLD` and calls `munmap()` on every scope exit (`329.3 µs/request`), whereas `PrefaultedArenaPool` (`MAP_POPULATE` + `mlock`) completes all `512` writes in **`197 ns` (`0.38 ns/store` — `1,105x`–`1,671x` faster)**.
+3. **4-Level Radix Page Walks, L2 `dTLB` Thrashing & `2 MiB` HugePages (`MADV_HUGEPAGE`):** Why Zen 5's `3,072`-entry L2 `dTLB` only covers **`12 MiB`** at `4 KiB` page granularity—causing a `32 MiB` L3-resident table to suffer a **`70.9%` `dTLB` miss rate** (`9.59 ns` $\rightarrow$ **`4.93 ns`**, **`1.95x` faster** with `2 MiB` HugePages) and a `512 MiB` order book (`131,072` pages) to suffer a **`93.9%` `dTLB` miss rate** (`48,036,179` misses), which `madvise(..., MADV_HUGEPAGE)` (`256` HugePages) slashes to **`5,824` misses (`-99.99%`)**, accelerating random lookups from **`29.9 ns` to `14.0 ns` (`2.14x`–`2.45x` faster)**.
+
+### Running Episode 11 Tests & Benchmarks
+
+```bash
+# Run syscalls_traps_and_mmu unit tests
+bazel test -c opt //common/syscalls_traps_and_mmu:syscalls_traps_and_mmu_test
+
+# Run benchmarks (direct & episode alias)
+bazel run -c opt //common/syscalls_traps_and_mmu:syscalls_traps_and_mmu_benchmark
+bazel run -c opt //episodes/high_performance/11_syscalls_traps_and_mmu:benchmark
+
+# Run Episode 11 Community Challenge
+bazel run -c opt //common/syscalls_traps_and_mmu:challenge
+bazel run -c opt //episodes/high_performance/11_syscalls_traps_and_mmu:challenge
 ```
 
 ---
