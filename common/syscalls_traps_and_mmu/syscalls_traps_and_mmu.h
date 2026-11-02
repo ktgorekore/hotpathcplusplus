@@ -259,6 +259,11 @@ class OrderBookArena {
       slots_[i].venue_tag = 0x4E415344ULL;
       slots_[i].checksum = slots_[i].price_ticks ^ slots_[i].quantity_lots;
     }
+#ifdef MADV_COLLAPSE
+    if (use_hugepages) {
+      madvise(slots_, total_bytes_, MADV_COLLAPSE);
+    }
+#endif
 
     // Build a deterministic random index sequence touching all 4 KiB pages
     // while skewing the cache-line offset `(p & 63)` so hot slots stay
