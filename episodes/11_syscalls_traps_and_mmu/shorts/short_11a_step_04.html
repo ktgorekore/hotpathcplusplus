@@ -1,0 +1,1437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Short 11A • Step 04</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-canvas: #090D16;
+      --bg-panel: #111827;
+      --bg-elevated: #1B2436;
+      --bg-code: #0D1322;
+      --bg-highlight: #243049;
+
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-elevated: rgba(255, 255, 255, 0.14);
+
+      --text-primary: #F8FAFC;
+      --text-secondary: #CBD5E1;
+      --text-muted: #94A3B8;
+
+      --danger: #F43F5E;
+      --danger-bg: rgba(244, 63, 94, 0.14);
+      --danger-border: rgba(244, 63, 94, 0.50);
+
+      --warning: #F59E0B;
+      --warning-bg: rgba(245, 158, 11, 0.14);
+      --warning-border: rgba(245, 158, 11, 0.50);
+
+      --fast: #10B981;
+      --fast-bg: rgba(16, 185, 129, 0.14);
+      --fast-border: rgba(16, 185, 129, 0.50);
+
+      --baseline: #38BDF8;
+      --baseline-bg: rgba(56, 189, 248, 0.14);
+      --baseline-border: rgba(56, 189, 248, 0.48);
+
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', Consolas, monospace;
+      --ease-calm: cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: #030509;
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      height: 100vh;
+      width: 100vw;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      user-select: none;
+    }
+
+    /* Studio Top Navigation & ZIP Exporter Bar */
+    .studio-topbar {
+      height: 54px;
+      background: rgba(11, 16, 30, 0.96);
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 18px;
+      z-index: 200;
+      backdrop-filter: blur(12px);
+      flex-shrink: 0;
+      transition: opacity 280ms ease;
+    }
+
+    body.clean-capture .studio-topbar,
+    body.clean-capture .controls-dock {
+      display: none !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+    }
+    body.clean-capture .short-frame {
+      transform: scale(1) !important;
+      border-radius: 0 !important;
+      border: none !important;
+    }
+
+    .topbar-left, .topbar-center, .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .brand-pill {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      color: #7DD3FC;
+      background: var(--baseline-bg);
+      border: 1px solid var(--baseline-border);
+      padding: 5px 11px;
+      border-radius: 7px;
+    }
+
+    .short-switcher {
+      display: flex;
+      background: #0D1322;
+      border: 1px solid var(--border-subtle);
+      border-radius: 9px;
+      padding: 3px;
+      gap: 4px;
+    }
+
+    .short-tab {
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      font-weight: 700;
+      color: var(--text-secondary);
+      background: transparent;
+      border: none;
+      padding: 5px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 160ms ease;
+    }
+
+    .short-tab.active {
+      background: var(--baseline);
+      color: #060911;
+    }
+
+    .step-tabs {
+      display: flex;
+      gap: 4px;
+      background: #0D1322;
+      padding: 3px;
+      border-radius: 9px;
+      border: 1px solid var(--border-subtle);
+    }
+
+    .step-tab {
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      font-weight: 700;
+      color: var(--text-secondary);
+      background: transparent;
+      border: none;
+      padding: 5px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 160ms ease;
+    }
+
+    .step-tab.active {
+      background: rgba(56, 189, 248, 0.22);
+      color: var(--text-primary);
+    }
+
+    .studio-btn {
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      font-weight: 700;
+      color: var(--text-primary);
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-elevated);
+      padding: 6px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 180ms ease;
+    }
+
+    .studio-btn:hover {
+      background: var(--bg-highlight);
+      border-color: var(--baseline);
+    }
+
+    .studio-btn.zip-primary {
+      background: var(--fast-bg);
+      border-color: var(--fast-border);
+      color: #6EE7B7;
+    }
+
+    /* Main Stage Viewport */
+    .stage-viewport {
+      flex: 1;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* ==========================================================================
+       9:16 VERTICAL SLIDE FRAME (1080 x 1920)
+       FIXED SPATIAL ANCHORS:
+       - Top Header (96px)
+       - Beat 1: Fixed Top Code + Register Anchor (380px)
+       - Beat 2: Full-Bleed 3D Hardware Theater Canvas (940px)
+       - Beat 3: Bottom True-to-Scale Telemetry Verdict Card (330px)
+       ========================================================================== */
+    .short-frame {
+      width: 1080px;
+      height: 1920px;
+      background-color: var(--bg-canvas);
+      background-image:
+        radial-gradient(circle at 50% 15%, rgba(56, 189, 248, 0.09) 0%, transparent 55%),
+        radial-gradient(circle at 50% 85%, rgba(16, 185, 129, 0.07) 0%, transparent 55%);
+      position: relative;
+      padding: 46px 42px 76px 42px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 22px;
+      transform-origin: center center;
+      box-shadow: 0 30px 90px rgba(0, 0, 0, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.10);
+      border-radius: 22px;
+      overflow: hidden;
+    }
+
+    .header-bar {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.10);
+      padding-bottom: 14px;
+      flex-shrink: 0;
+    }
+
+    .header-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .step-badge {
+      font-family: var(--font-mono);
+      font-size: 21px;
+      font-weight: 800;
+      color: #7DD3FC;
+      background: var(--baseline-bg);
+      border: 1px solid var(--baseline-border);
+      padding: 6px 16px;
+      border-radius: 9px;
+      letter-spacing: 0.05em;
+    }
+
+    .context-pill {
+      font-family: var(--font-mono);
+      font-size: 18.5px;
+      font-weight: 800;
+      color: #E2E8F0;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-subtle);
+      padding: 6px 16px;
+      border-radius: 9px;
+      letter-spacing: 0.06em;
+    }
+
+    h1.slide-title {
+      font-size: 46px;
+      font-weight: 900;
+      letter-spacing: -0.026em;
+      line-height: 1.1;
+      color: var(--text-primary);
+    }
+
+    /* Surface Panels & Phased Focus Drop-In */
+    .surface-panel {
+      background-color: var(--bg-panel);
+      border: 1.5px solid var(--border-subtle);
+      border-radius: 22px;
+      padding: 22px 26px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .beat {
+      opacity: 0.26;
+      filter: saturate(0.32);
+      transform: translateY(12px) scale(0.985);
+      transition:
+        opacity 680ms var(--ease-calm),
+        filter 680ms var(--ease-calm),
+        transform 680ms var(--ease-calm),
+        border-color 680ms var(--ease-calm),
+        box-shadow 680ms var(--ease-calm);
+    }
+
+    .beat.active {
+      opacity: 1;
+      filter: saturate(1);
+      transform: translateY(0) scale(1);
+    }
+
+    .beat.active.glow-danger {
+      border-color: var(--danger-border);
+      box-shadow: 0 22px 55px -20px rgba(244, 63, 94, 0.35);
+    }
+
+    .beat.active.glow-fast {
+      border-color: var(--fast-border);
+      box-shadow: 0 22px 55px -20px rgba(16, 185, 129, 0.35);
+    }
+
+    .beat.active.glow-warn {
+      border-color: var(--warning-border);
+      box-shadow: 0 22px 55px -20px rgba(245, 158, 11, 0.32);
+    }
+
+    .beat.active.glow-base {
+      border-color: var(--baseline-border);
+      box-shadow: 0 22px 55px -20px rgba(56, 189, 248, 0.32);
+    }
+
+    .zone-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      flex-shrink: 0;
+    }
+
+    .zone-label {
+      font-family: var(--font-mono);
+      font-size: 19px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #E2E8F0;
+    }
+
+    /* BEAT 1: Consistent Top-Anchored IDE Code Canvas + 2 Register Cards (370px) */
+    .top-code-anchor {
+      height: 368px;
+      flex-shrink: 0;
+    }
+
+    .code-and-keys-grid {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1.38fr 0.62fr;
+      gap: 18px;
+      min-height: 0;
+    }
+
+    .code-canvas {
+      background-color: var(--bg-code);
+      border: 1.5px solid rgba(255, 255, 255, 0.14);
+      border-radius: 16px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 14px 32px rgba(0, 0, 0, 0.55);
+    }
+
+    .code-canvas-header {
+      background-color: rgba(255, 255, 255, 0.045);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+      padding: 9px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .code-dots {
+      display: flex;
+      gap: 7px;
+    }
+    .code-dot { width: 11px; height: 11px; border-radius: 50%; }
+    .code-dot.red { background: #F43F5E; }
+    .code-dot.amber { background: #F59E0B; }
+    .code-dot.green { background: #10B981; }
+
+    .code-file-label {
+      font-family: var(--font-mono);
+      font-size: 16.5px;
+      font-weight: 700;
+      color: #E2E8F0;
+    }
+
+    .code-canvas-body {
+      flex: 1;
+      padding: 16px 20px;
+      font-family: var(--font-mono);
+      font-size: 24px;
+      font-weight: 600;
+      line-height: 1.62;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 4px;
+    }
+
+    .code-dim {
+      color: #CBD5E1;
+      opacity: 0.90;
+    }
+
+    .key-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .key-card {
+      flex: 1;
+      background: var(--bg-elevated);
+      border: 1.5px solid var(--border-elevated);
+      border-radius: 15px;
+      padding: 14px 18px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .key-card-label {
+      font-family: var(--font-mono);
+      font-size: 16px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #E2E8F0;
+    }
+
+    .key-card-val {
+      font-family: var(--font-mono);
+      font-variant-numeric: tabular-nums;
+      font-size: 32px;
+      font-weight: 900;
+      letter-spacing: -0.02em;
+    }
+
+    /* BEAT 2: Center Full-Bleed 3D Photorealistic Hardware Stage (920px) */
+    .center-3d-stage {
+      flex: 1;
+      min-height: 0;
+      padding: 20px 24px;
+    }
+
+    .canvas-3d-wrap {
+      width: 100%;
+      flex: 1;
+      border-radius: 16px;
+      overflow: hidden;
+      background: radial-gradient(circle at 50% 45%, #16233A 0%, #070B13 100%);
+      border: 1.5px solid rgba(255, 255, 255, 0.12);
+      box-shadow: inset 0 0 60px rgba(0, 0, 0, 0.85);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .canvas-3d-wrap canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    /* BEAT 3: Bottom True-to-Scale Telemetry Verdict Panel (320px) */
+    .bottom-verdict-panel {
+      height: 320px;
+      flex-shrink: 0;
+    }
+
+    .verdict-bars {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 14px;
+    }
+
+    .verdict-row {
+      flex: 1;
+      background: var(--bg-elevated);
+      border-radius: 16px;
+      padding: 14px 22px;
+      border: 1.5px solid var(--border-elevated);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .verdict-row-top {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+    }
+
+    .verdict-tag {
+      font-family: var(--font-mono);
+      font-size: 19px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+
+    .verdict-num {
+      font-family: var(--font-mono);
+      font-variant-numeric: tabular-nums;
+      font-size: 36px;
+      font-weight: 900;
+      letter-spacing: -0.02em;
+      white-space: nowrap;
+    }
+
+    .bar-track {
+      width: 100%;
+      height: 24px;
+      background: #090D16;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .bar-fill-danger {
+      height: 100%;
+      background: linear-gradient(90deg, rgba(244, 63, 94, 0.45), #F43F5E);
+      border-radius: 7px;
+    }
+
+    .bar-fill-fast {
+      height: 100%;
+      background: linear-gradient(90deg, rgba(16, 185, 129, 0.45), #10B981);
+      border-radius: 7px;
+    }
+
+    /* Semantic Pills */
+    .pill-base {
+      padding: 2px 11px;
+      border-radius: 7px;
+      background: var(--baseline-bg);
+      border: 1px solid var(--baseline-border);
+      color: #BAE6FD;
+      font-weight: 800;
+      font-family: var(--font-mono);
+      display: inline-block;
+    }
+
+    .pill-danger {
+      padding: 2px 11px;
+      border-radius: 7px;
+      background: var(--danger-bg);
+      border: 1px solid var(--danger-border);
+      color: #FECDD3;
+      font-weight: 800;
+      font-family: var(--font-mono);
+      display: inline-block;
+    }
+
+    .pill-fast {
+      padding: 2px 11px;
+      border-radius: 7px;
+      background: var(--fast-bg);
+      border: 1px solid var(--fast-border);
+      color: #A7F3D0;
+      font-weight: 800;
+      font-family: var(--font-mono);
+      display: inline-block;
+    }
+
+    .pill-warn {
+      padding: 2px 11px;
+      border-radius: 7px;
+      background: var(--warning-bg);
+      border: 1px solid var(--warning-border);
+      color: #FDE68A;
+      font-weight: 800;
+      font-family: var(--font-mono);
+      display: inline-block;
+    }
+
+    /* Bottom Floating Playback Dock */
+    .controls-dock {
+      position: fixed;
+      bottom: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(11, 16, 30, 0.94);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      padding: 8px 18px;
+      border-radius: 999px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      z-index: 200;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.85);
+    }
+
+    .dock-btn {
+      background: var(--bg-elevated);
+      color: var(--text-primary);
+      border: 1px solid var(--border-elevated);
+      padding: 5px 13px;
+      border-radius: 999px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .dock-btn.active-btn {
+      background: var(--baseline);
+      color: #060911;
+      border-color: var(--baseline);
+    }
+  </style>
+</head>
+<body>
+  <div class="stage-viewport" id="stage-viewport">
+    <main class="short-frame" id="short-frame"></main>
+  </div>
+  <script>
+    const Shorts3DHardwareEngine = {
+      drawRoundedRect(ctx, x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r);
+        ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r);
+        ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+      },
+
+      drawSiliconChamber(ctx, x, y, w, h, title, badge, borderColor, tintFill) {
+        ctx.save();
+        this.drawRoundedRect(ctx, x, y, w, h, 20);
+        ctx.fillStyle = tintFill || "rgba(17, 24, 39, 0.80)";
+        ctx.fill();
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = borderColor || "rgba(255,255,255,0.16)";
+        ctx.stroke();
+
+        this.drawRoundedRect(ctx, x + 16, y + 16, w - 32, 46, 12);
+        ctx.fillStyle = "rgba(9, 13, 22, 0.92)";
+        ctx.fill();
+
+        const innerW = w - 52;
+        ctx.font = w < 420 ? "900 15px 'JetBrains Mono', monospace" : "900 17px 'JetBrains Mono', monospace";
+        let badgeW = 0;
+        if (badge) {
+          badgeW = ctx.measureText(badge).width;
+          ctx.fillStyle = borderColor || "#38BDF8";
+          ctx.textAlign = "right";
+          ctx.fillText(badge, x + w - 26, y + 45);
+        }
+
+        ctx.fillStyle = "#F8FAFC";
+        ctx.textAlign = "left";
+        const maxTitleW = Math.max(80, innerW - (badgeW > 0 ? badgeW + 16 : 0));
+        ctx.fillText(title, x + 26, y + 45, maxTitleW);
+        ctx.restore();
+      },
+
+      drawZen5Package(ctx, cx, cy, scale, label, highlightColor, pulsePhase) {
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.scale(scale, scale);
+
+        ctx.shadowColor = "rgba(0, 0, 0, 0.85)";
+        ctx.shadowBlur = 34;
+        ctx.shadowOffsetY = 14;
+
+        const subGrad = ctx.createLinearGradient(-135, -135, 135, 135);
+        subGrad.addColorStop(0, "#0F5243");
+        subGrad.addColorStop(0.5, "#0A3A2E");
+        subGrad.addColorStop(1, "#06231B");
+        this.drawRoundedRect(ctx, -135, -135, 270, 270, 16);
+        ctx.fillStyle = subGrad;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetY = 0;
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = "#2DD4BF";
+        ctx.stroke();
+
+        ctx.fillStyle = "#FBBF24";
+        ctx.beginPath();
+        ctx.moveTo(-124, -124);
+        ctx.lineTo(-98, -124);
+        ctx.lineTo(-124, -98);
+        ctx.closePath();
+        ctx.fill();
+
+        for (let i = -96; i <= 96; i += 24) {
+          ctx.fillStyle = "#D97706";
+          ctx.fillRect(i - 7, -125, 14, 8);
+          ctx.fillRect(i - 7, 117, 14, 8);
+          ctx.fillRect(-125, i - 7, 8, 14);
+          ctx.fillRect(117, i - 7, 8, 14);
+        }
+
+        const ihsGrad = ctx.createLinearGradient(-106, -106, 106, 106);
+        ihsGrad.addColorStop(0, "#E2E8F0");
+        ihsGrad.addColorStop(0.4, "#94A3B8");
+        ihsGrad.addColorStop(0.7, "#475569");
+        ihsGrad.addColorStop(1, "#64748B");
+        this.drawRoundedRect(ctx, -108, -108, 216, 216, 20);
+        ctx.fillStyle = ihsGrad;
+        ctx.fill();
+        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = "#F8FAFC";
+        ctx.stroke();
+
+        this.drawRoundedRect(ctx, -90, -90, 180, 180, 12);
+        ctx.fillStyle = "#071714";
+        ctx.fill();
+
+        const drawChiplet = (x, y, w, h, title) => {
+          const dieGrad = ctx.createLinearGradient(x, y, x + w, y + h);
+          dieGrad.addColorStop(0, "#38BDF8");
+          dieGrad.addColorStop(0.3, "#818CF8");
+          dieGrad.addColorStop(0.6, "#EC4899");
+          dieGrad.addColorStop(1, "#10B981");
+          this.drawRoundedRect(ctx, x, y, w, h, 6);
+          ctx.fillStyle = dieGrad;
+          ctx.fill();
+          ctx.strokeStyle = "#F8FAFC";
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+
+          ctx.fillStyle = "rgba(9,13,22,0.92)";
+          ctx.fillRect(x + 2, y + h / 2 - 12, w - 4, 24);
+          ctx.fillStyle = "#F8FAFC";
+          ctx.font = "900 13px 'JetBrains Mono', monospace";
+          ctx.textAlign = "center";
+          ctx.fillText(title, x + w / 2, y + h / 2 + 5);
+        };
+
+        drawChiplet(-80, -78, 74, 56, "ZEN5 CCD0");
+        drawChiplet(6, -78, 74, 56, "ZEN5 CCD1");
+
+        const iodGrad = ctx.createLinearGradient(-72, -10, 72, 76);
+        iodGrad.addColorStop(0, "#1E293B");
+        iodGrad.addColorStop(1, "#0F172A");
+        this.drawRoundedRect(ctx, -74, -10, 148, 84, 8);
+        ctx.fillStyle = iodGrad;
+        ctx.fill();
+        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = highlightColor || "#38BDF8";
+        ctx.stroke();
+
+        const glowAlpha = 0.25 + 0.16 * Math.sin(pulsePhase * 3);
+        ctx.fillStyle = highlightColor || "#38BDF8";
+        ctx.globalAlpha = glowAlpha;
+        this.drawRoundedRect(ctx, -70, -6, 140, 76, 6);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+
+        ctx.fillStyle = "#F8FAFC";
+        ctx.font = "900 16.5px 'JetBrains Mono', monospace";
+        ctx.textAlign = "center";
+        ctx.fillText(label || "ZEN 5 CORE", 0, 24);
+        ctx.fillStyle = "#E2E8F0";
+        ctx.font = "800 13.5px 'JetBrains Mono', monospace";
+        ctx.fillText("RYZEN 9 9950X", 0, 49);
+
+        ctx.restore();
+      },
+
+      drawDDR5Module(ctx, cx, cy, scale, title, subLabel, accentColor, isLit) {
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.scale(scale, scale);
+
+        ctx.shadowColor = "rgba(0, 0, 0, 0.85)";
+        ctx.shadowBlur = 30;
+        ctx.shadowOffsetY = 12;
+
+        const pcbGrad = ctx.createLinearGradient(-185, -62, 185, 62);
+        pcbGrad.addColorStop(0, "#1E293B");
+        pcbGrad.addColorStop(0.5, "#0F172A");
+        pcbGrad.addColorStop(1, "#090D16");
+        this.drawRoundedRect(ctx, -185, -62, 370, 112, 10);
+        ctx.fillStyle = pcbGrad;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = isLit ? (accentColor || "#10B981") : "#475569";
+        ctx.stroke();
+
+        const goldGrad = ctx.createLinearGradient(0, 50, 0, 68);
+        goldGrad.addColorStop(0, "#FDE68A");
+        goldGrad.addColorStop(0.5, "#F59E0B");
+        goldGrad.addColorStop(1, "#B45309");
+        ctx.fillStyle = goldGrad;
+        for (let px = -172; px <= 172; px += 6) {
+          if (Math.abs(px - 14) < 8) continue;
+          ctx.fillRect(px, 50, 4, 16);
+        }
+
+        for (let i = 0; i < 8; i++) {
+          const chipX = -168 + i * 42 + (i >= 4 ? 18 : 0);
+          this.drawRoundedRect(ctx, chipX, -46, 34, 60, 4);
+          ctx.fillStyle = "#1E293B";
+          ctx.fill();
+          ctx.lineWidth = 1.5;
+          ctx.strokeStyle = isLit ? (accentColor || "#10B981") : "#475569";
+          ctx.stroke();
+        }
+
+        this.drawRoundedRect(ctx, -168, -16, 336, 58, 9);
+        ctx.fillStyle = "rgba(9, 13, 22, 0.94)";
+        ctx.fill();
+        ctx.strokeStyle = accentColor || "#38BDF8";
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+
+        ctx.fillStyle = "#F8FAFC";
+        ctx.font = "900 18.5px 'JetBrains Mono', monospace";
+        ctx.textAlign = "center";
+        ctx.fillText(title, 0, 8);
+        ctx.fillStyle = accentColor || "#7DD3FC";
+        ctx.font = "800 15.5px 'JetBrains Mono', monospace";
+        ctx.fillText(subLabel, 0, 32);
+
+        ctx.restore();
+      },
+
+      drawFireAlarmStrobe(ctx, cx, cy, scale, label, subText, pulsePhase) {
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.scale(scale, scale);
+
+        const rayAlpha = 0.30 + 0.22 * Math.sin(pulsePhase * 5);
+        const coneGrad = ctx.createRadialGradient(0, -10, 12, 0, -10, 175);
+        coneGrad.addColorStop(0, `rgba(244, 63, 94, ${rayAlpha + 0.35})`);
+        coneGrad.addColorStop(0.5, `rgba(244, 63, 94, ${rayAlpha})`);
+        coneGrad.addColorStop(1, "transparent");
+        ctx.fillStyle = coneGrad;
+        ctx.beginPath();
+        ctx.arc(0, -10, 175, 0, Math.PI * 2);
+        ctx.fill();
+
+        const domeGrad = ctx.createLinearGradient(-56, -74, 56, 22);
+        domeGrad.addColorStop(0, "#FDA4AF");
+        domeGrad.addColorStop(0.3, "#F43F5E");
+        domeGrad.addColorStop(0.75, "#9F1239");
+        domeGrad.addColorStop(1, "#4C0519");
+        ctx.beginPath();
+        ctx.moveTo(-56, 26);
+        ctx.lineTo(-46, -48);
+        ctx.arc(0, -48, 46, Math.PI, 0, false);
+        ctx.lineTo(56, 26);
+        ctx.closePath();
+        ctx.fillStyle = domeGrad;
+        ctx.fill();
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = "#FECDD3";
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(0, -26, 24, 0, Math.PI * 2);
+        ctx.fillStyle = "#FFF1F2";
+        ctx.fill();
+
+        this.drawRoundedRect(ctx, -98, 24, 196, 58, 12);
+        ctx.fillStyle = "#1E293B";
+        ctx.fill();
+        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = "#F43F5E";
+        ctx.stroke();
+
+        ctx.fillStyle = "#F8FAFC";
+        ctx.font = "900 18.5px 'JetBrains Mono', monospace";
+        ctx.textAlign = "center";
+        ctx.fillText(label || "IDT[14] #PF", 0, 49);
+        ctx.fillStyle = "#FDA4AF";
+        ctx.font = "800 15.5px 'JetBrains Mono', monospace";
+        ctx.fillText(subText || "RING 0 TRAP", 0, 71);
+
+        ctx.restore();
+      },
+
+      drawOpticalLens(ctx, cx, cy, radius, topLabel, bottomLabel, color) {
+        ctx.save();
+        ctx.translate(cx, cy);
+
+        const aura = ctx.createRadialGradient(0, 0, radius * 0.4, 0, 0, radius * 1.55);
+        aura.addColorStop(0, color + "55");
+        aura.addColorStop(1, "transparent");
+        ctx.fillStyle = aura;
+        ctx.beginPath(); ctx.arc(0, 0, radius * 1.55, 0, Math.PI * 2); ctx.fill();
+
+        const ringGrad = ctx.createLinearGradient(-radius, -radius, radius, radius);
+        ringGrad.addColorStop(0, "#F8FAFC");
+        ringGrad.addColorStop(0.5, "#64748B");
+        ringGrad.addColorStop(1, "#1E293B");
+        ctx.beginPath();
+        ctx.arc(0, 0, radius, 0, Math.PI * 2);
+        ctx.fillStyle = ringGrad;
+        ctx.fill();
+
+        const glassGrad = ctx.createRadialGradient(-radius * 0.3, -radius * 0.3, 5, 0, 0, radius * 0.88);
+        glassGrad.addColorStop(0, "rgba(255, 255, 255, 0.38)");
+        glassGrad.addColorStop(0.4, "rgba(56, 189, 248, 0.22)");
+        glassGrad.addColorStop(1, "rgba(9, 13, 22, 0.92)");
+        ctx.beginPath();
+        ctx.arc(0, 0, radius * 0.88, 0, Math.PI * 2);
+        ctx.fillStyle = glassGrad;
+        ctx.fill();
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = color;
+        ctx.stroke();
+
+        ctx.fillStyle = "#F8FAFC";
+        ctx.font = "900 20.5px 'JetBrains Mono', monospace";
+        ctx.textAlign = "center";
+        ctx.fillText(topLabel, 0, -4);
+        ctx.fillStyle = color;
+        ctx.font = "800 17px 'JetBrains Mono', monospace";
+        ctx.fillText(bottomLabel, 0, 22);
+
+        ctx.restore();
+      },
+
+      drawZeroPageIceBlock(ctx, cx, cy, w, h) {
+        ctx.save();
+        ctx.translate(cx - w / 2, cy - h / 2);
+
+        const iceGrad = ctx.createLinearGradient(0, 0, w, h);
+        iceGrad.addColorStop(0, "rgba(186, 230, 253, 0.55)");
+        iceGrad.addColorStop(0.4, "rgba(56, 189, 248, 0.32)");
+        iceGrad.addColorStop(1, "rgba(14, 116, 144, 0.52)");
+        this.drawRoundedRect(ctx, 0, 0, w, h, 20);
+        ctx.fillStyle = iceGrad;
+        ctx.fill();
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = "#BAE6FD";
+        ctx.stroke();
+
+        ctx.fillStyle = "#F8FAFC";
+        ctx.font = "900 20px 'JetBrains Mono', monospace";
+        ctx.textAlign = "center";
+        ctx.fillText("❄️ KERNEL ZERO PAGE", w / 2, 46);
+        ctx.fillStyle = "#E0F2FE";
+        ctx.font = "900 32px 'JetBrains Mono', monospace";
+        ctx.fillText("00 00 00 00", w / 2, h / 2 + 10);
+        ctx.fillStyle = "#FDA4AF";
+        ctx.font = "900 18px 'JetBrains Mono', monospace";
+        ctx.fillText("🔒 READ-ONLY (R/W=0)", w / 2, h - 26);
+
+        ctx.restore();
+      },
+
+      drawRegisterPill(ctx, x, y, w, h, regName, regVal, borderColor) {
+        ctx.save();
+        this.drawRoundedRect(ctx, x, y, w, h, 14);
+        ctx.fillStyle = "#0D1322";
+        ctx.fill();
+        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = borderColor || "#38BDF8";
+        ctx.stroke();
+
+        ctx.font = "900 17px 'JetBrains Mono', monospace";
+        const nameW = ctx.measureText(regName).width;
+        const boxW = Math.max(106, Math.min(w * 0.38, nameW + 24));
+
+        this.drawRoundedRect(ctx, x + 10, y + 10, boxW, h - 20, 10);
+        ctx.fillStyle = borderColor + "28";
+        ctx.fill();
+
+        ctx.fillStyle = borderColor || "#38BDF8";
+        ctx.textAlign = "center";
+        ctx.fillText(regName, x + 10 + boxW / 2, y + h / 2 + 6, boxW - 12);
+
+        const valX = x + 10 + boxW + 14;
+        const maxValW = Math.max(60, (x + w - 14) - valX);
+        ctx.fillStyle = "#F8FAFC";
+        ctx.font = "800 18.5px 'JetBrains Mono', monospace";
+        ctx.textAlign = "left";
+        ctx.fillText(regVal, valX, y + h / 2 + 6, maxValW);
+        ctx.restore();
+      },
+
+      renderScene(canvas, sceneKey, pulsePhase) {
+        if (!canvas) return;
+        const ctx = canvas.getContext("2d");
+        const W = canvas.width;
+        const H = canvas.height;
+        ctx.clearRect(0, 0, W, H);
+
+        // Silicon Wafer Grid
+        ctx.strokeStyle = "rgba(56, 189, 248, 0.055)";
+        ctx.lineWidth = 1;
+        for (let x = 0; x < W; x += 48) {
+          ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+        }
+        for (let y = 0; y < H; y += 48) {
+          ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+        }
+
+        const drawLaser = (x1, y1, x2, y2, color, width) => {
+          ctx.save();
+          ctx.strokeStyle = color;
+          ctx.lineWidth = width || 6;
+          ctx.shadowColor = color;
+          ctx.shadowBlur = 18;
+          ctx.setLineDash([16, 9]);
+          ctx.lineDashOffset = -pulsePhase * 48;
+          ctx.beginPath();
+          ctx.moveTo(x1, y1);
+          ctx.lineTo(x2, y2);
+          ctx.stroke();
+          ctx.restore();
+        };
+
+        switch (sceneKey) {
+          case "11A_1": {
+            // Zen 5 CPU Core Firing Store Lasers Into 512 #PF Strobe Traps
+            this.drawSiliconChamber(ctx, 24, 24, 380, H - 48, "ZEN 5 CORE (RING 3)", "512 STORES", "#38BDF8", "rgba(15, 29, 52, 0.75)");
+            this.drawZen5Package(ctx, 214, H / 2 - 40, 1.15, "buf[i] = 1", "#38BDF8", pulsePhase);
+            this.drawRegisterPill(ctx, 44, H - 118, 340, 68, "MMAP()", "0.69 µs (Virtual)", "#38BDF8");
+
+            drawLaser(404, H / 2 - 90, 500, H / 2 - 90, "#F43F5E", 6);
+            drawLaser(404, H / 2 - 20, 500, H / 2 - 20, "#F43F5E", 6);
+            drawLaser(404, H / 2 + 50, 500, H / 2 + 50, "#F43F5E", 6);
+
+            this.drawSiliconChamber(ctx, 490, 24, 434, H - 48, "512 UNWIRED 4 KiB PAGES", "217.6 µs STALL!", "#F43F5E", "rgba(42, 14, 27, 0.78)");
+            this.drawFireAlarmStrobe(ctx, 707, H / 2 - 110, 1.25, "512 × #PF TRAPS", "425 ns / Page Store!", pulsePhase);
+            this.drawDDR5Module(ctx, 707, H / 2 + 125, 0.92, "2 MiB BUFFER (512 PAGES)", "Present = 0 | R/W = 0", "#F43F5E", false);
+            this.drawRegisterPill(ctx, 514, H - 118, 386, 68, "1ST WRITE", "217.6 µs (317x Slower)", "#F43F5E");
+            break;
+          }
+          case "11A_2": {
+            // Demand Paging: Virtual IOU Boarding Pass + Frosted Zero Page Ice Block + Unpowered DDR5
+            this.drawSiliconChamber(ctx, 20, 24, 290, H - 48, "1. VIRTUAL I.O.U.", "0.69 µs", "#F59E0B", "rgba(38, 26, 12, 0.78)");
+            this.drawRoundedRect(ctx, 40, 100, 250, 420, 18);
+            ctx.fillStyle = "#1C1408";
+            ctx.fill();
+            ctx.lineWidth = 3;
+            ctx.setLineDash([12, 6]);
+            ctx.strokeStyle = "#F59E0B";
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillStyle = "#FCD34D";
+            ctx.font = "900 18px 'JetBrains Mono', monospace";
+            ctx.textAlign = "center";
+            ctx.fillText("🎟️ VM_AREA_STRUCT", 165, 165);
+            ctx.fillStyle = "#F8FAFC";
+            ctx.font = "900 34px 'JetBrains Mono', monospace";
+            ctx.fillText("2 MiB VMA", 165, 245);
+            ctx.fillStyle = "#38BDF8";
+            ctx.font = "800 17px 'JetBrains Mono', monospace";
+            ctx.fillText("512 Virtual Pages", 165, 310);
+            ctx.fillStyle = "#FDA4AF";
+            ctx.fillText("Present=0 | RW=0", 165, 370);
+            this.drawRegisterPill(ctx, 36, H - 118, 258, 68, "DRAM", "0 Bytes!", "#F59E0B");
+
+            drawLaser(310, H / 2, 345, H / 2, "#38BDF8", 5);
+
+            this.drawSiliconChamber(ctx, 336, 24, 280, H - 48, "2. ZERO PAGE", "MIRAGE", "#38BDF8", "rgba(15, 29, 52, 0.75)");
+            this.drawZeroPageIceBlock(ctx, 476, H / 2 - 20, 244, 380);
+            this.drawRegisterPill(ctx, 352, H - 118, 248, 68, "512 → 1", "Read-Only", "#38BDF8");
+
+            this.drawSiliconChamber(ctx, 636, 24, 292, H - 48, "3. DDR5 BANK", "UNWIRED", "#F43F5E", "rgba(42, 14, 27, 0.78)");
+            this.drawDDR5Module(ctx, 782, H / 2 - 120, 0.68, "DDR5 DIMM #0", "0 Frames Wired", "#F43F5E", false);
+            this.drawDDR5Module(ctx, 782, H / 2 + 50, 0.68, "DDR5 DIMM #1", "0 Frames Wired", "#F43F5E", false);
+            this.drawRegisterPill(ctx, 652, H - 118, 260, 68, "PTE BIT 0", "Not Present", "#F43F5E");
+            break;
+          }
+          case "11A_3": {
+            // Interrupt 14 (#PF) Strobe Siren + Ring 0 425 ns Breakdown
+            this.drawSiliconChamber(ctx, 24, 24, 420, H - 48, "1. INTERRUPT 14 (#PF TRAP)", "CPL 3 → 0", "#F43F5E", "rgba(42, 14, 27, 0.78)");
+            this.drawFireAlarmStrobe(ctx, 234, H / 2 - 95, 1.45, "IDT[14] #PF", "Aborts C++ Store!", pulsePhase);
+            this.drawRegisterPill(ctx, 48, H - 205, 372, 66, "CR2 REG", "Faulting Virt Addr", "#F59E0B");
+            this.drawRegisterPill(ctx, 48, H - 118, 372, 66, "512 PAGES", "512 × 425 ns = 217.6 µs", "#F43F5E");
+
+            drawLaser(444, H / 2 - 40, 508, H / 2 - 40, "#F43F5E", 6);
+
+            this.drawSiliconChamber(ctx, 498, 24, 426, H - 48, "2. RING 0 KERNEL WORK (425 NS / PAGE)", "4,096B ZEROED", "#F59E0B", "rgba(38, 26, 12, 0.78)");
+            this.drawRegisterPill(ctx, 524, 105, 374, 78, "1. IDT[14]", "70 ns (Trap + iretq)", "#38BDF8");
+            this.drawRegisterPill(ctx, 524, 205, 374, 78, "2. VMA LOCK", "85 ns (mm->mmap_lock)", "#F59E0B");
+            this.drawRegisterPill(ctx, 524, 305, 374, 78, "3. BUDDY", "100 ns (4 KiB Frame)", "#F59E0B");
+            this.drawRegisterPill(ctx, 524, 405, 374, 78, "4. ZEROING", "170 ns (rep stosb 4KB)", "#F43F5E");
+            this.drawDDR5Module(ctx, 711, H - 115, 0.88, "CLEAR_PAGE_ERMS (4,096 B)", "Wires PTE: Present=1 | RW=1", "#10B981", true);
+            break;
+          }
+          case "11A_4": {
+            // glibc malloc >= 128 KiB munmap() Shredder Trap
+            this.drawSiliconChamber(ctx, 24, 24, 430, H - 48, "1. SMALL HEAP (< 128 KiB)", "RECYCLED", "#10B981", "rgba(11, 34, 27, 0.75)");
+            this.drawOpticalLens(ctx, 239, H / 2 - 75, 102, "RING 3 HEAP", "PTEs Stay Hot!", "#10B981");
+            this.drawDDR5Module(ctx, 239, H / 2 + 125, 0.85, "REUSED ARENA PAGES", "0 #PF Traps on Next RPC", "#10B981", true);
+            this.drawRegisterPill(ctx, 48, H - 118, 382, 68, "FREE()", "Kept in Userspace", "#10B981");
+
+            this.drawSiliconChamber(ctx, 486, 24, 438, H - 48, "2. GLIBC ≥ 128 KiB CHURN TRAP", "MUNMAP()!", "#F43F5E", "rgba(42, 14, 27, 0.78)");
+            this.drawFireAlarmStrobe(ctx, 705, H / 2 - 90, 1.35, "MUNMAP(2 MiB)", "Shreds All 512 PTEs!", pulsePhase);
+            this.drawDDR5Module(ctx, 705, H / 2 + 125, 0.85, "NEXT RPC RE-FAULTS!", "Pays 512 × #PF (217.6 µs) Again!", "#F43F5E", false);
+            this.drawRegisterPill(ctx, 510, H - 118, 390, 68, "~VECTOR()", "Returns RAM to Kernel!", "#F43F5E");
+            break;
+          }
+          case "11A_5": {
+            // MAP_POPULATE + Userspace Arena Pool (217.6 us -> 197 ns, 1,105x Faster)
+            this.drawSiliconChamber(ctx, 24, 24, 410, H - 48, "1. STARTUP PRE-FAULT", "MAP_POPULATE", "#10B981", "rgba(11, 34, 27, 0.75)");
+            this.drawZen5Package(ctx, 229, H / 2 - 55, 1.12, "WARM POOL", "#10B981", pulsePhase);
+            this.drawRegisterPill(ctx, 48, H - 118, 362, 68, "MLOCK()", "512 Pages Pinned", "#10B981");
+
+            drawLaser(434, H / 2 - 40, 506, H / 2 - 40, "#10B981", 6);
+
+            this.drawSiliconChamber(ctx, 496, 24, 428, H - 48, "2. PRE-WIRED RING-3 ARENA", "1,105x FASTER!", "#10B981", "rgba(11, 34, 27, 0.78)");
+            this.drawOpticalLens(ctx, 710, H / 2 - 115, 96, "0 TRAPS!", "P=1 | RW=1", "#10B981");
+            this.drawDDR5Module(ctx, 710, H / 2 + 95, 0.92, "512 RESIDENT 4 KiB PAGES", "197 ns Total (0.38 ns / store)", "#10B981", true);
+            this.drawRegisterPill(ctx, 520, H - 118, 380, 68, "SPEEDUP", "217.6 µs → 197 ns!", "#10B981");
+            break;
+          }
+          case "11B_1": {
+            // 32 MiB Hash Table Inside 64 MiB Zen 5 L3 Cache Stalling on MMU TLB Miss
+            this.drawSiliconChamber(ctx, 24, 24, 430, H - 48, "1. ZEN 5 64 MiB L3 CACHE", "32 MiB FITS!", "#10B981", "rgba(11, 34, 27, 0.75)");
+            this.drawZen5Package(ctx, 239, H / 2 - 65, 1.15, "64 MiB L3", "#10B981", pulsePhase);
+            this.drawRegisterPill(ctx, 48, H - 200, 382, 64, "HASH TABLE", "32 MiB (100% in L3!)", "#10B981");
+            this.drawRegisterPill(ctx, 48, H - 118, 382, 64, "POINTER", "48-Bit Virtual Addr", "#38BDF8");
+
+            drawLaser(454, H / 2 - 40, 516, H / 2 - 40, "#F43F5E", 6);
+
+            this.drawSiliconChamber(ctx, 506, 24, 418, H - 48, "2. MMU BLOCKS ON TLB MISS!", "STALLS ON RAM", "#F43F5E", "rgba(42, 14, 27, 0.78)");
+            this.drawOpticalLens(ctx, 715, H / 2 - 105, 102, "TLB MISS!", "PA Unknown!", "#F43F5E");
+            this.drawDDR5Module(ctx, 715, H / 2 + 115, 0.88, "4-LEVEL RAM PAGE TABLE", "Must Walk RAM Before L3 Hit!", "#F43F5E", true);
+            this.drawRegisterPill(ctx, 530, H - 118, 370, 64, "PARADOX", "L3 Hit Stalls on MMU!", "#F43F5E");
+            break;
+          }
+          case "11B_2": {
+            // 4-Level Cascading Radix Page-Table Walk in Physical DRAM (1 Load = 5 Reads)
+            this.drawSiliconChamber(ctx, 20, 24, W - 40, H - 48, "4-LEVEL RADIX PAGE TABLE WALK IN RAM (1 C++ LOAD = 5 RAM READS!)", "5x TRAFFIC", "#F59E0B", "rgba(17, 24, 39, 0.84)");
+            const levels = [
+              { name: "READ #1", sub: "PML4 [47:39]", c: "#38BDF8" },
+              { name: "READ #2", sub: "PDPT [38:30]", c: "#38BDF8" },
+              { name: "READ #3", sub: "PD   [29:21]", c: "#F59E0B" },
+              { name: "READ #4", sub: "PT   [20:12]", c: "#F43F5E" }
+            ];
+            levels.forEach((lv, i) => {
+              const bx = 42 + i * 168;
+              const by = 104 + i * 22;
+              this.drawRoundedRect(ctx, bx, by, 148, 390, 14);
+              ctx.fillStyle = "#0D1322";
+              ctx.fill();
+              ctx.lineWidth = 3;
+              ctx.strokeStyle = lv.c;
+              ctx.stroke();
+
+              this.drawRoundedRect(ctx, bx + 12, by + 14, 124, 42, 8);
+              ctx.fillStyle = lv.c + "30";
+              ctx.fill();
+              ctx.fillStyle = lv.c;
+              ctx.font = "900 17.5px 'JetBrains Mono', monospace";
+              ctx.textAlign = "center";
+              ctx.fillText(lv.name, bx + 74, by + 41);
+
+              ctx.fillStyle = "#F8FAFC";
+              ctx.font = "800 16.5px 'JetBrains Mono', monospace";
+              ctx.fillText(lv.sub, bx + 74, by + 92);
+
+              const slotY = by + 165 + i * 32;
+              this.drawRoundedRect(ctx, bx + 14, slotY, 120, 58, 8);
+              ctx.fillStyle = lv.c + "38";
+              ctx.fill();
+              ctx.strokeStyle = lv.c;
+              ctx.stroke();
+              ctx.fillStyle = "#F8FAFC";
+              ctx.fillText("Next PFN →", bx + 74, slotY + 35);
+
+              if (i < 3) drawLaser(bx + 148, slotY + 29, bx + 168, slotY + 50, lv.c, 5);
+            });
+
+            drawLaser(696, 410, 745, 340, "#10B981", 6);
+            this.drawDDR5Module(ctx, 825, 340, 0.52, "READ #5: *p", "Target Data", "#10B981", true);
+            this.drawRegisterPill(ctx, 42, H - 115, W - 84, 68, "5x READS", "CR3 → PML4 → PDPT → PD → PT → *p Data!", "#F43F5E");
+            break;
+          }
+          case "11B_3": {
+            // 12 MiB L2 TLB Spotlight Corner Inside 512 MiB Order Book (93.9% Misses)
+            this.drawSiliconChamber(ctx, 24, 24, W - 48, H - 48, "12 MiB L2 TLB REACH (2.3%) VS. 512 MiB ORDER BOOK (131,072 PAGES)", "93.9% MISSES!", "#F43F5E", "rgba(42, 14, 27, 0.80)");
+            const gx = 52, gy = 98, gw = W - 104, gh = 490;
+            this.drawRoundedRect(ctx, gx, gy, gw, gh, 18);
+            ctx.fillStyle = "#1F0913";
+            ctx.fill();
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = "#F43F5E";
+            ctx.stroke();
+
+            ctx.strokeStyle = "rgba(244, 63, 94, 0.22)";
+            ctx.lineWidth = 1.2;
+            for (let x = gx + 48; x < gx + gw; x += 48) {
+              ctx.beginPath(); ctx.moveTo(x, gy); ctx.lineTo(x, gy + gh); ctx.stroke();
+            }
+            for (let y = gy + 48; y < gy + gh; y += 48) {
+              ctx.beginPath(); ctx.moveTo(gx, y); ctx.lineTo(gx + gw, y); ctx.stroke();
+            }
+
+            // Tiny 12 MiB (2.3%) Glowing Emerald TLB Corner
+            this.drawRoundedRect(ctx, gx + 10, gy + 10, 145, 82, 12);
+            ctx.fillStyle = "#10B981";
+            ctx.fill();
+            ctx.fillStyle = "#051B11";
+            ctx.font = "900 17px 'JetBrains Mono', monospace";
+            ctx.textAlign = "center";
+            ctx.fillText("12 MiB L2 TLB", gx + 82, gy + 45);
+            ctx.fillText("(2.3% Reach)", gx + 82, gy + 72);
+
+            this.drawRoundedRect(ctx, gx + 90, gy + 175, gw - 180, 190, 20);
+            ctx.fillStyle = "rgba(9, 13, 22, 0.94)";
+            ctx.fill();
+            ctx.strokeStyle = "#F43F5E";
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            ctx.fillStyle = "#F43F5E";
+            ctx.font = "900 32px 'JetBrains Mono', monospace";
+            ctx.fillText("500 MiB (97.7%) IN THE DARK!", gx + gw / 2, gy + 245);
+            ctx.fillStyle = "#F8FAFC";
+            ctx.font = "800 22px 'JetBrains Mono', monospace";
+            ctx.fillText("93.9% dTLB-load-misses (29.9 ns Stall)", gx + gw / 2, gy + 305);
+
+            this.drawRegisterPill(ctx, 52, H - 118, W - 104, 68, "CAPACITY", "3,072 L2 TLB Slots × 4 KiB = Only 12 MiB Reach!", "#F59E0B");
+            break;
+          }
+          case "11B_4": {
+            // MADV_HUGEPAGE (PD PS Bit = 1) Bypass Bridge + 512 Pages -> 1 2MiB HugePage
+            this.drawSiliconChamber(ctx, 24, 24, 440, H - 48, "1. PD BIT 7 (PS = 1) BYPASS", "3 HOPS", "#10B981", "rgba(11, 34, 27, 0.75)");
+            this.drawZen5Package(ctx, 180, H / 2 - 45, 0.88, "PD [PS == 1]", "#10B981", pulsePhase);
+
+            ctx.save();
+            ctx.strokeStyle = "#10B981";
+            ctx.lineWidth = 6;
+            ctx.shadowColor = "#10B981";
+            ctx.shadowBlur = 18;
+            ctx.setLineDash([16, 8]);
+            ctx.lineDashOffset = -pulsePhase * 48;
+            ctx.beginPath();
+            ctx.moveTo(265, H / 2 - 55);
+            ctx.quadraticCurveTo(350, H / 2 - 220, 435, H / 2 - 55);
+            ctx.stroke();
+            ctx.restore();
+
+            ctx.fillStyle = "#6EE7B7";
+            ctx.font = "900 18px 'JetBrains Mono', monospace";
+            ctx.textAlign = "center";
+            ctx.fillText("SKIPS PT!", 350, H / 2 - 150);
+
+            this.drawRoundedRect(ctx, 295, H / 2 - 20, 115, 95, 12);
+            ctx.fillStyle = "rgba(244, 63, 94, 0.18)";
+            ctx.fill();
+            ctx.strokeStyle = "#F43F5E";
+            ctx.stroke();
+            ctx.fillStyle = "#FDA4AF";
+            ctx.fillText("✗ Leaf PT", 352, H / 2 + 32);
+
+            this.drawRegisterPill(ctx, 44, H - 118, 400, 68, "PS BIT = 1", "Eliminates PT Level!", "#10B981");
+
+            this.drawSiliconChamber(ctx, 484, 24, 440, H - 48, "2. 512 PAGES → 1 HUGEPAGE", "512x REACH", "#10B981", "rgba(11, 34, 27, 0.78)");
+            this.drawOpticalLens(ctx, 704, H / 2 - 115, 96, "2 MiB PAGE", "1 TLB Slot!", "#10B981");
+            this.drawDDR5Module(ctx, 704, H / 2 + 100, 0.88, "1 × 2 MiB HUGEPAGE", "Fuses 512 × 4 KiB Pages!", "#10B981", true);
+            this.drawRegisterPill(ctx, 504, H - 118, 400, 68, "OFFSET", "21-Bit Offset (2 MiB)", "#10B981");
+            break;
+          }
+          case "11B_5": {
+            // 256 TLB Slots Cover Entire 512 MiB Table (-99% Misses, 2.45x / 2.14x Faster)
+            this.drawSiliconChamber(ctx, 24, 24, W - 48, H - 48, "ALL 512 MiB FITS INSIDE JUST 256 L2 TLB ENTRIES (8.3% OF TLB!)", "-99.99% MISSES!", "#10B981", "rgba(11, 34, 27, 0.80)");
+            this.drawZen5Package(ctx, 240, H / 2 - 70, 1.12, "256 TLB SLOTS", "#10B981", pulsePhase);
+            this.drawDDR5Module(ctx, 680, H / 2 - 120, 0.96, "256 × 2 MiB HUGEPAGES", "Entire 512 MiB Order Book Mapped!", "#10B981", true);
+
+            // L2 TLB Capacity Bar
+            this.drawRoundedRect(ctx, 440, H / 2 + 20, 460, 110, 16);
+            ctx.fillStyle = "#071210";
+            ctx.fill();
+            ctx.strokeStyle = "#10B981";
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            this.drawRoundedRect(ctx, 450, H / 2 + 30, 145, 90, 12);
+            ctx.fillStyle = "#10B981";
+            ctx.fill();
+            ctx.fillStyle = "#051B11";
+            ctx.font = "900 17.5px 'JetBrains Mono', monospace";
+            ctx.textAlign = "center";
+            ctx.fillText("256 Slots", 522, H / 2 + 70);
+            ctx.fillText("(512 MiB)", 522, H / 2 + 96);
+
+            ctx.fillStyle = "#A7F3D0";
+            ctx.font = "800 19px 'JetBrains Mono', monospace";
+            ctx.fillText("+ 2,816 Free L2 TLB Slots!", 745, H / 2 + 82);
+
+            this.drawRegisterPill(ctx, 52, H - 118, W - 104, 68, "ZEN 5 VERDICT", "Slashes dTLB Misses by 99.99% • 2.14x Faster Lookups!", "#10B981");
+            break;
+          }
+        }
+      }
+    };
+  </script>
+  <script>
+    const SHORT_KEY = "11A";
+    const STEPS = [{"stepNum":"04","sceneKey":"11A_4","contextPill":"GLIBC MALLOC ≥ 128 KiB TRAP","title":"Why Temporary Buffers Re-Trigger 512 #PFs!","duration":7.6,"timings":[0,2.5,5],"narration":"Worse, in standard glibc malloc, freeing any temporary buffer at or above 128 kilobytes calls munmap—so the very next request pays all five hundred and twelve page-fault traps again!","codeBadge":"M_MMAP_THRESHOLD","codeBadgeClass":"pill-danger","codeFile":"rpc_handler.cpp • C++20","codeLines":["<span class=\"code-dim\">void OnRequest() {</span>","  <span class=\"pill-danger\">std::vector&lt;uint8_t&gt; b(2&lt;&lt;20);</span>","<span class=\"code-dim\">}</span> <span class=\"pill-warn\">// ~vector() → munmap()!</span>"],"key1Label":"THRESHOLD","key1Val":"≥ 128 KiB","key1Color":"#F59E0B","key2Label":"ON FREE()","key2Val":"munmap() Wipes!","key2Color":"#F43F5E","stageLabel":"RECYCLED HEAP (<128 KiB) VS. MUNMAP SHREDDER (≥128 KiB)","stageBadge":"Per-RPC #PF Loop","stageBadgeClass":"pill-danger","stageGlow":"glow-danger","topBarTag":"✗ TEMP VECTOR(2 MiB) PER RPC","topBarMetric":"217.6 µs Every Call!","topBarPct":100,"botBarTag":"✓ RECYCLED RING-3 POOL","botBarMetric":"0 #PF Traps","botBarPct":3}];
+    let idx = 0, beat = 1, elapsed = 0, lastTs = null, pulse = 0;
+    const frameEl = document.getElementById("short-frame");
+    function fit() {
+      const s = Math.min(window.innerWidth / 1080, window.innerHeight / 1920) * 0.96;
+      frameEl.style.transform = "scale(" + s + ")";
+    }
+    window.addEventListener("resize", fit);
+    function render() {
+      const s = STEPS[idx];
+      frameEl.innerHTML = (function buildShortStepHTML(shortKey, s) {
+      return `
+        <header class="header-bar">
+          <div class="header-top">
+            <span class="step-badge">SHORT ${shortKey} • STEP ${s.stepNum} / 05</span>
+            <span class="context-pill">${s.contextPill}</span>
+          </div>
+          <h1 class="slide-title">${s.title}</h1>
+        </header>
+
+        <!-- BEAT 1: FIXED TOP-ANCHORED IDE CODE CANVAS + 2 REGISTER CARDS -->
+        <section id="beat-1" class="surface-panel top-code-anchor beat active glow-base">
+          <div class="zone-header">
+            <span class="zone-label">1. C++20 / X86-64 SILICON SPEC</span>
+            <span class="${s.codeBadgeClass}" style="font-size:17.5px;">${s.codeBadge}</span>
+          </div>
+          <div class="code-and-keys-grid">
+            <div class="code-canvas">
+              <div class="code-canvas-header">
+                <div class="code-dots">
+                  <span class="code-dot red"></span>
+                  <span class="code-dot amber"></span>
+                  <span class="code-dot green"></span>
+                </div>
+                <span class="code-file-label">${s.codeFile}</span>
+              </div>
+              <div class="code-canvas-body">
+                ${s.codeLines.map(line => `<div>${line}</div>`).join("")}
+              </div>
+            </div>
+            <div class="key-stack">
+              <div class="key-card" style="border-color:${s.key1Color}66;">
+                <span class="key-card-label">${s.key1Label}</span>
+                <span class="key-card-val" style="color:${s.key1Color};">${s.key1Val}</span>
+              </div>
+              <div class="key-card" style="border-color:${s.key2Color}66;">
+                <span class="key-card-label">${s.key2Label}</span>
+                <span class="key-card-val" style="color:${s.key2Color};">${s.key2Val}</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- BEAT 2: CENTER FULL-BLEED 3D PHOTOREALISTIC HARDWARE STAGE -->
+        <section id="beat-2" class="surface-panel center-3d-stage beat ${s.stageGlow}">
+          <div class="zone-header">
+            <span class="zone-label" style="color:#7DD3FC;">2. ${s.stageLabel}</span>
+            <span class="${s.stageBadgeClass}" style="font-size:17.5px;">${s.stageBadge}</span>
+          </div>
+          <div class="canvas-3d-wrap">
+            <canvas id="short-3d-canvas" width="948" height="780"></canvas>
+          </div>
+        </section>
+
+        <!-- BEAT 3: BOTTOM TRUE-TO-SCALE TELEMETRY VERDICT -->
+        <section id="beat-3" class="surface-panel bottom-verdict-panel beat glow-fast">
+          <div class="zone-header">
+            <span class="zone-label">3. ZEN 5 HARDWARE TELEMETRY VERDICT</span>
+            <span class="pill-fast" style="font-size:16.5px;">RYZEN 9 9950X</span>
+          </div>
+          <div class="verdict-bars">
+            <div class="verdict-row" style="border-color:rgba(244,63,94,0.45);">
+              <div class="verdict-row-top">
+                <span class="verdict-tag" style="color:#FDA4AF;">${s.topBarTag}</span>
+                <span class="verdict-num" style="color:#F8FAFC;">${s.topBarMetric}</span>
+              </div>
+              <div class="bar-track">
+                <div class="bar-fill-danger" style="width:${s.topBarPct}%;"></div>
+              </div>
+            </div>
+            <div class="verdict-row" style="border-color:rgba(16,185,129,0.50);">
+              <div class="verdict-row-top">
+                <span class="verdict-tag" style="color:#6EE7B7;">${s.botBarTag}</span>
+                <span class="verdict-num" style="color:#34D399;">${s.botBarMetric}</span>
+              </div>
+              <div class="bar-track">
+                <div class="bar-fill-fast" style="width:${s.botBarPct}%;"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+      `;
+    })(SHORT_KEY, s);
+      elapsed = 0;
+      setBeat(1);
+      fit();
+    }
+    function setBeat(b) {
+      beat = b;
+      for (let i = 1; i <= 3; i++) {
+        const el = document.getElementById("beat-" + i);
+        if (el) el.classList.toggle("active", i <= b);
+      }
+    }
+    function loop(ts) {
+      if (!lastTs) lastTs = ts;
+      const dt = (ts - lastTs) / 1000;
+      lastTs = ts;
+      pulse += dt;
+      elapsed += dt;
+      const s = STEPS[idx];
+      if (elapsed >= s.timings[2]) setBeat(3);
+      else if (elapsed >= s.timings[1]) setBeat(2);
+      else setBeat(1);
+      if (elapsed >= s.duration) {
+        if (STEPS.length > 1) { idx = (idx + 1) % STEPS.length; render(); }
+        else elapsed = 0;
+      }
+      const c = document.getElementById("short-3d-canvas");
+      if (c) Shorts3DHardwareEngine.renderScene(c, s.sceneKey, pulse);
+      requestAnimationFrame(loop);
+    }
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowRight" || e.code === "Space") {
+        if (beat < 3) setBeat(beat + 1);
+        else if (idx < STEPS.length - 1) { idx++; render(); }
+      } else if (e.key === "ArrowLeft") {
+        if (beat > 1) setBeat(beat - 1);
+        else if (idx > 0) { idx--; render(); }
+      } else if (e.key.toLowerCase() === "r") { elapsed = 0; setBeat(1); }
+    });
+    render();
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>

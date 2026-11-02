@@ -1,0 +1,1852 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hot Path C++ Ep 11 — Slides 01–05 / 29 (Animated Keynote Deck)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-canvas: #090D16;
+      --bg-panel: #111827;
+      --bg-elevated: #1B2436;
+      --bg-code: #0D1322;
+      --bg-highlight: #243049;
+
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-elevated: rgba(255, 255, 255, 0.14);
+
+      --text-primary: #F8FAFC;
+      --text-secondary: #CBD5E1;
+      --text-muted: #94A3B8;
+
+      --token-danger: #F43F5E;
+      --token-danger-bg: rgba(244, 63, 94, 0.14);
+      --token-danger-border: rgba(244, 63, 94, 0.50);
+
+      --token-warning: #F59E0B;
+      --token-warning-bg: rgba(245, 158, 11, 0.14);
+      --token-warning-border: rgba(245, 158, 11, 0.50);
+
+      --token-fast: #10B981;
+      --token-fast-bg: rgba(16, 185, 129, 0.14);
+      --token-fast-border: rgba(16, 185, 129, 0.50);
+
+      --token-baseline: #38BDF8;
+      --token-baseline-bg: rgba(56, 189, 248, 0.14);
+      --token-baseline-border: rgba(56, 189, 248, 0.48);
+
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', Consolas, monospace;
+      --ease-calm: cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      width: 100vw;
+      height: 100vh;
+      background-color: #030509;
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    /* Studio Top Navigation & Package Exporter Bar */
+    .studio-topbar {
+      height: 52px;
+      background: rgba(11, 16, 30, 0.96);
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 18px;
+      z-index: 200;
+      backdrop-filter: blur(12px);
+      flex-shrink: 0;
+      transition: opacity 280ms ease, transform 280ms ease;
+    }
+
+    body.clean-capture .studio-topbar,
+    body.clean-capture .studio-dock {
+      display: none !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+    }
+    body.clean-capture .stage-wrapper {
+      transform: scale(1) !important;
+      border-radius: 0 !important;
+      border: none !important;
+    }
+
+    .topbar-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .brand-badge {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 800;
+      padding: 5px 11px;
+      border-radius: 7px;
+      background: var(--token-baseline-bg);
+      color: #7DD3FC;
+      border: 1px solid var(--token-baseline-border);
+      letter-spacing: 0.05em;
+    }
+
+    .batch-tabs {
+      display: flex;
+      gap: 4px;
+      background: #0D1322;
+      padding: 3px;
+      border-radius: 9px;
+      border: 1px solid var(--border-subtle);
+    }
+
+    .batch-tab {
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      font-weight: 700;
+      color: var(--text-secondary);
+      background: transparent;
+      border: none;
+      padding: 5px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 160ms ease;
+    }
+
+    .batch-tab:hover {
+      color: var(--text-primary);
+    }
+
+    .batch-tab.active {
+      background: var(--token-baseline);
+      color: #060911;
+    }
+
+    .export-btn {
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      font-weight: 700;
+      padding: 6px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border-elevated);
+      background: var(--bg-elevated);
+      color: var(--text-primary);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 180ms ease;
+    }
+
+    .export-btn:hover {
+      background: var(--bg-highlight);
+      border-color: var(--token-baseline);
+    }
+
+    .export-btn.zip-primary {
+      background: var(--token-fast-bg);
+      border-color: var(--token-fast-border);
+      color: #6EE7B7;
+    }
+
+    .export-btn.zip-primary:hover {
+      background: rgba(16, 185, 129, 0.24);
+    }
+
+    /* Main Stage Viewport */
+    .viewport-area {
+      flex: 1;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Full-Bleed 1920x1080 Widescreen Stage */
+    .stage-wrapper {
+      width: 1920px;
+      height: 1080px;
+      background-color: var(--bg-canvas);
+      background-image:
+        radial-gradient(circle at 22% 18%, rgba(56, 189, 248, 0.08) 0%, transparent 52%),
+        radial-gradient(circle at 82% 85%, rgba(16, 185, 129, 0.06) 0%, transparent 50%);
+      border: 1px solid rgba(255, 255, 255, 0.10);
+      border-radius: 18px;
+      box-shadow: 0 30px 90px -20px rgba(0, 0, 0, 0.95);
+      padding: 32px 42px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+      transform-origin: center center;
+      overflow: hidden;
+    }
+
+    .slide-section {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 22px;
+    }
+
+    /* Compact Header Bar (66px tall so 92% of screen is Visuals + Code) */
+    .slide-header {
+      width: 100%;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.10);
+      padding-bottom: 12px;
+      flex-shrink: 0;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+    }
+
+    .slide-marker {
+      font-family: var(--font-mono);
+      font-variant-numeric: tabular-nums;
+      font-size: 19px;
+      font-weight: 800;
+      padding: 7px 15px;
+      border-radius: 8px;
+      background: var(--token-baseline-bg);
+      color: #7DD3FC;
+      border: 1px solid var(--token-baseline-border);
+      letter-spacing: 0.04em;
+    }
+
+    .slide-title {
+      font-size: 39px;
+      font-weight: 900;
+      letter-spacing: -0.025em;
+      color: var(--text-primary);
+    }
+
+    .header-act {
+      font-family: var(--font-mono);
+      font-size: 16.5px;
+      font-weight: 800;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      color: #E2E8F0;
+      background: rgba(255, 255, 255, 0.04);
+      padding: 8px 16px;
+      border-radius: 9px;
+      border: 1px solid var(--border-subtle);
+    }
+
+    /* Main 2-Column Fixed Spatial Grid:
+       LEFT (660px Fixed) = Consistent Code Anchor + 2 Hardware Register Cards
+       RIGHT (1152px Full-Bleed) = 3D Visual Hardware Stage + True-to-Scale Metric Bar */
+    .main-stage-grid {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 640px minmax(0, 1fr);
+      gap: 24px;
+      min-height: 0;
+    }
+
+    .left-code-column {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      height: 100%;
+      min-height: 0;
+    }
+
+    .right-visual-column {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      height: 100%;
+      min-height: 0;
+    }
+
+    /* Surfaces */
+    .surface-panel {
+      background-color: var(--bg-panel);
+      border: 1.5px solid var(--border-subtle);
+      border-radius: 18px;
+      padding: 22px 26px;
+      transition:
+        opacity 750ms var(--ease-calm),
+        transform 750ms var(--ease-calm),
+        border-color 750ms var(--ease-calm),
+        box-shadow 750ms var(--ease-calm),
+        filter 750ms var(--ease-calm);
+    }
+
+    /* Fixed-Position Visual Code Canvas (Always Top-Left on Every Slide!) */
+    .code-anchor-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 20px 24px;
+    }
+
+    .zone-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+      flex-shrink: 0;
+    }
+
+    .zone-label {
+      font-family: var(--font-mono);
+      font-size: 17.5px;
+      font-weight: 800;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: #E2E8F0;
+    }
+
+    .code-canvas {
+      flex: 1;
+      background-color: var(--bg-code);
+      border: 1.5px solid rgba(255, 255, 255, 0.14);
+      border-radius: 14px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 16px 36px rgba(0, 0, 0, 0.55);
+    }
+
+    .code-canvas-header {
+      background-color: rgba(255, 255, 255, 0.045);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+      padding: 10px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+
+    .code-dots {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .code-dot {
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+    }
+    .code-dot.red { background-color: #F43F5E; }
+    .code-dot.amber { background-color: #F59E0B; }
+    .code-dot.green { background-color: #10B981; }
+
+    .code-file-label {
+      font-family: var(--font-mono);
+      font-size: 16px;
+      font-weight: 700;
+      color: #E2E8F0;
+      letter-spacing: 0.04em;
+    }
+
+    .code-canvas-body {
+      flex: 1;
+      padding: 20px 24px;
+      font-family: var(--font-mono);
+      font-variant-numeric: tabular-nums;
+      font-size: 23px;
+      font-weight: 600;
+      line-height: 1.66;
+      color: #F8FAFC;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 4px;
+    }
+
+    .code-line {
+      padding: 3px 8px;
+      border-radius: 6px;
+      white-space: nowrap;
+    }
+
+    .code-line.active-line {
+      background: rgba(56, 189, 248, 0.11);
+      border-left: 4px solid var(--token-baseline);
+      padding-left: 12px;
+    }
+
+    .code-line.danger-line {
+      background: rgba(244, 63, 94, 0.13);
+      border-left: 4px solid var(--token-danger);
+      padding-left: 12px;
+    }
+
+    .code-line.fast-line {
+      background: rgba(16, 185, 129, 0.13);
+      border-left: 4px solid var(--token-fast);
+      padding-left: 12px;
+    }
+
+    /* Spotlight Masking: Dim Boilerplate Tokens so Only Hardware Nouns Pop */
+    .code-dim {
+      color: #CBD5E1;
+      opacity: 0.90;
+    }
+
+    /* Left-Bottom Hardware State Key Cards (Zero Prose, Big Tokens) */
+    .hw-key-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      height: 168px;
+      flex-shrink: 0;
+    }
+
+    .hw-key-card {
+      background: var(--bg-elevated);
+      border: 1.5px solid var(--border-elevated);
+      border-radius: 16px;
+      padding: 18px 22px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .hw-key-label {
+      font-family: var(--font-mono);
+      font-size: 16px;
+      font-weight: 800;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: #E2E8F0;
+    }
+
+    .hw-key-val {
+      font-family: var(--font-mono);
+      font-variant-numeric: tabular-nums;
+      font-size: 33px;
+      font-weight: 900;
+      letter-spacing: -0.02em;
+      color: var(--text-primary);
+    }
+
+    /* Right-Top Full-Bleed 3D Hardware Theater */
+    .visual-stage-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 18px 22px;
+      min-height: 0;
+    }
+
+    .realistic-canvas-wrap {
+      position: relative;
+      width: 100%;
+      flex: 1;
+      border-radius: 14px;
+      overflow: hidden;
+      background: radial-gradient(circle at 50% 45%, #16233A 0%, #070B13 100%);
+      border: 1.5px solid rgba(255, 255, 255, 0.12);
+      box-shadow: inset 0 0 60px rgba(0, 0, 0, 0.85);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .realistic-canvas-wrap canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    /* Right-Bottom Single True-to-Scale Visual Telemetry Bar (168px tall) */
+    .telemetry-bar-panel {
+      height: 168px;
+      flex-shrink: 0;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      min-width: 0;
+      gap: 22px;
+      padding: 18px 24px;
+      align-items: center;
+    }
+
+    .metric-compare-box {
+      height: 100%;
+      min-width: 0;
+      min-width: 0;
+      background: var(--bg-elevated);
+      border-radius: 14px;
+      padding: 14px 22px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      border: 1.5px solid var(--border-elevated);
+    }
+
+    .metric-compare-top {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 3px;
+    }
+
+    .metric-tag {
+      font-family: var(--font-mono);
+      font-size: 14.5px;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .metric-hero-num {
+      font-family: var(--font-mono);
+      font-variant-numeric: tabular-nums;
+      font-size: 27px;
+      font-weight: 900;
+      letter-spacing: -0.02em;
+      white-space: nowrap;
+    }
+
+    .bar-track {
+      width: 100%;
+      height: 16px;
+      background: #090D16;
+      border-radius: 7px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      display: flex;
+      align-items: center;
+    }
+
+    .bar-fill-danger {
+      height: 100%;
+      background: linear-gradient(90deg, rgba(244, 63, 94, 0.45), #F43F5E);
+      border-radius: 6px;
+    }
+
+    .bar-fill-fast {
+      height: 100%;
+      background: linear-gradient(90deg, rgba(16, 185, 129, 0.45), #10B981);
+      border-radius: 6px;
+    }
+
+    /* Eye-Friendly Phased Focus Drop-In States */
+    .reveal-step {
+      opacity: 0.26;
+      filter: saturate(0.32);
+      transform: translateY(12px) scale(0.985);
+      transition:
+        opacity 750ms var(--ease-calm),
+        transform 750ms var(--ease-calm),
+        border-color 750ms var(--ease-calm),
+        box-shadow 750ms var(--ease-calm),
+        filter 750ms var(--ease-calm);
+    }
+
+    .reveal-step.step-active {
+      opacity: 1;
+      filter: saturate(1);
+      transform: translateY(0) scale(1);
+    }
+
+    .reveal-step.step-active.glow-danger {
+      border-color: var(--token-danger-border);
+      box-shadow: 0 20px 50px -22px rgba(244, 63, 94, 0.32);
+    }
+
+    .reveal-step.step-active.glow-fast {
+      border-color: var(--token-fast-border);
+      box-shadow: 0 20px 50px -22px rgba(16, 185, 129, 0.32);
+    }
+
+    .reveal-step.step-active.glow-warn {
+      border-color: var(--token-warning-border);
+      box-shadow: 0 20px 50px -22px rgba(245, 158, 11, 0.30);
+    }
+
+    .reveal-step.step-active.glow-base {
+      border-color: var(--token-baseline-border);
+      box-shadow: 0 20px 50px -22px rgba(56, 189, 248, 0.30);
+    }
+
+    /* Semantic Pills */
+    .pill-base {
+      padding: 2px 10px;
+      border-radius: 6px;
+      background: var(--token-baseline-bg);
+      border: 1px solid var(--token-baseline-border);
+      color: #BAE6FD;
+      font-weight: 800;
+      font-family: var(--font-mono);
+      display: inline-block;
+    }
+
+    .pill-danger {
+      padding: 2px 10px;
+      border-radius: 6px;
+      background: var(--token-danger-bg);
+      border: 1px solid var(--token-danger-border);
+      color: #FECDD3;
+      font-weight: 800;
+      font-family: var(--font-mono);
+      display: inline-block;
+    }
+
+    .pill-fast {
+      padding: 2px 10px;
+      border-radius: 6px;
+      background: var(--token-fast-bg);
+      border: 1px solid var(--token-fast-border);
+      color: #A7F3D0;
+      font-weight: 800;
+      font-family: var(--font-mono);
+      display: inline-block;
+    }
+
+    .pill-warn {
+      padding: 2px 10px;
+      border-radius: 6px;
+      background: var(--token-warning-bg);
+      border: 1px solid var(--token-warning-border);
+      color: #FDE68A;
+      font-weight: 800;
+      font-family: var(--font-mono);
+      display: inline-block;
+    }
+
+    .mono-num {
+      font-family: var(--font-mono);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Bottom Floating Studio Control Dock */
+    .studio-dock {
+      position: fixed;
+      bottom: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 200;
+      background: rgba(11, 16, 30, 0.94);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 999px;
+      padding: 7px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.85);
+      transition: opacity 380ms var(--ease-calm), transform 380ms var(--ease-calm);
+    }
+
+    .dock-group {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      background: #111827;
+      padding: 3px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .dock-btn {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 700;
+      padding: 5px 11px;
+      border-radius: 999px;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 180ms ease;
+    }
+
+    .dock-btn:hover {
+      color: var(--text-primary);
+    }
+
+    .dock-btn.active {
+      background: var(--token-baseline-bg);
+      color: #7DD3FC;
+      border-color: var(--token-baseline-border);
+    }
+
+    .step-dot {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 800;
+      border: none;
+      background: #1B2436;
+      color: var(--text-secondary);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 180ms ease;
+    }
+
+    .step-dot.active {
+      background: #38BDF8;
+      color: #090D16;
+    }
+
+    .divider {
+      width: 1px;
+      height: 18px;
+      background: rgba(255, 255, 255, 0.12);
+    }
+  </style>
+</head>
+<body>
+  <div class="viewport-area" id="viewport-area">
+    <main id="presentation-stage" class="stage-wrapper"></main>
+  </div>
+
+  <aside id="studio-dock" class="studio-dock">
+    <div class="dock-group" id="dock-slide-buttons"></div>
+    <div class="divider"></div>
+    <div style="display:flex;align-items:center;gap:6px;">
+      <button id="step-dot-1" class="step-dot active" onclick="setStep(1)">1</button>
+      <button id="step-dot-2" class="step-dot" onclick="setStep(2)">2</button>
+      <button id="step-dot-3" class="step-dot" onclick="setStep(3)">3</button>
+    </div>
+    <div class="divider"></div>
+    <button class="dock-btn active" onclick="toggleAutoPlay()" id="autoplay-label">⏸ Auto-Sync</button>
+    <button class="dock-btn" onclick="restartSlide()">↺ Replay</button>
+  </aside>
+
+  <script>
+    // =========================================================================
+    // FULL-BLEED (1100 x 640) 3D HARDWARE & SILICON ARCHITECTURE ENGINE
+    // Uses 100% of the visual stage with rich 3D hardware renders, animated
+    // memory buses, silicon chambers, register files, and zero prose walls.
+    // =========================================================================
+    const HardwareArtEngine = {
+      drawRoundedRect(ctx, x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r);
+        ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r);
+        ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+      },
+
+      // Chamber Backdrop Box (Fills large zones of the 1100x640 canvas)
+      drawSiliconChamber(ctx, x, y, w, h, title, badge, borderColor, tintFill) {
+        ctx.save();
+        this.drawRoundedRect(ctx, x, y, w, h, 18);
+        ctx.fillStyle = tintFill || "rgba(17, 24, 39, 0.78)";
+        ctx.fill();
+        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = borderColor || "rgba(255,255,255,0.16)";
+        ctx.stroke();
+
+        // Header strip inside chamber
+        this.drawRoundedRect(ctx, x + 14, y + 14, w - 28, 42, 10);
+        ctx.fillStyle = "rgba(9, 13, 22, 0.92)";
+        ctx.fill();
+
+        const innerW = w - 48;
+        ctx.font = w < 380 ? "900 14.5px 'JetBrains Mono', monospace" : "900 16.5px 'JetBrains Mono', monospace";
+        let badgeW = 0;
+        if (badge) {
+          badgeW = ctx.measureText(badge).width;
+          ctx.fillStyle = borderColor || "#38BDF8";
+          ctx.textAlign = "right";
+          ctx.fillText(badge, x + w - 24, y + 40);
+        }
+
+        ctx.fillStyle = "#F8FAFC";
+        ctx.textAlign = "left";
+        const maxTitleW = Math.max(80, innerW - (badgeW > 0 ? badgeW + 16 : 0));
+        ctx.fillText(title, x + 24, y + 40, maxTitleW);
+        ctx.restore();
+      },
+
+      // Lifelike Delidded AMD Ryzen 9 9950X (Zen 5) Package with Rainbow Wafer Chiplets
+      drawZen5Package(ctx, cx, cy, scale, label, highlightColor, pulsePhase) {
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.scale(scale, scale);
+
+        ctx.shadowColor = "rgba(0, 0, 0, 0.85)";
+        ctx.shadowBlur = 34;
+        ctx.shadowOffsetY = 14;
+
+        // 1. Fiberglass AM5 Green/Teal Substrate PCB
+        const subGrad = ctx.createLinearGradient(-135, -135, 135, 135);
+        subGrad.addColorStop(0, "#0F5243");
+        subGrad.addColorStop(0.5, "#0A3A2E");
+        subGrad.addColorStop(1, "#06231B");
+        this.drawRoundedRect(ctx, -135, -135, 270, 270, 16);
+        ctx.fillStyle = subGrad;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetY = 0;
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = "#2DD4BF";
+        ctx.stroke();
+
+        // Gold Pin-1 Triangle
+        ctx.fillStyle = "#FBBF24";
+        ctx.beginPath();
+        ctx.moveTo(-124, -124);
+        ctx.lineTo(-98, -124);
+        ctx.lineTo(-124, -98);
+        ctx.closePath();
+        ctx.fill();
+
+        // Perimeter SMD Gold Capacitors
+        for (let i = -96; i <= 96; i += 24) {
+          ctx.fillStyle = "#D97706";
+          ctx.fillRect(i - 7, -125, 14, 8);
+          ctx.fillRect(i - 7, 117, 14, 8);
+          ctx.fillStyle = "#FDE68A";
+          ctx.fillRect(i - 7, -125, 3, 8);
+          ctx.fillRect(i + 4, -125, 3, 8);
+          ctx.fillStyle = "#D97706";
+          ctx.fillRect(-125, i - 7, 8, 14);
+          ctx.fillRect(117, i - 7, 8, 14);
+        }
+
+        // 2. Brushed Nickel-Silver AM5 Integrated Heat Spreader
+        const ihsGrad = ctx.createLinearGradient(-106, -106, 106, 106);
+        ihsGrad.addColorStop(0, "#E2E8F0");
+        ihsGrad.addColorStop(0.35, "#94A3B8");
+        ihsGrad.addColorStop(0.5, "#CBD5E1");
+        ihsGrad.addColorStop(0.75, "#475569");
+        ihsGrad.addColorStop(1, "#64748B");
+        this.drawRoundedRect(ctx, -108, -108, 216, 216, 20);
+        ctx.fillStyle = ihsGrad;
+        ctx.fill();
+        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = "#F8FAFC";
+        ctx.stroke();
+
+        // Inner Delidded Cavity
+        this.drawRoundedRect(ctx, -90, -90, 180, 180, 12);
+        ctx.fillStyle = "#071714";
+        ctx.fill();
+
+        // 3. Exposed Zen 5 CCD0 & CCD1 Chiplets
+        const drawChiplet = (x, y, w, h, title) => {
+          const dieGrad = ctx.createLinearGradient(x, y, x + w, y + h);
+          dieGrad.addColorStop(0, "#38BDF8");
+          dieGrad.addColorStop(0.28, "#818CF8");
+          dieGrad.addColorStop(0.55, "#EC4899");
+          dieGrad.addColorStop(0.8, "#F59E0B");
+          dieGrad.addColorStop(1, "#10B981");
+          this.drawRoundedRect(ctx, x, y, w, h, 6);
+          ctx.fillStyle = dieGrad;
+          ctx.fill();
+
+          ctx.strokeStyle = "rgba(9, 13, 22, 0.65)";
+          ctx.lineWidth = 1.2;
+          for (let gx = x + 9; gx < x + w; gx += 10) {
+            ctx.beginPath(); ctx.moveTo(gx, y); ctx.lineTo(gx, y + h); ctx.stroke();
+          }
+          for (let gy = y + 8; gy < y + h; gy += 8) {
+            ctx.beginPath(); ctx.moveTo(x, gy); ctx.lineTo(x + w, gy); ctx.stroke();
+          }
+          ctx.strokeStyle = "#F8FAFC";
+          ctx.lineWidth = 1.5;
+          this.drawRoundedRect(ctx, x, y, w, h, 6);
+          ctx.stroke();
+
+          ctx.fillStyle = "rgba(9,13,22,0.92)";
+          ctx.fillRect(x + 2, y + h / 2 - 12, w - 4, 24);
+          ctx.fillStyle = "#F8FAFC";
+          ctx.font = "900 13px 'JetBrains Mono', monospace";
+          ctx.textAlign = "center";
+          ctx.fillText(title, x + w / 2, y + h / 2 + 5);
+        };
+
+        drawChiplet(-80, -78, 74, 56, "ZEN5 CCD0");
+        drawChiplet(6, -78, 74, 56, "ZEN5 CCD1");
+
+        // Central I/O Die (IOD / MMU)
+        const iodGrad = ctx.createLinearGradient(-72, -10, 72, 76);
+        iodGrad.addColorStop(0, "#1E293B");
+        iodGrad.addColorStop(0.5, "#334155");
+        iodGrad.addColorStop(1, "#0F172A");
+        this.drawRoundedRect(ctx, -74, -10, 148, 84, 8);
+        ctx.fillStyle = iodGrad;
+        ctx.fill();
+        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = highlightColor || "#38BDF8";
+        ctx.stroke();
+
+        const glowAlpha = 0.25 + 0.16 * Math.sin(pulsePhase * 3);
+        ctx.fillStyle = highlightColor || "#38BDF8";
+        ctx.globalAlpha = glowAlpha;
+        this.drawRoundedRect(ctx, -70, -6, 140, 76, 6);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+
+        ctx.fillStyle = "#F8FAFC";
+        ctx.font = "900 16.5px 'JetBrains Mono', monospace";
+        ctx.textAlign = "center";
+        ctx.fillText(label || "MMU + TLB", 0, 24);
+        ctx.fillStyle = "#E2E8F0";
+        ctx.font = "800 13.5px 'JetBrains Mono', monospace";
+        ctx.fillText("RYZEN 9 9950X", 0, 49);
+
+        ctx.restore();
+      },
+
+      // Lifelike 3D DDR5 RAM DIMM Module with 288 Gold Contact Fingers
+      drawDDR5Module(ctx, cx, cy, scale, title, subLabel, accentColor, isLit) {
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.scale(scale, scale);
+
+        ctx.shadowColor = "rgba(0, 0, 0, 0.85)";
+        ctx.shadowBlur = 30;
+        ctx.shadowOffsetY = 12;
+
+        const pcbGrad = ctx.createLinearGradient(-185, -62, 185, 62);
+        pcbGrad.addColorStop(0, "#1E293B");
+        pcbGrad.addColorStop(0.5, "#0F172A");
+        pcbGrad.addColorStop(1, "#090D16");
+        this.drawRoundedRect(ctx, -185, -62, 370, 112, 10);
+        ctx.fillStyle = pcbGrad;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetY = 0;
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = isLit ? (accentColor || "#10B981") : "#475569";
+        ctx.stroke();
+
+        // 288 Gold Contact Fingers
+        const goldGrad = ctx.createLinearGradient(0, 50, 0, 68);
+        goldGrad.addColorStop(0, "#FDE68A");
+        goldGrad.addColorStop(0.5, "#F59E0B");
+        goldGrad.addColorStop(1, "#B45309");
+        ctx.fillStyle = goldGrad;
+        for (let px = -172; px <= 172; px += 6) {
+          if (Math.abs(px - 14) < 8) continue;
+          ctx.fillRect(px, 50, 4, 16);
+        }
+
+        // 8 Molded Epoxy BGA DRAM Chips
+        for (let i = 0; i < 8; i++) {
+          const chipX = -168 + i * 42 + (i >= 4 ? 18 : 0);
+          const chipGrad = ctx.createLinearGradient(chipX, -46, chipX + 34, 22);
+          chipGrad.addColorStop(0, "#334155");
+          chipGrad.addColorStop(0.5, "#1E293B");
+          chipGrad.addColorStop(1, "#0B0F19");
+          this.drawRoundedRect(ctx, chipX, -46, 34, 60, 4);
+          ctx.fillStyle = chipGrad;
+          ctx.fill();
+          ctx.lineWidth = 1.5;
+          ctx.strokeStyle = isLit ? (accentColor || "#10B981") : "#475569";
+          ctx.stroke();
+        }
+
+        // Overlay Status Banner
+        this.drawRoundedRect(ctx, -168, -16, 336, 58, 9);
+        ctx.fillStyle = "rgba(9, 13, 22, 0.94)";
+        ctx.fill();
+        ctx.strokeStyle = accentColor || "#38BDF8";
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+
+        ctx.fillStyle = "#F8FAFC";
+        ctx.font = "900 18.5px 'JetBrains Mono', monospace";
+        ctx.textAlign = "center";
+        ctx.fillText(title, 0, 8);
+        ctx.fillStyle = accentColor || "#7DD3FC";
+        ctx.font = "800 15.5px 'JetBrains Mono', monospace";
+        ctx.fillText(subLabel, 0, 32);
+
+        ctx.restore();
+      },
+
+      // Lifelike 3D Titanium-Rim Optical Glass Lens
+      drawOpticalLens(ctx, cx, cy, radius, topLabel, bottomLabel, color) {
+        ctx.save();
+        ctx.translate(cx, cy);
+
+        const aura = ctx.createRadialGradient(0, 0, radius * 0.4, 0, 0, radius * 1.55);
+        aura.addColorStop(0, color + "55");
+        aura.addColorStop(1, "transparent");
+        ctx.fillStyle = aura;
+        ctx.beginPath(); ctx.arc(0, 0, radius * 1.55, 0, Math.PI * 2); ctx.fill();
+
+        const ringGrad = ctx.createLinearGradient(-radius, -radius, radius, radius);
+        ringGrad.addColorStop(0, "#F8FAFC");
+        ringGrad.addColorStop(0.3, "#64748B");
+        ringGrad.addColorStop(0.6, "#CBD5E1");
+        ringGrad.addColorStop(1, "#1E293B");
+        ctx.beginPath();
+        ctx.arc(0, 0, radius, 0, Math.PI * 2);
+        ctx.fillStyle = ringGrad;
+        ctx.fill();
+
+        const glassGrad = ctx.createRadialGradient(-radius * 0.3, -radius * 0.3, 5, 0, 0, radius * 0.88);
+        glassGrad.addColorStop(0, "rgba(255, 255, 255, 0.38)");
+        glassGrad.addColorStop(0.35, "rgba(56, 189, 248, 0.20)");
+        glassGrad.addColorStop(0.85, "rgba(9, 13, 22, 0.90)");
+        glassGrad.addColorStop(1, "rgba(56, 189, 248, 0.48)");
+        ctx.beginPath();
+        ctx.arc(0, 0, radius * 0.88, 0, Math.PI * 2);
+        ctx.fillStyle = glassGrad;
+        ctx.fill();
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = color;
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(-radius * 0.18, -radius * 0.18, radius * 0.62, Math.PI * 1.1, Math.PI * 1.65);
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.58)";
+        ctx.lineWidth = 6;
+        ctx.lineCap = "round";
+        ctx.stroke();
+
+        ctx.fillStyle = "#F8FAFC";
+        ctx.font = "900 19.5px 'JetBrains Mono', monospace";
+        ctx.textAlign = "center";
+        ctx.fillText(topLabel, 0, -4);
+        ctx.fillStyle = color;
+        ctx.font = "800 17px 'JetBrains Mono', monospace";
+        ctx.fillText(bottomLabel, 0, 22);
+
+        ctx.restore();
+      },
+
+      // Lifelike 3D Industrial Red Strobe Fire Alarm Bell (#PF Interrupt 14)
+      drawFireAlarmStrobe(ctx, cx, cy, scale, label, subText, pulsePhase) {
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.scale(scale, scale);
+
+        const rayAlpha = 0.28 + 0.22 * Math.sin(pulsePhase * 5);
+        const coneGrad = ctx.createRadialGradient(0, -10, 12, 0, -10, 175);
+        coneGrad.addColorStop(0, `rgba(244, 63, 94, ${rayAlpha + 0.35})`);
+        coneGrad.addColorStop(0.5, `rgba(244, 63, 94, ${rayAlpha})`);
+        coneGrad.addColorStop(1, "transparent");
+        ctx.fillStyle = coneGrad;
+        ctx.beginPath();
+        ctx.arc(0, -10, 175, 0, Math.PI * 2);
+        ctx.fill();
+
+        const domeGrad = ctx.createLinearGradient(-56, -74, 56, 22);
+        domeGrad.addColorStop(0, "#FDA4AF");
+        domeGrad.addColorStop(0.3, "#F43F5E");
+        domeGrad.addColorStop(0.75, "#9F1239");
+        domeGrad.addColorStop(1, "#4C0519");
+        ctx.beginPath();
+        ctx.moveTo(-56, 26);
+        ctx.lineTo(-46, -48);
+        ctx.arc(0, -48, 46, Math.PI, 0, false);
+        ctx.lineTo(56, 26);
+        ctx.closePath();
+        ctx.fillStyle = domeGrad;
+        ctx.fill();
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = "#FECDD3";
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(0, -26, 24, 0, Math.PI * 2);
+        ctx.fillStyle = "#FFF1F2";
+        ctx.fill();
+
+        const baseGrad = ctx.createLinearGradient(-84, 26, 84, 72);
+        baseGrad.addColorStop(0, "#94A3B8");
+        baseGrad.addColorStop(0.5, "#334155");
+        baseGrad.addColorStop(1, "#0F172A");
+        this.drawRoundedRect(ctx, -98, 24, 196, 56, 12);
+        ctx.fillStyle = baseGrad;
+        ctx.fill();
+        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = "#F43F5E";
+        ctx.stroke();
+
+        ctx.fillStyle = "#F8FAFC";
+        ctx.font = "900 18px 'JetBrains Mono', monospace";
+        ctx.textAlign = "center";
+        ctx.fillText(label || "IDT[14] #PF", 0, 48);
+        ctx.fillStyle = "#FDA4AF";
+        ctx.font = "800 15px 'JetBrains Mono', monospace";
+        ctx.fillText(subText || "RING 0 TRAP", 0, 69);
+
+        ctx.restore();
+      },
+
+      // Lifelike 3D Mechanical Split-Flap Airport Departure Board (vDSO)
+      drawSplitFlapBoard(ctx, cx, cy, w, h, headerText, rows) {
+        ctx.save();
+        ctx.translate(cx - w / 2, cy - h / 2);
+
+        ctx.shadowColor = "rgba(0,0,0,0.85)";
+        ctx.shadowBlur = 32;
+        ctx.shadowOffsetY = 12;
+
+        const frameGrad = ctx.createLinearGradient(0, 0, w, h);
+        frameGrad.addColorStop(0, "#334155");
+        frameGrad.addColorStop(0.5, "#0F172A");
+        frameGrad.addColorStop(1, "#1E293B");
+        this.drawRoundedRect(ctx, 0, 0, w, h, 16);
+        ctx.fillStyle = frameGrad;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetY = 0;
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = "#10B981";
+        ctx.stroke();
+
+        this.drawRoundedRect(ctx, 16, 14, w - 32, 40, 8);
+        ctx.fillStyle = "#064E3B";
+        ctx.fill();
+        ctx.fillStyle = "#6EE7B7";
+        ctx.font = "900 16px 'JetBrains Mono', monospace";
+        ctx.textAlign = "left";
+        const cleanHeader = (headerText || "RING-3 VDSO BOARD • [vvar] + [vdso]").replace(/^[^A-Za-z0-9\[✓✗]+\s*/, "");
+        ctx.fillText(cleanHeader, 26, 40, w - 52);
+
+        const rowH = (h - 74) / rows.length;
+        rows.forEach((r, idx) => {
+          const ry = 64 + idx * rowH;
+          this.drawRoundedRect(ctx, 18, ry, w - 36, rowH - 10, 8);
+          ctx.fillStyle = "#070B14";
+          ctx.fill();
+          ctx.strokeStyle = "rgba(255,255,255,0.16)";
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+
+          ctx.font = "900 17.5px 'JetBrains Mono', monospace";
+          const rightW = ctx.measureText(r.right).width;
+          ctx.fillStyle = r.badgeColor || "#34D399";
+          ctx.textAlign = "right";
+          ctx.fillText(r.right, w - 28, ry + (rowH - 10) / 2 + 6);
+
+          ctx.fillStyle = r.color || "#F8FAFC";
+          ctx.textAlign = "left";
+          const maxLeftW = Math.max(70, (w - 56) - rightW - 14);
+          ctx.fillText(r.left, 28, ry + (rowH - 10) / 2 + 6, maxLeftW);
+        });
+
+        ctx.restore();
+      },
+
+      // Lifelike Translucent 3D Ice Block (Read-Only Kernel Zero Page)
+      drawZeroPageIceBlock(ctx, cx, cy, w, h) {
+        ctx.save();
+        ctx.translate(cx - w / 2, cy - h / 2);
+
+        const iceGrad = ctx.createLinearGradient(0, 0, w, h);
+        iceGrad.addColorStop(0, "rgba(186, 230, 253, 0.55)");
+        iceGrad.addColorStop(0.35, "rgba(56, 189, 248, 0.30)");
+        iceGrad.addColorStop(0.75, "rgba(14, 116, 144, 0.45)");
+        iceGrad.addColorStop(1, "rgba(224, 242, 254, 0.52)");
+        this.drawRoundedRect(ctx, 0, 0, w, h, 18);
+        ctx.fillStyle = iceGrad;
+        ctx.fill();
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = "#BAE6FD";
+        ctx.stroke();
+
+        ctx.fillStyle = "#F8FAFC";
+        ctx.font = "900 19px 'JetBrains Mono', monospace";
+        ctx.textAlign = "center";
+        ctx.fillText("❄️ KERNEL ZERO PAGE", w / 2, 44);
+        ctx.fillStyle = "#E0F2FE";
+        ctx.font = "900 30px 'JetBrains Mono', monospace";
+        ctx.fillText("00 00 00 00", w / 2, h / 2 + 10);
+        ctx.fillStyle = "#FDA4AF";
+        ctx.font = "900 17px 'JetBrains Mono', monospace";
+        ctx.fillText("🔒 READ-ONLY (R/W=0)", w / 2, h - 24);
+
+        ctx.restore();
+      },
+
+      // 3D Hardware Register Pill Helper
+      drawRegisterPill(ctx, x, y, w, h, regName, regVal, borderColor) {
+        ctx.save();
+        this.drawRoundedRect(ctx, x, y, w, h, 12);
+        ctx.fillStyle = "#0D1322";
+        ctx.fill();
+        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = borderColor || "#38BDF8";
+        ctx.stroke();
+
+        ctx.font = "900 16px 'JetBrains Mono', monospace";
+        const nameW = ctx.measureText(regName).width;
+        const boxW = Math.max(92, Math.min(w * 0.38, nameW + 22));
+
+        this.drawRoundedRect(ctx, x + 8, y + 8, boxW, h - 16, 8);
+        ctx.fillStyle = borderColor + "28";
+        ctx.fill();
+
+        ctx.fillStyle = borderColor || "#38BDF8";
+        ctx.textAlign = "center";
+        ctx.fillText(regName, x + 8 + boxW / 2, y + h / 2 + 6, boxW - 10);
+
+        const valX = x + 8 + boxW + 14;
+        const maxValW = Math.max(60, (x + w - 12) - valX);
+        ctx.fillStyle = "#F8FAFC";
+        ctx.font = "800 17.5px 'JetBrains Mono', monospace";
+        ctx.textAlign = "left";
+        ctx.fillText(regVal, valX, y + h / 2 + 6, maxValW);
+        ctx.restore();
+      },
+
+      // Master Scene Dispatcher for Slides 01..29 (1100 x 640 Full-Bleed Canvas)
+      renderScene(canvas, slideNum, activeStep, pulsePhase) {
+        if (!canvas) return;
+        const ctx = canvas.getContext("2d");
+        const W = canvas.width;
+        const H = canvas.height;
+        ctx.clearRect(0, 0, W, H);
+
+        // Subtle silicon wafer grid across full 1100x640 stage
+        ctx.strokeStyle = "rgba(56, 189, 248, 0.055)";
+        ctx.lineWidth = 1;
+        for (let x = 0; x < W; x += 48) {
+          ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+        }
+        for (let y = 0; y < H; y += 48) {
+          ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+        }
+
+        const drawLaser = (x1, y1, x2, y2, color, width) => {
+          ctx.save();
+          ctx.strokeStyle = color;
+          ctx.lineWidth = width || 5;
+          ctx.shadowColor = color;
+          ctx.shadowBlur = 16;
+          ctx.setLineDash([16, 9]);
+          ctx.lineDashOffset = -pulsePhase * 46;
+          ctx.beginPath();
+          ctx.moveTo(x1, y1);
+          ctx.lineTo(x2, y2);
+          ctx.stroke();
+          ctx.restore();
+        };
+
+        switch (slideNum) {
+          case 1:
+          case 23: {
+            // Full-Stage Virtual Pointer Illusion -> MMU Optical Lens -> Physical DDR5 Frame
+            this.drawSiliconChamber(ctx, 24, 24, 340, H - 48, "RING 3 VIRTUAL SPACE", "48-BIT VA", "#38BDF8", "rgba(15, 29, 52, 0.72)");
+            this.drawSiliconChamber(ctx, 736, 24, 340, H - 48, "DDR5 PHYSICAL DRAM", "52-BIT PA", "#10B981", "rgba(11, 34, 27, 0.72)");
+
+            this.drawZen5Package(ctx, 194, H / 2 - 40, 0.96, "CORE 0 LOAD", "#38BDF8", pulsePhase);
+            this.drawRegisterPill(ctx, 44, H - 115, 300, 62, "VA PTR", "0x7fff5fbff8c0", "#38BDF8");
+
+            drawLaser(338, H / 2 - 40, 442, H / 2 - 40, "#38BDF8", 6);
+            this.drawOpticalLens(ctx, 550, H / 2 - 40, 98, "HARDWARE MMU", "CR3 + TLB", "#38BDF8");
+            this.drawRegisterPill(ctx, 415, H - 115, 270, 62, "CR3", "0x00104000", "#F59E0B");
+            drawLaser(652, H / 2 - 40, 756, H / 2 - 40, "#10B981", 6);
+
+            this.drawDDR5Module(ctx, 906, H / 2 - 95, 0.80, "PROCESS A FRAME", "PA: 0x1A480F8C0", "#10B981", true);
+            this.drawDDR5Module(ctx, 906, H / 2 + 80, 0.80, "PROCESS B FRAME", "PA: 0x2F910C8C0", "#38BDF8", true);
+            break;
+          }
+          case 2:
+          case 4: {
+            // 3 Full-Height Hardware Pillars: 1. vDSO Board, 2. #PF Strobe Siren, 3. 2MiB HugePages
+            this.drawSiliconChamber(ctx, 20, 24, 340, H - 48, "1. RING 3 vDSO", "18.0 ns", "#10B981", "rgba(11, 34, 27, 0.7)");
+            this.drawSplitFlapBoard(ctx, 190, H / 2 + 25, 308, 440, "✈️ [vvar] SEQLOCK", [
+              { left: "steady_clock", right: "18.0 ns", badgeColor: "#34D399" },
+              { left: "SYS_clock", right: "68.9 ns", badgeColor: "#FB7185" },
+              { left: "SYS_gettid", right: "41.7 ns", badgeColor: "#FB7185" },
+              { left: "TLS gettid", right: "0.21 ns", badgeColor: "#38BDF8" }
+            ]);
+
+            this.drawSiliconChamber(ctx, 380, 24, 340, H - 48, "2. DEMAND PAGING", "512 #PFs", "#F43F5E", "rgba(42, 14, 27, 0.75)");
+            this.drawFireAlarmStrobe(ctx, 550, H / 2 - 45, 1.35, "512 × #PF TRAPS", "425 ns / 4 KiB", pulsePhase);
+            this.drawRegisterPill(ctx, 400, H - 115, 300, 64, "MAP_POP", "217.6 µs → 197 ns", "#10B981");
+
+            this.drawSiliconChamber(ctx, 740, 24, 340, H - 48, "3. 2 MiB HUGEPAGES", "2.14x", "#38BDF8", "rgba(15, 29, 52, 0.75)");
+            this.drawZen5Package(ctx, 910, H / 2 - 80, 0.85, "L2 TLB: 256", "#38BDF8", pulsePhase);
+            this.drawDDR5Module(ctx, 910, H / 2 + 135, 0.78, "2 MiB HUGEPAGE", "-99.99% TLB Misses", "#10B981", true);
+            break;
+          }
+          case 3:
+          case 7: {
+            // Ring 3 Userspace Chamber vs. Silicon Border Laser Gate vs. Ring 0 Kernel Vault
+            this.drawSiliconChamber(ctx, 24, 24, 430, H - 48, "RING 3 USERSPACE", "CS.CPL == 3", "#38BDF8", "rgba(15, 29, 52, 0.72)");
+            this.drawZen5Package(ctx, 238, H / 2 - 45, 1.0, "UNTRUSTED APP", "#38BDF8", pulsePhase);
+            this.drawRegisterPill(ctx, 52, H - 118, 374, 64, "CPL = 3", "PTE U/S == 1 Only", "#38BDF8");
+
+            // Red Laser Security Border Gate in Center
+            ctx.fillStyle = "rgba(244, 63, 94, 0.20)";
+            ctx.fillRect(495, 24, 110, H - 48);
+            for (let ly = 48; ly < H - 40; ly += 34) {
+              drawLaser(495, ly, 605, ly, "#F43F5E", 3.5);
+            }
+            this.drawOpticalLens(ctx, 550, H / 2 - 20, 74, "SILICON", "BORDER", "#F43F5E");
+
+            this.drawSiliconChamber(ctx, 646, 24, 430, H - 48, "RING 0 KERNEL VAULT", "CS.CPL == 0", "#F43F5E", "rgba(42, 14, 27, 0.75)");
+            this.drawDDR5Module(ctx, 860, H / 2 - 90, 0.88, "KERNEL PAGE TABLES", "CR3 • IA32_LSTAR • IDT", "#F43F5E", true);
+            this.drawRegisterPill(ctx, 674, H / 2 + 30, 374, 62, "CR3 REG", "Page Table Root PA", "#F59E0B");
+            this.drawRegisterPill(ctx, 674, H - 118, 374, 64, "CPL = 0", "Full Silicon Control", "#F43F5E");
+            break;
+          }
+          case 5:
+          case 6: {
+            // High-Frequency Telemetry Gateway: vDSO Ring 3 Fast Lane vs Ring 0 Syscall Slow Lane
+            this.drawSiliconChamber(ctx, 24, 24, 340, H - 48, "PACKET GATEWAY", "ZEN 5 CORE", "#38BDF8", "rgba(15, 29, 52, 0.72)");
+            this.drawZen5Package(ctx, 194, H / 2 + 15, 1.02, "TELEMETRY", "#38BDF8", pulsePhase);
+
+            drawLaser(345, H / 2 - 90, 455, H / 2 - 135, "#10B981", 6);
+            drawLaser(345, H / 2 + 90, 455, H / 2 + 135, "#F43F5E", 6);
+
+            this.drawSiliconChamber(ctx, 440, 24, 636, 280, "FAST LANE: RING 3 vDSO", "0 SYSCALLS", "#10B981", "rgba(11, 34, 27, 0.75)");
+            this.drawSplitFlapBoard(ctx, 758, 184, 580, 195, "✓ VDSO CLOCK_GETTIME (RING 3)", [
+              { left: "steady_clock::now()", right: "18.0 ns (55.6M/s)", badgeColor: "#34D399" },
+              { left: "TLS cached_tid", right: "0.21 ns (4,760M/s)", badgeColor: "#38BDF8" }
+            ]);
+
+            this.drawSiliconChamber(ctx, 440, 332, 636, 284, "SLOW LANE: RING 0 SYSCALL TRAP", "CPL 3 → 0", "#F43F5E", "rgba(42, 14, 27, 0.75)");
+            this.drawSplitFlapBoard(ctx, 758, 494, 580, 195, "✗ EXPLICIT SYSCALL INSTRUCTION", [
+              { left: "syscall(SYS_clock)", right: "68.9 ns (3.8x Slower)", badgeColor: "#FB7185" },
+              { left: "syscall(SYS_gettid)", right: "41.7 ns (199x Slower)", badgeColor: "#FB7185" }
+            ]);
+            break;
+          }
+          case 8:
+          case 9: {
+            // syscall & swapgs Register Shuffle + Stack Switch Architecture
+            this.drawSiliconChamber(ctx, 24, 24, 330, H - 48, "1. SYSCALL CPU OP", "CPL 3 → 0", "#F59E0B", "rgba(38, 26, 12, 0.78)");
+            this.drawRegisterPill(ctx, 44, 96, 290, 68, "RCX", "← Next User RIP", "#38BDF8");
+            this.drawRegisterPill(ctx, 44, 182, 290, 68, "R11", "← User RFLAGS", "#38BDF8");
+            this.drawRegisterPill(ctx, 44, 268, 290, 68, "RIP", "← IA32_LSTAR", "#F59E0B");
+            this.drawRegisterPill(ctx, 44, 354, 290, 68, "CS.CPL", "← 0 (Ring 0!)", "#10B981");
+            this.drawRegisterPill(ctx, 44, 460, 290, 82, "RSP ⚠️", "UNTRUSTED USER!", "#F43F5E");
+
+            drawLaser(354, H / 2, 412, H / 2, "#F59E0B", 6);
+
+            this.drawSiliconChamber(ctx, 405, 24, 671, H - 48, "2. LINUX ENTRY_SYSCALL_64 (SWAPGS + PT_REGS)", "RING 0", "#10B981", "rgba(11, 34, 27, 0.72)");
+            this.drawOpticalLens(ctx, 545, H / 2 - 60, 88, "SWAPGS", "GS ↔ Kernel", "#F59E0B");
+            drawLaser(638, H / 2 - 60, 718, H / 2 - 60, "#10B981", 6);
+            this.drawDDR5Module(ctx, 885, H / 2 - 60, 0.82, "KERNEL TASK STACK", "168-Byte struct pt_regs", "#10B981", true);
+
+            this.drawRegisterPill(ctx, 435, H - 140, 295, 74, "USER RSP", "Saved to TSS_sp2", "#F59E0B");
+            this.drawRegisterPill(ctx, 750, H - 140, 295, 74, "KERN RSP", "cpu_top_of_stack", "#10B981");
+            break;
+          }
+          case 10: {
+            // L1D & BTB Cache Eviction Bulldozer (41.7 ns Tight Loop vs 126 ns Real 48 KiB App)
+            this.drawSiliconChamber(ctx, 24, 24, 480, H - 48, "48 KiB L1D + BTB STATE", "ZEN 5 CORE", "#F43F5E", "rgba(42, 14, 27, 0.75)");
+            this.drawZen5Package(ctx, 264, H / 2 - 55, 1.02, "L1D EVICTED!", "#F43F5E", pulsePhase);
+            this.drawRegisterPill(ctx, 52, H - 122, 424, 68, "RING 0 FOOTPRINT", "Evicts 48 KiB L1D & BTB!", "#F43F5E");
+
+            drawLaser(504, H / 2, 578, H / 2, "#F43F5E", 6);
+
+            this.drawSiliconChamber(ctx, 568, 24, 508, H - 48, "DIRECT VS. INDIRECT SYSCALL TAX", "3.0x GAP", "#F59E0B", "rgba(38, 26, 12, 0.75)");
+            this.drawSplitFlapBoard(ctx, 822, H / 2 + 25, 456, 440, "📊 ZEN 5 SYSCALL COST REALITY", [
+              { left: "Tight Loop (Hot L1)", right: "41.7 ns", badgeColor: "#38BDF8" },
+              { left: "48 KiB App Loop", right: "126.0 ns", badgeColor: "#FB7185" },
+              { left: "L1D + BTB Eviction", right: "+84.3 ns Tax!", badgeColor: "#FCD34D" },
+              { left: "TLS Cached Fix", right: "0.21 ns", badgeColor: "#34D399" }
+            ]);
+            break;
+          }
+          case 11:
+          case 12:
+          case 13:
+          case 14: {
+            // The vDSO Public Airport Departure Board + Episode 10 Seqlock Glass Wall
+            this.drawSiliconChamber(ctx, 24, 24, 370, H - 48, "RING 3 READER THREAD", "0 SYSCALLS", "#10B981", "rgba(11, 34, 27, 0.75)");
+            this.drawZen5Package(ctx, 209, H / 2 - 55, 0.98, "RDTSCP + MUL", "#10B981", pulsePhase);
+            this.drawRegisterPill(ctx, 46, H - 122, 326, 68, "MESI [S]", "Zero Atomic RMWs", "#10B981");
+
+            drawLaser(394, H / 2 - 40, 468, H / 2 - 40, "#10B981", 6);
+
+            this.drawSiliconChamber(ctx, 458, 24, 618, H - 48, "KERNEL-MAPPED [vvar] + [vdso] PAGES", "PTE U/S == 1", "#38BDF8", "rgba(15, 29, 52, 0.75)");
+            this.drawSplitFlapBoard(ctx, 767, H / 2 + 22, 566, 455, "✈️ [vvar] SEQLOCK + [vdso] CODE IN RING 3", [
+              { left: "vdso_data.seq", right: "0x00482A00 [EVEN]", badgeColor: "#38BDF8" },
+              { left: "CPU Counter", right: "__rdtscp(&aux)", badgeColor: "#6EE7B7" },
+              { left: "Nanoseconds", right: "(tsc - last)*mult >> shift", badgeColor: "#F8FAFC" },
+              { left: "steady_clock", right: "18.0 ns (Ring 3)", badgeColor: "#34D399" },
+              { left: "TLS gettid()", right: "0.21 ns (fs:[tid])", badgeColor: "#FCD34D" }
+            ]);
+            break;
+          }
+          case 15:
+          case 16:
+          case 17: {
+            // Demand Paging: Virtual IOU Boarding Pass + Zero Page Ice Block + Unpowered DDR5
+            this.drawSiliconChamber(ctx, 20, 24, 336, H - 48, "1. LINUX VMA I.O.U.", "0.69 µs", "#F59E0B", "rgba(38, 26, 12, 0.78)");
+            this.drawRoundedRect(ctx, 44, 96, 288, 340, 18);
+            ctx.fillStyle = "#1C1408";
+            ctx.fill();
+            ctx.lineWidth = 3;
+            ctx.setLineDash([12, 6]);
+            ctx.strokeStyle = "#F59E0B";
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillStyle = "#FCD34D";
+            ctx.font = "900 19px 'JetBrains Mono', monospace";
+            ctx.textAlign = "center";
+            ctx.fillText("🎟️ VM_AREA_STRUCT", 188, 152);
+            ctx.fillStyle = "#F8FAFC";
+            ctx.font = "900 34px 'JetBrains Mono', monospace";
+            ctx.fillText("2 MiB VMA", 188, 220);
+            ctx.fillStyle = "#38BDF8";
+            ctx.font = "800 17px 'JetBrains Mono', monospace";
+            ctx.fillText("512 Unwired Pages", 188, 275);
+            ctx.fillStyle = "#FDA4AF";
+            ctx.fillText("Present = 0 | R/W = 0", 188, 325);
+            this.drawRegisterPill(ctx, 44, H - 118, 288, 64, "MMAP()", "0.69 µs (0 RAM)", "#F59E0B");
+
+            drawLaser(356, H / 2, 404, H / 2, "#38BDF8", 5);
+
+            this.drawSiliconChamber(ctx, 396, 24, 320, H - 48, "2. READ MIRAGE", "ZERO PAGE", "#38BDF8", "rgba(15, 29, 52, 0.75)");
+            this.drawZeroPageIceBlock(ctx, 556, H / 2 - 20, 276, 310);
+            this.drawRegisterPill(ctx, 418, H - 118, 276, 64, "512 → 1", "Shared 4 KiB Page", "#38BDF8");
+
+            this.drawSiliconChamber(ctx, 736, 24, 340, H - 48, "3. FIRST WRITE", "217.6 µs CLIFF", "#F43F5E", "rgba(42, 14, 27, 0.78)");
+            this.drawDDR5Module(ctx, 906, H / 2 - 90, 0.78, "PHYSICAL DDR5 BANK", "0 Bytes Wired at mmap!", "#F43F5E", false);
+            this.drawFireAlarmStrobe(ctx, 906, H / 2 + 125, 0.95, "512 × #PF TRAPS", "217.6 µs Stall!", pulsePhase);
+            break;
+          }
+          case 18:
+          case 19:
+          case 20: {
+            // Hardware #PF Trap (Vector 14) + CR2 Register + 425 ns Ring 0 Factory
+            this.drawSiliconChamber(ctx, 24, 24, 320, H - 48, "1. STORE ABORTED", "P=0 / RW=0", "#F43F5E", "rgba(42, 14, 27, 0.75)");
+            this.drawZen5Package(ctx, 184, H / 2 - 55, 0.94, "STORE FAULT", "#F43F5E", pulsePhase);
+            this.drawRegisterPill(ctx, 42, H - 118, 284, 64, "PTE[i]", "Present=0 | RW=0", "#F43F5E");
+
+            drawLaser(344, H / 2 - 40, 408, H / 2 - 40, "#F43F5E", 6);
+
+            this.drawSiliconChamber(ctx, 396, 24, 310, H - 48, "2. VECTOR 14 (#PF)", "IDT[14]", "#F59E0B", "rgba(38, 26, 12, 0.78)");
+            this.drawFireAlarmStrobe(ctx, 551, H / 2 - 45, 1.25, "IDT[14] #PF", "48B Stack Frame", pulsePhase);
+            this.drawRegisterPill(ctx, 414, H - 118, 274, 64, "CR2", "Faulting Virt Addr", "#F59E0B");
+
+            drawLaser(706, H / 2 - 40, 760, H / 2 - 40, "#F59E0B", 6);
+
+            this.drawSiliconChamber(ctx, 750, 24, 326, H - 48, "3. RING 0 ZEROING", "425 ns", "#F43F5E", "rgba(42, 14, 27, 0.78)");
+            this.drawSplitFlapBoard(ctx, 913, H / 2 + 25, 294, 440, "🧹 DO_ANONYMOUS_PAGE", [
+              { left: "1. IDT + iretq", right: "70 ns", badgeColor: "#38BDF8" },
+              { left: "2. VMA Lock", right: "85 ns", badgeColor: "#FCD34D" },
+              { left: "3. Buddy Alloc", right: "100 ns", badgeColor: "#FCD34D" },
+              { left: "4. rep stosb", right: "170 ns", badgeColor: "#FB7185" }
+            ]);
+            break;
+          }
+          case 21:
+          case 22: {
+            // Slide 21: munmap() Shredder vs Slide 22: Pre-Faulted MAP_POPULATE Arena
+            const isFixed = slideNum === 22;
+            this.drawSiliconChamber(ctx, 24, 24, 340, H - 48, isFixed ? "1. STARTUP PRE-FAULT" : "1. TEMP VECTOR(2M)", isFixed ? "MAP_POPULATE" : "≥ 128 KiB", isFixed ? "#10B981" : "#F43F5E", isFixed ? "rgba(11, 34, 27, 0.75)" : "rgba(42, 14, 27, 0.75)");
+            this.drawZen5Package(ctx, 194, H / 2 - 45, 0.96, isFixed ? "WARM ARENA" : "RPC WORKER", isFixed ? "#10B981" : "#F43F5E", pulsePhase);
+            this.drawRegisterPill(ctx, 44, H - 118, 300, 64, isFixed ? "MLOCK()" : "~VECTOR()", isFixed ? "Pinned in RAM" : "Calls munmap()!", isFixed ? "#10B981" : "#F43F5E");
+
+            drawLaser(364, H / 2 - 40, 446, H / 2 - 40, isFixed ? "#10B981" : "#F43F5E", 6);
+
+            if (isFixed) {
+              this.drawSiliconChamber(ctx, 438, 24, 638, H - 48, "2. POOLED RING-3 ARENA (512 WIRED PAGES)", "1,105x FASTER", "#10B981", "rgba(11, 34, 27, 0.75)");
+              this.drawOpticalLens(ctx, 585, H / 2 - 40, 88, "RING 3 POOL", "P=1 | RW=1", "#10B981");
+              drawLaser(678, H / 2 - 40, 745, H / 2 - 40, "#10B981", 6);
+              this.drawDDR5Module(ctx, 900, H / 2 - 40, 0.82, "PRE-WIRED 2 MiB RAM", "197 ns Total (0 #PF Traps!)", "#10B981", true);
+              this.drawRegisterPill(ctx, 468, H - 118, 578, 64, "HOT WRITE", "0.38 ns / page store • Zero Ring 0 Crossings!", "#10B981");
+            } else {
+              this.drawSiliconChamber(ctx, 438, 24, 638, H - 48, "2. GLIBC MUNMAP() SHREDDER DEATH CYCLE", "217.6 µs / RPC", "#F43F5E", "rgba(42, 14, 27, 0.75)");
+              this.drawFireAlarmStrobe(ctx, 585, H / 2 - 30, 1.2, "MUNMAP(2 MiB)", "Wipes 512 PTEs!", pulsePhase);
+              drawLaser(678, H / 2 - 40, 745, H / 2 - 40, "#F43F5E", 6);
+              this.drawDDR5Module(ctx, 900, H / 2 - 40, 0.82, "NEXT RPC RE-FAULTS!", "512 #PFs × 425 ns = 217.6 µs", "#F43F5E", true);
+              this.drawRegisterPill(ctx, 468, H - 118, 578, 64, "CHURN TRAP", "Allocations ≥ 128 KiB Return Pages to Kernel on free()", "#F43F5E");
+            }
+            break;
+          }
+          case 24:
+          case 25: {
+            // Full-Stage 4-Level Cascading Radix Page-Table Walk in Physical RAM
+            this.drawSiliconChamber(ctx, 20, 20, W - 40, H - 40, "4-LEVEL RADIX PAGE TABLE WALK IN PHYSICAL DRAM (1 LOAD = 5 READS)", "CR3 → PML4 → PDPT → PD → PT → *p", "#F59E0B", "rgba(17, 24, 39, 0.82)");
+
+            const levels = [
+              { name: "READ #1: PML4", sub: "Bits [47:39]", idx: "512 Slots", c: "#38BDF8" },
+              { name: "READ #2: PDPT", sub: "Bits [38:30]", idx: "512 Slots", c: "#38BDF8" },
+              { name: "READ #3: PD",   sub: "Bits [29:21]", idx: "512 Slots", c: "#F59E0B" },
+              { name: "READ #4: PT",   sub: "Bits [20:12]", idx: "4 KiB PTE", c: "#F43F5E" }
+            ];
+            levels.forEach((lv, i) => {
+              const bx = 44 + i * 184;
+              const by = 96 + i * 18;
+              const bGrad = ctx.createLinearGradient(bx, by, bx + 162, by + 350);
+              bGrad.addColorStop(0, "#1E293B");
+              bGrad.addColorStop(1, "#090D16");
+              this.drawRoundedRect(ctx, bx, by, 162, 350, 14);
+              ctx.fillStyle = bGrad;
+              ctx.fill();
+              ctx.lineWidth = 3;
+              ctx.strokeStyle = lv.c;
+              ctx.stroke();
+
+              this.drawRoundedRect(ctx, bx + 12, by + 14, 138, 38, 8);
+              ctx.fillStyle = lv.c + "28";
+              ctx.fill();
+              ctx.fillStyle = lv.c;
+              ctx.font = "900 16.5px 'JetBrains Mono', monospace";
+              ctx.textAlign = "center";
+              ctx.fillText(lv.name, bx + 81, by + 39);
+
+              ctx.fillStyle = "#F8FAFC";
+              ctx.font = "800 16.5px 'JetBrains Mono', monospace";
+              ctx.fillText(lv.sub, bx + 81, by + 84);
+              ctx.fillStyle = "#E2E8F0";
+              ctx.font = "800 15.5px 'JetBrains Mono', monospace";
+              ctx.fillText(lv.idx, bx + 81, by + 112);
+
+              // Active PTE slot inside table
+              const slotY = by + 150 + i * 28;
+              this.drawRoundedRect(ctx, bx + 14, slotY, 134, 54, 8);
+              ctx.fillStyle = lv.c + "35";
+              ctx.fill();
+              ctx.strokeStyle = lv.c;
+              ctx.lineWidth = 2;
+              ctx.stroke();
+              ctx.fillStyle = "#F8FAFC";
+              ctx.font = "900 16px 'JetBrains Mono', monospace";
+              ctx.fillText("Next PFN →", bx + 81, slotY + 33);
+
+              if (i < 3) {
+                drawLaser(bx + 162, slotY + 27, bx + 184, slotY + 45, lv.c, 5);
+              }
+            });
+
+            drawLaser(758, 360, 815, 310, "#10B981", 6);
+            this.drawDDR5Module(ctx, 935, 310, 0.68, "READ #5: *p DATA", "12-Bit Offset [11:0]", "#10B981", true);
+            this.drawRegisterPill(ctx, 44, H - 102, W - 88, 62, "5x AMPLIFICATION", "Cold TLB Miss Turns 1 C++ Load Into 5 Sequential RAM Reads!", "#F43F5E");
+            break;
+          }
+          case 26:
+          case 27: {
+            // 12 MiB L2 TLB Spotlight vs. 64 MiB L3 Cache & 512 MiB Order Book
+            this.drawSiliconChamber(ctx, 24, 24, 340, H - 48, "ZEN 5 CACHE VS. TLB", "THE PARADOX", "#38BDF8", "rgba(15, 29, 52, 0.75)");
+            this.drawZen5Package(ctx, 194, H / 2 - 65, 0.94, "64 MiB L3 CACHE", "#10B981", pulsePhase);
+            this.drawRegisterPill(ctx, 42, H - 192, 304, 58, "L3 CACHE", "64 MiB (Holds 32M!)", "#10B981");
+            this.drawRegisterPill(ctx, 42, H - 118, 304, 58, "L2 dTLB", "Only 12 MiB Reach!", "#F43F5E");
+
+            this.drawSiliconChamber(ctx, 388, 24, 688, H - 48, "512 MiB ORDER BOOK (131,072 × 4 KiB PAGES)", "93.9% TLB MISSES", "#F43F5E", "rgba(42, 14, 27, 0.78)");
+            const gx = 416, gy = 92, gw = 632, gh = 385;
+            this.drawRoundedRect(ctx, gx, gy, gw, gh, 16);
+            ctx.fillStyle = "#1F0913";
+            ctx.fill();
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = "#F43F5E";
+            ctx.stroke();
+
+            ctx.strokeStyle = "rgba(244, 63, 94, 0.22)";
+            ctx.lineWidth = 1.2;
+            for (let x = gx + 42; x < gx + gw; x += 42) {
+              ctx.beginPath(); ctx.moveTo(x, gy); ctx.lineTo(x, gy + gh); ctx.stroke();
+            }
+            for (let y = gy + 42; y < gy + gh; y += 42) {
+              ctx.beginPath(); ctx.moveTo(gx, y); ctx.lineTo(gx + gw, y); ctx.stroke();
+            }
+
+            // Tiny 2.3% (12 MiB) Glowing Green TLB Corner!
+            this.drawRoundedRect(ctx, gx + 8, gy + 8, 134, 74, 10);
+            ctx.fillStyle = "#10B981";
+            ctx.fill();
+            ctx.fillStyle = "#051B11";
+            ctx.font = "900 16.5px 'JetBrains Mono', monospace";
+            ctx.textAlign = "center";
+            ctx.fillText("12 MiB TLB", gx + 75, gy + 38);
+            ctx.fillText("(2.3% Reach)", gx + 75, gy + 61);
+
+            this.drawRoundedRect(ctx, gx + 70, gy + 145, gw - 140, 140, 16);
+            ctx.fillStyle = "rgba(9, 13, 22, 0.92)";
+            ctx.fill();
+            ctx.strokeStyle = "#F43F5E";
+            ctx.lineWidth = 2.5;
+            ctx.stroke();
+
+            ctx.fillStyle = "#F43F5E";
+            ctx.font = "900 26px 'JetBrains Mono', monospace";
+            ctx.fillText("500 MiB (97.7%) UNMAPPED IN TLB!", gx + gw / 2, gy + 198);
+            ctx.fillStyle = "#F8FAFC";
+            ctx.font = "800 20px 'JetBrains Mono', monospace";
+            ctx.fillText("3,072 TLB Slots / 131,072 Pages → 29.9 ns Stall", gx + gw / 2, gy + 245);
+
+            this.drawRegisterPill(ctx, 416, H - 118, 632, 64, "PERF STAT", "93.9% dTLB-load-misses • 4-Level Walk on Every Lookup", "#F43F5E");
+            break;
+          }
+          case 28:
+          case 29: {
+            // 2 MiB HugePage (MADV_HUGEPAGE, PS=1) Bypass Bridge & 256-Slot Full Coverage
+            this.drawSiliconChamber(ctx, 24, 24, 490, H - 48, "1. PD BIT 7 (PS = 1) HUGEPAGE BYPASS", "3-HOP WALK", "#10B981", "rgba(11, 34, 27, 0.75)");
+            this.drawZen5Package(ctx, 185, H / 2 - 45, 0.88, "PD [PS == 1]", "#10B981", pulsePhase);
+
+            // Glowing Emerald Bypass Bridge over crossed-out Leaf PT
+            ctx.save();
+            ctx.strokeStyle = "#10B981";
+            ctx.lineWidth = 6;
+            ctx.shadowColor = "#10B981";
+            ctx.shadowBlur = 18;
+            ctx.setLineDash([16, 8]);
+            ctx.lineDashOffset = -pulsePhase * 48;
+            ctx.beginPath();
+            ctx.moveTo(285, H / 2 - 55);
+            ctx.quadraticCurveTo(385, H / 2 - 210, 485, H / 2 - 55);
+            ctx.stroke();
+            ctx.restore();
+
+            ctx.fillStyle = "#6EE7B7";
+            ctx.font = "900 18px 'JetBrains Mono', monospace";
+            ctx.textAlign = "center";
+            ctx.fillText("BYPASSES PT!", 385, H / 2 - 145);
+
+            this.drawRoundedRect(ctx, 325, H / 2 - 25, 120, 96, 12);
+            ctx.fillStyle = "rgba(244, 63, 94, 0.16)";
+            ctx.fill();
+            ctx.strokeStyle = "#F43F5E";
+            ctx.lineWidth = 2.5;
+            ctx.stroke();
+            ctx.fillStyle = "#FDA4AF";
+            ctx.font = "900 17.5px 'JetBrains Mono', monospace";
+            ctx.fillText("✗ Leaf PT", 385, H / 2 + 28);
+
+            this.drawRegisterPill(ctx, 44, H - 118, 450, 64, "21-BIT OFFSET", "1 TLB Entry Now Covers 2 MiB (512x Reach!)", "#10B981");
+
+            this.drawSiliconChamber(ctx, 534, 24, 542, H - 48, "2. ALL 512 MiB FITS IN 256 L2 TLB SLOTS!", "-99.99% MISSES", "#10B981", "rgba(11, 34, 27, 0.78)");
+            this.drawDDR5Module(ctx, 805, H / 2 - 90, 0.88, "256 × 2 MiB HUGEPAGES", "Covers Full 512 MiB Order Book!", "#10B981", true);
+
+            // L2 TLB Capacity Bar inside right chamber
+            this.drawRoundedRect(ctx, 564, H / 2 + 25, 482, 92, 14);
+            ctx.fillStyle = "#071210";
+            ctx.fill();
+            ctx.strokeStyle = "#10B981";
+            ctx.lineWidth = 2.5;
+            ctx.stroke();
+
+            this.drawRoundedRect(ctx, 572, H / 2 + 33, 145, 76, 10);
+            ctx.fillStyle = "#10B981";
+            ctx.fill();
+            ctx.fillStyle = "#051B11";
+            ctx.font = "900 17px 'JetBrains Mono', monospace";
+            ctx.fillText("256 Slots", 644, H / 2 + 66);
+            ctx.fillText("(8.3% TLB)", 644, H / 2 + 89);
+
+            ctx.fillStyle = "#A7F3D0";
+            ctx.font = "800 18.5px 'JetBrains Mono', monospace";
+            ctx.fillText("+ 2,816 Free L2 TLB Slots!", 885, H / 2 + 76);
+
+            this.drawRegisterPill(ctx, 564, H - 118, 482, 64, "VERDICT", "29.9 ns → 14.0 ns (2.14x Faster Lookups!)", "#10B981");
+            break;
+          }
+        }
+      }
+    };
+  </script>
+  <script>
+    const SLIDES = [{"num":1,"title":"Every C++ Pointer Is a 48-Bit Virtual Illusion","act":"ACT I • VIRTUAL MEMORY","timings":[0,4.5,9.5],"narration":"Welcome back! Print any pointer in GDB—say, 0x7fff5fbff8c0—and it looks like a physical location on a stick of DRAM. It isn't. Every single pointer in your C++ program is a hardware-enforced lie—a 48-bit virtual illusion maintained by the CPU and the OS kernel.","codeBadge":"48-Bit Virtual Address","codeBadgeClass":"pill-base","codeFile":"pointer_address.cpp • x86-64","codeLines":["<span class=\"code-dim\">uint64_t</span> global_seq = <span class=\"code-dim\">42;</span>","<span class=\"code-dim\">uint64_t*</span> ptr = <span class=\"pill-base\">&amp;global_seq</span>;","<span class=\"code-dim\">std::printf(</span><span class=\"code-dim\">\"%p\\n\"</span>, ptr<span class=\"code-dim\">);</span>","<span class=\"pill-base\">0x7fff5fbff8c0</span> <span class=\"pill-danger\">✗ VIRTUAL</span>"],"key1Label":"GDB VIRTUAL PTR","key1Val":"0x7fff5fbff8c0","key1Color":"#38BDF8","key2Label":"HARDWARE ROOT","key2Val":"CR3 + MMU","key2Color":"#10B981","stageLabel":"HARDWARE MMU & CR3 ADDRESS TRANSLATION","stageBadge":"VA [47:0] → PA [51:0]","stageBadgeClass":"pill-fast","stageGlow":"glow-base","leftTag":"C++ VIRTUAL ADDRESS","leftMetric":"48-Bit Illusion","leftBarPct":100,"rightTag":"DDR5 PHYSICAL FRAME","rightMetric":"0x1A480F8C0","rightBarPct":100},{"num":2,"title":"When the Virtual Illusion Leaks on the Hot Path","act":"ACT I • THREE HARDWARE TRAPS","timings":[0,4.8,9.6],"narration":"Most of the time, that illusion is free. Until a live production request hits a hidden border crossing: a telemetry call that accidentally traps into Ring 0, a 2 MiB buffer resize that fires 512 hardware page faults, or an L3 cache hit that stalls because its virtual address missed the TLB.","codeBadge":"3 Silicon Traps","codeBadgeClass":"pill-danger","codeFile":"hot_path_traps.cpp • C++20","codeLines":["<span class=\"code-dim\">pid_t</span> tid = <span class=\"pill-danger\">syscall(SYS_gettid)</span>;","<span class=\"code-dim\">std::vector&lt;uint8_t&gt;</span> b(<span class=\"pill-warn\">2ULL &lt;&lt; 20</span>);","<span class=\"pill-danger\">b[0] = 1;</span>","<span class=\"code-dim\">return</span> <span class=\"pill-base\">book[id].price</span>;"],"key1Label":"RING 3 STORE","key1Val":"0.38 ns","key1Color":"#10B981","key2Label":"512 #PF TRAPS","key2Val":"217.6 µs","key2Color":"#F43F5E","stageLabel":"THREE SILICON BOUNDARIES ON ZEN 5","stageBadge":"Ring 0 • #PF • dTLB","stageBadgeClass":"pill-danger","stageGlow":"glow-danger","leftTag":"TRAPPED FIRST WRITE","leftMetric":"217,600 ns","leftBarPct":100,"rightTag":"RING 3 HOT PATH","rightMetric":"197 ns (1,105x)","rightBarPct":8},{"num":3,"title":"From Episode 10's SYS_futex to the Silicon Border","act":"ACT I • EPISODE 10 → 11 BRIDGE","timings":[0,4.6,9.2],"narration":"In Episode 10, we saw an uncontended std::mutex lock and unlock in 8.67 nanoseconds in userspace, while a contended lock crossed into the kernel via SYS_futex. Today, we're following that thread across the silicon border to see what actually happens inside the CPU when C++ crosses into Ring 0.","codeBadge":"Ring 3 vs Ring 0","codeBadgeClass":"pill-base","codeFile":"futex_crossing.cpp • x86-64","codeLines":["<span class=\"code-dim\">if (</span><span class=\"pill-fast\"> CAS(&amp;word_, 0, 1) </span><span class=\"code-dim\">)</span>","  <span class=\"code-dim\">return;</span>","<span class=\"pill-danger\">syscall(SYS_futex, &amp;word_,</span>","        <span class=\"pill-danger\">FUTEX_WAIT_PRIVATE, 2)</span>;"],"key1Label":"RING 3 CAS","key1Val":"8.67 ns","key1Color":"#10B981","key2Label":"RING 0 FUTEX","key2Val":"45.3 – 126 ns","key2Color":"#F43F5E","stageLabel":"CROSSING FROM RING 3 (CPL=3) TO RING 0 (CPL=0)","stageBadge":"Hardware Privilege Border","stageBadgeClass":"pill-danger","stageGlow":"glow-danger","leftTag":"RING 0 SYSCALL","leftMetric":"45.3 ns+","leftBarPct":100,"rightTag":"RING 3 ATOMIC CAS","rightMetric":"8.67 ns (5.2x)","rightBarPct":19},{"num":4,"title":"Episode 11 Roadmap: Three Production Mysteries","act":"ACT I • ZEN 5 BENCHMARK SUITE","timings":[0,4.8,9.6],"narration":"We'll investigate three real production mysteries on Zen 5: first, how clock_gettime reads kernel time in 18.0 nanoseconds without making a syscall; second, why allocating 2 MiB succeeds in 0.69 microseconds—then stalls your thread for 217.6 microseconds on first write; and third, how 2 MiB HugePages speed up in-memory tables by 2.14-fold.","codeBadge":"Ryzen 9 9950X","codeBadgeClass":"pill-fast","codeFile":"benchmark.cc • GCC 14.1 -O3","codeLines":["<span class=\"pill-fast\">BM_Clock_vDSO</span>       <span class=\"code-dim\">// 18.0 ns</span>","<span class=\"pill-danger\">BM_FirstTouch_512PF</span> <span class=\"code-dim\">// 217.6 µs</span>","<span class=\"pill-fast\">BM_Prefaulted_Pool</span>  <span class=\"code-dim\">// 197 ns</span>","<span class=\"pill-base\">BM_OrderBook_2MiB</span>   <span class=\"code-dim\">// 14.0 ns</span>"],"key1Label":"ARENA SPEEDUP","key1Val":"1,105x Faster","key1Color":"#10B981","key2Label":"HUGEPAGE GAIN","key2Val":"2.14x Faster","key2Color":"#38BDF8","stageLabel":"THREE PRODUCTION HARDWARE OPTIMIZATIONS","stageBadge":"vDSO • MAP_POPULATE • THP","stageBadgeClass":"pill-fast","stageGlow":"glow-fast","leftTag":"NAIVE BASELINES","leftMetric":"68.9ns • 218µs • 29.9ns","leftBarPct":100,"rightTag":"SILICON-AWARE FIXES","rightMetric":"18.0ns • 197ns • 14.0ns","rightBarPct":24},{"num":5,"title":"Workload 1: High-Frequency Packet Telemetry & Logging","act":"ACT I • SYSCALLS VS. VDSO","timings":[0,4.8,9.4],"narration":"Let's start with our first production workload: an ingress gateway that stamps every packet with std::chrono::steady_clock::now() and tags structured log records with the worker's operating system thread ID via SYS_gettid. Both ask the Linux kernel for metadata—so why are their latencies worlds apart?","codeBadge":"Ingress Gateway","codeBadgeClass":"pill-base","codeFile":"packet_stamp.cpp • C++20","codeLines":["<span class=\"code-dim\">PacketTrace Stamp() noexcept {</span>","  <span class=\"code-dim\">auto</span> t = <span class=\"pill-fast\">steady_clock::now()</span>;","  <span class=\"code-dim\">pid_t</span> id = <span class=\"pill-danger\">syscall(SYS_gettid)</span>;","  <span class=\"code-dim\">return {t.count(), id};</span>","<span class=\"code-dim\">}</span>"],"key1Label":"STEADY_CLOCK","key1Val":"Ring 3 vDSO","key1Color":"#10B981","key2Label":"SYS_GETTID","key2Val":"Ring 0 Trap","key2Color":"#F43F5E","stageLabel":"TWO KERNEL QUERIES — TWO HARDWARE PATHS","stageBadge":"Ring 3 vs Ring 0","stageBadgeClass":"pill-warn","stageGlow":"glow-warn","leftTag":"SYSCALL(SYS_GETTID)","leftMetric":"41.7 ns (Ring 0)","leftBarPct":100,"rightTag":"STEADY_CLOCK::NOW()","rightMetric":"18.0 ns (Ring 3)","rightBarPct":43}];
+    let activeIdx = 0;
+    let activeStep = 1;
+    let isAutoPlaying = true;
+    let elapsedSec = 0.0;
+    let lastTs = null;
+    let pulsePhase = 0;
+    const stageEl = document.getElementById("presentation-stage");
+
+    function fitStage() {
+      const s = Math.min(window.innerWidth / 1920, window.innerHeight / 1080) * 0.96;
+      stageEl.style.transform = "scale(" + s + ")";
+    }
+    window.addEventListener("resize", fitStage);
+
+    function render() {
+      const s = SLIDES[activeIdx];
+      const tag = String(s.num).padStart(2, "0");
+      stageEl.innerHTML = (function buildSlideSectionHTML(s) {
+      const tag = String(s.num).padStart(2, "0");
+      return `
+        <section id="slide-${s.num}" class="slide-section active-slide">
+          <header class="slide-header">
+            <div class="header-left">
+              <span class="slide-marker">${tag} / 29</span>
+              <h1 class="slide-title">${s.title}</h1>
+            </div>
+            <span class="header-act">${s.act}</span>
+          </header>
+
+          <div class="main-stage-grid">
+            <!-- LEFT COLUMN (FIXED 660px ANCHOR): CODE CANVAS + 2 HARDWARE REGISTER CARDS -->
+            <div class="left-code-column">
+              <div id="s${s.num}-step-1" class="surface-panel code-anchor-panel reveal-step step-active glow-base">
+                <div class="zone-header">
+                  <span class="zone-label">C++20 / X86-64 SILICON SPEC</span>
+                  <span class="${s.codeBadgeClass}" style="font-size:16.5px;">${s.codeBadge}</span>
+                </div>
+
+                <div class="code-canvas">
+                  <div class="code-canvas-header">
+                    <div class="code-dots">
+                      <span class="code-dot red"></span>
+                      <span class="code-dot amber"></span>
+                      <span class="code-dot green"></span>
+                    </div>
+                    <span class="code-file-label">${s.codeFile}</span>
+                  </div>
+                  <div class="code-canvas-body">
+                    ${s.codeLines.map(line => `<div class="code-line">${line}</div>`).join("")}
+                  </div>
+                </div>
+              </div>
+
+              <!-- 2 Hardware Register / State Key Cards (Zero Prose) -->
+              <div class="hw-key-grid">
+                <div class="hw-key-card" style="border-color:${s.key1Color}66;">
+                  <span class="hw-key-label">${s.key1Label}</span>
+                  <span class="hw-key-val" style="color:${s.key1Color};">${s.key1Val}</span>
+                </div>
+                <div class="hw-key-card" style="border-color:${s.key2Color}66;">
+                  <span class="hw-key-label">${s.key2Label}</span>
+                  <span class="hw-key-val" style="color:${s.key2Color};">${s.key2Val}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- RIGHT COLUMN (1152px FULL-BLEED): 3D HARDWARE STAGE + SINGLE TELEMETRY BAR -->
+            <div class="right-visual-column">
+              <div id="s${s.num}-step-2" class="surface-panel visual-stage-panel reveal-step ${s.stageGlow}">
+                <div class="zone-header">
+                  <span class="zone-label" style="color:#7DD3FC;">${s.stageLabel}</span>
+                  <span class="${s.stageBadgeClass}" style="font-size:16.5px;">${s.stageBadge}</span>
+                </div>
+
+                <div class="realistic-canvas-wrap">
+                  <canvas id="hw-canvas-${s.num}" width="1100" height="640"></canvas>
+                </div>
+              </div>
+
+              <!-- STEP 3: SINGLE TRUE-TO-SCALE TELEMETRY VERDICT BAR -->
+              <div id="s${s.num}-step-3" class="surface-panel telemetry-bar-panel reveal-step glow-fast">
+                <div class="metric-compare-box" style="border-color:rgba(244,63,94,0.45);">
+                  <div class="metric-compare-top">
+                    <span class="metric-tag" style="color:#FDA4AF;">✗ ${s.leftTag}</span>
+                    <span class="metric-hero-num" style="color:#F8FAFC;">${s.leftMetric}</span>
+                  </div>
+                  <div class="bar-track">
+                    <div class="bar-fill-danger" style="width:${s.leftBarPct}%;"></div>
+                  </div>
+                </div>
+
+                <div class="metric-compare-box" style="border-color:rgba(16,185,129,0.50);">
+                  <div class="metric-compare-top">
+                    <span class="metric-tag" style="color:#6EE7B7;">✓ ${s.rightTag}</span>
+                    <span class="metric-hero-num" style="color:#34D399;">${s.rightMetric}</span>
+                  </div>
+                  <div class="bar-track">
+                    <div class="bar-fill-fast" style="width:${s.rightBarPct}%;"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      `;
+    })(s);
+      document.getElementById("dock-slide-buttons").innerHTML = SLIDES.map((sl, idx) => {
+        const t = String(sl.num).padStart(2, "0");
+        return '<button class="dock-btn ' + (idx === activeIdx ? 'active' : '') + '" onclick="selectIdx(' + idx + ')">' + t + ' / 29</button>';
+      }).join("");
+      elapsedSec = 0;
+      activeStep = 1;
+      applySteps();
+      fitStage();
+    }
+
+    function selectIdx(idx) {
+      activeIdx = idx;
+      render();
+    }
+
+    function setStep(st) {
+      isAutoPlaying = false;
+      document.getElementById("autoplay-label").textContent = "▶ Manual";
+      activeStep = Math.max(1, Math.min(3, st));
+      applySteps();
+    }
+
+    function restartSlide() {
+      elapsedSec = 0;
+      activeStep = 1;
+      applySteps();
+    }
+
+    function toggleAutoPlay() {
+      isAutoPlaying = !isAutoPlaying;
+      document.getElementById("autoplay-label").textContent = isAutoPlaying ? "⏸ Auto-Sync" : "▶ Manual";
+    }
+
+    function applySteps() {
+      const sNum = SLIDES[activeIdx].num;
+      for (let i = 1; i <= 3; i++) {
+        document.getElementById("step-dot-" + i).classList.toggle("active", i <= activeStep);
+        const el = document.getElementById("s" + sNum + "-step-" + i);
+        if (el) el.classList.toggle("step-active", i <= activeStep);
+      }
+    }
+
+    function loop(ts) {
+      if (!lastTs) lastTs = ts;
+      const dt = (ts - lastTs) / 1000;
+      lastTs = ts;
+      pulsePhase += dt;
+      const s = SLIDES[activeIdx];
+      if (isAutoPlaying) {
+        elapsedSec += dt;
+        if (elapsedSec > 16.0) elapsedSec = 0;
+        let target = 1;
+        for (let i = s.timings.length - 1; i >= 0; i--) {
+          if (elapsedSec >= s.timings[i]) { target = i + 1; break; }
+        }
+        if (target !== activeStep) { activeStep = target; applySteps(); }
+      }
+      const c = document.getElementById("hw-canvas-" + s.num);
+      if (c) HardwareArtEngine.renderScene(c, s.num, activeStep, pulsePhase);
+      requestAnimationFrame(loop);
+    }
+
+    window.addEventListener("keydown", (e) => {
+      if (e.code === "Space" || e.key === "ArrowRight") {
+        e.preventDefault();
+        if (activeStep < 3) setStep(activeStep + 1);
+        else if (!false && activeIdx < SLIDES.length - 1) selectIdx(activeIdx + 1);
+      } else if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        if (activeStep > 1) setStep(activeStep - 1);
+        else if (!false && activeIdx > 0) selectIdx(activeIdx - 1);
+      } else if (e.key.toLowerCase() === "r") restartSlide();
+      else if (e.key.toLowerCase() === "h") document.body.classList.toggle("clean-capture");
+    });
+
+    render();
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
