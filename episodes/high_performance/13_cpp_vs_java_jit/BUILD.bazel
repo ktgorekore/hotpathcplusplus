@@ -1,0 +1,146 @@
+# Copyright 2026 Hot Path C++ Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+load("@rules_cc//cc:defs.bzl", "cc_binary")
+load("@rules_java//java:defs.bzl", "java_binary", "java_library", "java_plugin")
+load("//tools:junit5.bzl", "junit5_test")
+
+package(default_visibility = ["//visibility:public"])
+
+# ------------------------------------------------------------------------------
+# C++20 Targets (Google Benchmark & Forensic Challenge)
+# ------------------------------------------------------------------------------
+
+cc_binary(
+    name = "benchmark",
+    srcs = ["benchmark.cc"],
+    copts = [
+        "-O3",
+        "-march=native",
+    ],
+    deps = [
+        "//common/cpp_vs_java_jit:cpp_vs_java_jit",
+        "@google_benchmark//:benchmark_main",
+    ],
+)
+
+alias(
+    name = "benchmark_lto",
+    actual = "//common/cpp_vs_java_jit:cpp_vs_java_jit_benchmark_lto",
+)
+
+cc_binary(
+    name = "challenge",
+    srcs = ["challenge.cc"],
+    copts = [
+        "-O3",
+        "-march=native",
+    ],
+    deps = [
+        "//common/cpp_vs_java_jit:cpp_vs_java_jit",
+    ],
+)
+
+# ------------------------------------------------------------------------------
+# Java 21 LTS Targets (OpenJDK JMH Benchmarks, Forensic Challenge & JUnit 5)
+# ------------------------------------------------------------------------------
+
+java_plugin(
+    name = "jmh_annotation_processor",
+    processor_class = "org.openjdk.jmh.generators.BenchmarkProcessor",
+    deps = [
+        "@maven//:org_openjdk_jmh_jmh_generator_annprocess",
+    ],
+)
+
+java_library(
+    name = "hotpath_java_lib",
+    srcs = glob(["java/**/*.java"]),
+    plugins = [
+        ":jmh_annotation_processor",
+    ],
+    resources = glob(["src/main/resources/**"]),
+    deps = [
+        "@maven//:org_apache_logging_log4j_log4j_api",
+        "@maven//:org_apache_logging_log4j_log4j_core",
+        "@maven//:org_openjdk_jmh_jmh_core",
+    ],
+)
+
+java_binary(
+    name = "java_benchmarks",
+    jvm_flags = [
+        "-Xms4g",
+        "-Xmx4g",
+        "-XX:+AlwaysPreTouch",
+        "-XX:+UseG1GC",
+    ],
+    main_class = "com.hotpath.episode13.runner.GoogleBenchmarkRunner",
+    runtime_deps = [
+        ":hotpath_java_lib",
+    ],
+)
+
+java_binary(
+    name = "java_challenge",
+    jvm_flags = [
+        "-Xms4g",
+        "-Xmx4g",
+        "-XX:+AlwaysPreTouch",
+        "-XX:+UseG1GC",
+    ],
+    main_class = "com.hotpath.episode13.JavaForensicChallenge",
+    runtime_deps = [
+        ":hotpath_java_lib",
+    ],
+)
+
+java_binary(
+    name = "java_challenge_zgc",
+    jvm_flags = [
+        "-Xms4g",
+        "-Xmx4g",
+        "-XX:+AlwaysPreTouch",
+        "-XX:+UseZGC",
+        "-XX:+ZGenerational",
+    ],
+    main_class = "com.hotpath.episode13.JavaForensicChallenge",
+    runtime_deps = [
+        ":hotpath_java_lib",
+    ],
+)
+
+java_binary(
+    name = "java_challenge_zgc_tight",
+    jvm_flags = [
+        "-Xms1536m",
+        "-Xmx1536m",
+        "-XX:+AlwaysPreTouch",
+        "-XX:+UseZGC",
+        "-XX:+ZGenerational",
+    ],
+    main_class = "com.hotpath.episode13.JavaForensicChallenge",
+    runtime_deps = [
+        ":hotpath_java_lib",
+    ],
+)
+
+junit5_test(
+    name = "hotpath_java_test",
+    srcs = glob(["javatests/**/*.java"]),
+    test_class = "com.hotpath.episode13.JavaHotPathTest",
+    deps = [
+        ":hotpath_java_lib",
+    ],
+)

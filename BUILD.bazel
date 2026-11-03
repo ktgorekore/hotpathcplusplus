@@ -159,5 +159,46 @@ alias(
     actual = "//common/syscalls_traps_and_mmu:challenge",
 )
 
+alias(
+    name = "cpp_vs_java_jit",
+    actual = "//common/cpp_vs_java_jit:cpp_vs_java_jit",
+)
+
+alias(
+    name = "cpp_vs_java_jit_benchmark",
+    actual = "//common/cpp_vs_java_jit:cpp_vs_java_jit_benchmark",
+)
+
+alias(
+    name = "cpp_vs_java_jit_benchmark_lto",
+    actual = "//common/cpp_vs_java_jit:cpp_vs_java_jit_benchmark_lto",
+)
+
+alias(
+    name = "cpp_vs_java_jit_challenge",
+    actual = "//common/cpp_vs_java_jit:challenge",
+)
+
+alias(
+    name = "java_benchmarks",
+    actual = "//episodes/high_performance/13_cpp_vs_java_jit:java_benchmarks",
+)
+
+alias(
+    name = "java_challenge",
+    actual = "//episodes/high_performance/13_cpp_vs_java_jit:java_challenge",
+)
+
+alias(
+    name = "java_challenge_zgc",
+    actual = "//episodes/high_performance/13_cpp_vs_java_jit:java_challenge_zgc",
+)
+
+alias(
+    name = "java_challenge_zgc_tight",
+    actual = "//episodes/high_performance/13_cpp_vs_java_jit:java_challenge_zgc_tight",
+)
+
+
 
 

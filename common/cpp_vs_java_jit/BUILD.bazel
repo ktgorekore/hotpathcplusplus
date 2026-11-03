@@ -1,0 +1,85 @@
+# Copyright 2026 Hot Path C++ Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "cpp_vs_java_jit",
+    srcs = ["cpp_vs_java_jit_oop_tu.cc"],
+    hdrs = ["cpp_vs_java_jit.h"],
+    copts = [
+        "-O3",
+        "-march=native",
+    ],
+)
+
+cc_test(
+    name = "cpp_vs_java_jit_test",
+    srcs = ["cpp_vs_java_jit_test.cc"],
+    copts = [
+        "-O3",
+        "-march=native",
+    ],
+    deps = [
+        ":cpp_vs_java_jit",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_binary(
+    name = "cpp_vs_java_jit_benchmark",
+    srcs = ["cpp_vs_java_jit_benchmark.cc"],
+    copts = [
+        "-O3",
+        "-march=native",
+    ],
+    deps = [
+        ":cpp_vs_java_jit",
+        "@google_benchmark//:benchmark_main",
+    ],
+)
+
+cc_binary(
+    name = "cpp_vs_java_jit_benchmark_lto",
+    srcs = [
+        "cpp_vs_java_jit.h",
+        "cpp_vs_java_jit_benchmark.cc",
+        "cpp_vs_java_jit_oop_tu.cc",
+    ],
+    copts = [
+        "-O3",
+        "-march=native",
+        "-flto",
+    ],
+    linkopts = [
+        "-flto",
+    ],
+    deps = [
+        "@google_benchmark//:benchmark_main",
+    ],
+)
+
+cc_binary(
+    name = "challenge",
+    srcs = ["challenge.cc"],
+    copts = [
+        "-O3",
+        "-march=native",
+    ],
+    deps = [
+        ":cpp_vs_java_jit",
+    ],
+)
