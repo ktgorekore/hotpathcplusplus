@@ -45,6 +45,7 @@ All episode companion benchmarks, challenges, and hardware verification suites a
 | **Episode 09** | **Inside the Silicon Switchboard: MESI Coherency, Split Locks & CAS Storms** | [`episodes/high_performance/09_mesi_and_atomics/`](episodes/high_performance/09_mesi_and_atomics/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
 | **Episode 10** | **Why a 3-Line C++ Spinlock Is 3.3x SLOWER Than `std::mutex` (And the 1-Line Fix)** | [`episodes/high_performance/10_locks_under_the_hood/`](episodes/high_performance/10_locks_under_the_hood/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
 | **Episode 11** | **Every Pointer Is a Lie: Syscalls, Page Faults & the Hardware MMU in C++20** | [`episodes/high_performance/11_syscalls_traps_and_mmu/`](episodes/high_performance/11_syscalls_traps_and_mmu/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
+| **Episode 13** | **Is C++ Actually Faster Than Java? (When the JIT Wins, Why It Loses & What 'Fast' Means in Production)** | [`episodes/high_performance/13_cpp_vs_java_jit/`](episodes/high_performance/13_cpp_vs_java_jit/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
 
 ### 🧠 Track 2: AI & Deep Learning Systems (`episodes/ai/`)
 
@@ -643,6 +644,48 @@ bazel run -c opt //episodes/high_performance/11_syscalls_traps_and_mmu:benchmark
 # Run Episode 11 Community Challenge
 bazel run -c opt //common/syscalls_traps_and_mmu:challenge
 bazel run -c opt //episodes/high_performance/11_syscalls_traps_and_mmu:challenge
+```
+
+---
+
+## ⚔️ Episode 13: Is C++ Actually Faster Than Java? (C++20 vs. Java 21 C2 JIT, Cache Physics & Tail Latency)
+
+Located under [`common/cpp_vs_java_jit/`](common/cpp_vs_java_jit/) and [`episodes/high_performance/13_cpp_vs_java_jit/`](episodes/high_performance/13_cpp_vs_java_jit/), this multi-language benchmarking and forensic suite puts **C++20 (`GCC 13.3 -O3 -march=native`)** and **Java 21 LTS (`OpenJDK 21.0.2 HotSpot C2 + JMH 1.37`)** on the exact same **AMD Ryzen 9 9950X (Zen 5)** testbed across three architectural battles:
+
+### 1. Battle 1 — Allocation & Polymorphic Dispatch (`16.8 ns` Naive C++ vs. `0.53 ns` Java C2 vs. `0.55 ns` Flat C++)
+- **When Java's C2 JIT Crushes Naive OOP C++ (up to `31.7x` faster):** Calling `std::make_unique<OrderResult>` across a translation-unit boundary in a hot loop costs **`16.8 ns/op`** (`15.2 ns/op` even with `-flto`). On a monomorphic stream (`100% LimitOrderEvent`), HotSpot's Tier-4 C2 compiler observes runtime receiver type profiles, injects a class-word guard (`cmp dword ptr [rsi+8], 0x...; jne uncommon_trap`), inlines the target, and uses **Escape Analysis Scalar Replacement** to evaporate `new OrderResult(...)` into registers in **`0.73 ns/op`** (`0.89 ns/op` JMH — **22.9x faster**) and **`0.53 ns/op`** (`0.67 ns/op` JMH — **31.7x faster**) when allocating both the event and result inside the loop.
+- **The Megamorphic Cliff (`-XX:TypeProfileWidth=2`):** Once 5 concrete subtypes arrive at 20% each, Java's call site transitions from Monomorphic (`0.73 ns`) $\rightarrow$ Bimodal PIC (`2.66 ns`) $\rightarrow$ Megamorphic (`3.32 ns` / `3.52 ns` JMH), disabling Escape Analysis and falling back to an 11-byte Thread-Local Allocation Buffer (`TLAB`) pointer bump (`add rcx, 24`).
+- **Idiomatic Flat C++20 Value Semantics:** Replacing pointers and `vptr`s with a contiguous `24-byte` `FlatEvent` struct + `[[gnu::always_inline]]` branchless switch runs at **`0.56 ns/op`** (`0.55 ns/op` with `-flto`, `1.82 G ops/s`) across all 5 event types with zero warmup and zero uncommon-trap risk.
+
+### 2. Battle 2 — Cache-Line Physics & The TLAB Microbenchmark Illusion (`4,000,000` Orders)
+- **The TLAB Contiguity Illusion (`6.1x` slowdown after heap churn):** Allocating `4,000,000` `OrderRecord` instances linearly inside a fresh `ArrayList<OrderRecord>` bumps the TLAB cursor sequentially (`5.24 ms / scan`, `10.7%` LLC miss rate). After production order churn/replacement across the heap, scanning the exact same `ArrayList<OrderRecord>` (`52 bytes/order`: `4B` compressed oop + `24B` boxed array slot + `24B` object) collapses to **`32.21 ms / scan`** (`32.25 ms` JMH, **`49.4%` LLC miss rate**, **`204.6M` `dTLB` load misses**, `0.38 IPC`).
+- **Value Layouts & Structure-of-Arrays (`SoA`):** C++20 `std::vector<Order>` (`32B` contiguous `AoS`, `128 MB`) scans in **`4.74 ms`** (**6.8x faster** than Churned Java `ArrayList`, `25.18 GiB/s`). Refactoring into flat primitive `SoA` arrays (`prices[]`, `qtys[]`, `active_masks[]`, `96 MB` total) unlocks `AVX-512` `vpmullq zmm` vectorization: **C++20 `OrderBookSoA` finishes in `1.56 ms` (`57.26 GiB/s`, `1.5%` LLC miss rate — `20.6x` faster)** and **Java 21 `long[]` primitive `SoA` finishes in `1.55 ms` (`1.56 ms` JMH — `20.8x` faster)**, proving memory layout beats language religion.
+
+### 3. Battle 3 — Streaming State Tail Latency (`p50` to `p99.99` + `Max`) & C2 Uncommon Traps (`2,097,152` Live Orders)
+- **Sustained Mutation (`50,000` batches $\times$ `256` updates = `12.8M` allocations):**
+  - **C++20 Pre-Faulted Slab Pool (`O(1)` intrusive freelist):** `p50 = 0.401 µs` | `p99 = 1.744 µs` | `p99.99 = 8.166 µs` | `Max = 24.096 µs` (`0` GC cycles).
+  - **Java 21 Default G1GC (`-Xms4g -Xmx4g`):** `p50 = 1.543 µs` | `p99 = 5.050 µs` | `p99.99 = 58.352 µs` | **`Max = 11,163.784 µs` (`11.16 ms` Stop-The-World evacuation pause — `463x` worse than C++ Slab)**.
+  - **Java 21 Generational ZGC (`-Xms4g -Xmx4g`):** Slashes `Max` stall by **41.5x** vs. G1GC down to **`268.693 µs` (`0.27 ms`)**, while trading higher `p99` (`8.176 µs`) and `p99.99` (`90.733 µs`) due to colored-pointer load barriers (`test`/`jcc` on every reference load). Under a tight `1.5 GiB` heap (`-Xms1536m -Xmx1536m`), allocation pressure raises `p50` to `2.836 µs` and `Max` to `618.732 µs`.
+- **The First Rare Event (`MarketHaltEvent` Uncommon Trap):** After warming up on `100,000` normal orders, the very first `MarketHaltEvent` fires a C2 **Uncommon Trap**, bailing out to the Tier-0 interpreter for **`35,407 ns` (`35.41 µs` on G1GC / `37.95 µs` on ZGC)** while C++ flat dispatch executes the exact same first halt in **`0.14 ns/op`** (`0` deoptimizations).
+
+### Running Episode 13 C++20 & Java 21 Tests, Benchmarks & Challenges
+
+```bash
+# Run both C++20 (GoogleTest) and Java 21 (JUnit 5) unit tests
+bazel test -c opt //common/cpp_vs_java_jit:cpp_vs_java_jit_test //episodes/high_performance/13_cpp_vs_java_jit:hotpath_java_test
+
+# Run C++20 Google Benchmarks (Standard Separate TU vs. Link-Time Optimization -flto)
+bazel run -c opt //common/cpp_vs_java_jit:cpp_vs_java_jit_benchmark
+bazel run -c opt //common/cpp_vs_java_jit:cpp_vs_java_jit_benchmark_lto
+
+# Run Java 21 JMH Benchmarks (formatted as Google Benchmark tables)
+bazel run -c opt //episodes/high_performance/13_cpp_vs_java_jit:java_benchmarks
+
+# Run C++20 and Java 21 Forensic Challenges (G1GC, Generational ZGC 4 GiB, ZGC 1.5 GiB Tight)
+bazel run -c opt //common/cpp_vs_java_jit:challenge
+bazel run -c opt //episodes/high_performance/13_cpp_vs_java_jit:java_challenge
+bazel run -c opt //episodes/high_performance/13_cpp_vs_java_jit:java_challenge_zgc
+bazel run -c opt //episodes/high_performance/13_cpp_vs_java_jit:java_challenge_zgc_tight
 ```
 
 ---
