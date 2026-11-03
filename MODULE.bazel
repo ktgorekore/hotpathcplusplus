@@ -18,6 +18,36 @@ module(
 )
 
 bazel_dep(name = "rules_cc", version = "0.2.22")
+bazel_dep(name = "rules_java", version = "9.9.0")
+bazel_dep(name = "rules_jvm_external", version = "6.7")
+bazel_dep(name = "rules_shell", version = "0.8.0")
 bazel_dep(name = "abseil-cpp", version = "20260526.0")
 bazel_dep(name = "googletest", version = "1.18.0.bcr.1")
 bazel_dep(name = "google_benchmark", version = "1.9.5")
+
+maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
+maven.install(
+    artifacts = [
+        # JUnit 5 for modern Java 21 testing
+        "org.junit.jupiter:junit-jupiter-api:5.11.4",
+        "org.junit.jupiter:junit-jupiter-engine:5.11.4",
+        "org.junit.jupiter:junit-jupiter-params:5.11.4",
+        "org.junit.platform:junit-platform-console:1.11.4",
+        "org.junit.platform:junit-platform-launcher:1.11.4",
+        "org.assertj:assertj-core:3.27.3",
+        "org.awaitility:awaitility:4.2.2",
+        # JMH (Java Microbenchmark Harness) for Episode 13 JVM vs C++ benchmarks
+        "org.openjdk.jmh:jmh-core:1.37",
+        "org.openjdk.jmh:jmh-generator-annprocess:1.37",
+        # Apache Log4j 2 for structured logging
+        "org.apache.logging.log4j:log4j-api:2.24.3",
+        "org.apache.logging.log4j:log4j-core:2.24.3",
+        # Google Java Format for strict Google Java Style compliance
+        "com.google.googlejavaformat:google-java-format:1.24.0",
+    ],
+    fetch_sources = True,
+    repositories = [
+        "https://repo1.maven.org/maven2",
+    ],
+)
+use_repo(maven, "maven")
