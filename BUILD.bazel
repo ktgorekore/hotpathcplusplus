@@ -199,6 +199,47 @@ alias(
     actual = "//episodes/high_performance/13_cpp_vs_java_jit:java_challenge_zgc_tight",
 )
 
+alias(
+    name = "memory_safety",
+    actual = "//common/memory_safety:memory_safety",
+)
+
+alias(
+    name = "memory_safety_benchmark",
+    actual = "//common/memory_safety:memory_safety_benchmark",
+)
+
+alias(
+    name = "memory_safety_benchmark_hardened",
+    actual = "//common/memory_safety:memory_safety_benchmark_hardened",
+)
+
+alias(
+    name = "memory_safety_challenge",
+    actual = "//common/memory_safety:challenge",
+)
+
+alias(
+    name = "memory_safety_uaf_repro",
+    actual = "//common/memory_safety:live_uaf_repro",
+)
+
+alias(
+    name = "ep14_java_benchmarks",
+    actual = "//episodes/high_performance/14_memory_safety_physics:java_benchmarks",
+)
+
+alias(
+    name = "ep14_java_challenge",
+    actual = "//episodes/high_performance/14_memory_safety_physics:java_challenge",
+)
+
+alias(
+    name = "ep14_java_challenge_zgc",
+    actual = "//episodes/high_performance/14_memory_safety_physics:java_challenge_zgc",
+)
+
+
 
 
 

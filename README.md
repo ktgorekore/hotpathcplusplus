@@ -46,6 +46,7 @@ All episode companion benchmarks, challenges, and hardware verification suites a
 | **Episode 10** | **Why a 3-Line C++ Spinlock Is 3.3x SLOWER Than `std::mutex` (And the 1-Line Fix)** | [`episodes/high_performance/10_locks_under_the_hood/`](episodes/high_performance/10_locks_under_the_hood/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
 | **Episode 11** | **Every Pointer Is a Lie: Syscalls, Page Faults & the Hardware MMU in C++20** | [`episodes/high_performance/11_syscalls_traps_and_mmu/`](episodes/high_performance/11_syscalls_traps_and_mmu/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
 | **Episode 13** | **Is C++ Actually Faster Than Java? (When the JIT Wins, Why It Loses & What 'Fast' Means in Production)** | [`episodes/high_performance/13_cpp_vs_java_jit/`](episodes/high_performance/13_cpp_vs_java_jit/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
+| **Episode 14** | **The Physics of Memory Safety: C++20 vs. Rust 1.91 vs. Java 21 (Spatial Bounds, AVX-512 & Temporal Lifetimes)** | [`episodes/high_performance/14_memory_safety_physics/`](episodes/high_performance/14_memory_safety_physics/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
 
 ### 🧠 Track 2: AI & Deep Learning Systems (`episodes/ai/`)
 
@@ -686,6 +687,44 @@ bazel run -c opt //common/cpp_vs_java_jit:challenge
 bazel run -c opt //episodes/high_performance/13_cpp_vs_java_jit:java_challenge
 bazel run -c opt //episodes/high_performance/13_cpp_vs_java_jit:java_challenge_zgc
 bazel run -c opt //episodes/high_performance/13_cpp_vs_java_jit:java_challenge_zgc_tight
+```
+
+---
+
+## 🛡️ Episode 14: The Physics of Memory Safety (C++20 vs. Rust 1.91 vs. Java 21)
+
+Located under [`common/memory_safety/`](common/memory_safety/) and [`episodes/high_performance/14_memory_safety_physics/`](episodes/high_performance/14_memory_safety_physics/), this multi-language benchmarking and forensic suite dissects the microarchitectural physics of **spatial bounds checking** and **temporal lifetime safety** across **C++20 (`Clang 18.1` & `GCC 13.3`)**, **Rust `1.91.1`**, and **Java 21 LTS (`OpenJDK 21.0.2 HotSpot C2 + G1GC / Generational ZGC`)** on **AMD Ryzen 9 9950X (Zen 5)**:
+
+### 1. Spatial Memory Safety: Range Check Elimination, `ud2` Traps & AVX-512 `vpgatherqq`
+- **Battle 1A — Sequential Scan (`65,536` Orders):** When loop indices follow a monotonic induction variable (`for (size_t i = 0; i < N; ++i)`), compiler Range Check Elimination (RCE) hoists bounds checks out of the hot loop across Clang 18 (`0.558 ns` vs `0.564 ns`), GCC 13 (`0.265 ns` vs `0.275 ns`), Rust 1.91 (`0.309 ns` vs `0.315 ns`), and Java 21 (`0.062 ns/op` on primitive `long[]` SoA via SuperWord AVX-512 `vpmullq`).
+- **Battle 1B — Independent Random Batch Gather (`65,536` Indirections):** Without loop pragmas, unchecked random gathers (`orders[indices[i]]`) auto-vectorize into AVX-512 `vpgatherqq zmm` (`0.538 ns/op` GCC, `0.720 ns/op` Rust, `0.755 ns/op` Clang, retiring **`435.8M` instructions** across `262.14M` lookups). Injecting an in-loop bounds check (`idx >= N ? __builtin_trap()`) forbids speculative `vpgatherqq` across potentially trapping lanes, forcing scalar execution (`0.896 ns/op` Clang, `0.794 ns/op` Rust, retiring **`2.67B` instructions — `6.12x` more instructions!**). Replacing conditional branches with **power-of-two bitmask indexing (`orders[idx & 0xFFFF]`)** guarantees 100% spatial safety with zero branches and restores full AVX-512 `vpandd` + `vpgatherqq` in both C++20 (`0.760 ns/op`, `468.9M` instructions) and 100% safe Rust (`0.714 ns/op`, `433.3M` instructions).
+- **Battle 1C — Dependent Probe Chain (`65,536` Serial Steps):** When lookup `i` depends on lookup `i-1`, neither loop can auto-vectorize; Zen 5's out-of-order engine and branch predictor (`0.00%` miss rate) hide `cmp + jbe ud2` inside the ~40-cycle L2 load stall (`8.763 ns` unchecked vs `8.747 ns` hardened in Clang).
+
+### 2. Temporal Memory Safety: `tcache` Use-After-Free, ASan, Rust Borrow Checking & Generational Slab Handles
+- **Battle 2 — Silent Use-After-Free via `64B` `glibc` `tcache` Reuse:** Holding `const Order* best_bid = &book[0]` across `book.push_back()` compiles with **0 warnings** under `-Wall -Wextra -Wdangling`, recycles the freed 64-byte chunk into `std::vector<AuditEntry>`, and silently corrupts `best_bid->price_ticks` from `$1,052.50` to `$9,999,999.00`. AddressSanitizer catches the read via shadow memory (`*(addr >> 3) + 0x7fff8000 == 0xfd`), and Rust rejects it at compile time with `error[E0502]`.
+- **Battle 3 — Temporal Safety Under 25% Order Cancellation & ABA Slot Recycling:** Raw slot indices suffer **`16,384` (`25.0%`) silent ABA corruptions** when canceled slots are reused by new orders. A 64-bit generational slab handle (`OrderSlabPool::Get(OrderHandle {index, generation})`) catches **`100%` of stale handles in O(1)** at **`2.18–2.57 ns/lookup`** (`2.5x` faster than `std::weak_ptr<Order>::lock()` at `5.51–5.99 ns/lookup`, which retires `2.31x` more instructions and `2.33x` more L1D loads). In Java 21 (`512 MB` heap), `PrimitiveGenerationalSlab` runs at **`3.11 ns/lookup` with `0` GC pauses** vs `4.14 ns/lookup` (`20` ZGC cycles / `34 ms` GC pause time) for churned `OrderObj[]`.
+
+### Running Episode 14 C++20, Rust 1.91 & Java 21 Tests, Benchmarks & Challenges
+
+```bash
+# Run both C++20 (GoogleTest) and Java 21 (JUnit 5) unit tests
+bazel test -c opt //common/memory_safety:memory_safety_test //episodes/high_performance/14_memory_safety_physics:hotpath_java_test
+
+# Run C++20 Google Benchmarks (Standard vs. Hardened -D_GLIBCXX_ASSERTIONS)
+bazel run -c opt //common/memory_safety:memory_safety_benchmark
+bazel run -c opt //common/memory_safety:memory_safety_benchmark_hardened
+
+# Run Battle 2 Temporal Use-After-Free & tcache Reuse Reproducer
+bazel run -c opt //common/memory_safety:live_uaf_repro -- --mode=uaf
+bazel run -c opt //common/memory_safety:live_uaf_repro -- --mode=safe
+
+# Run Java 21 JMH Benchmarks and Forensic Challenges (G1GC & Generational ZGC)
+bazel run -c opt //episodes/high_performance/14_memory_safety_physics:java_benchmarks
+bazel run -c opt //episodes/high_performance/14_memory_safety_physics:java_challenge
+bazel run -c opt //episodes/high_performance/14_memory_safety_physics:java_challenge_zgc
+
+# Run C++20 Forensic Challenge
+bazel run -c opt //common/memory_safety:challenge
 ```
 
 ---
