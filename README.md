@@ -45,6 +45,7 @@ All episode companion benchmarks, challenges, and hardware verification suites a
 | **Episode 09** | **Inside the Silicon Switchboard: MESI Coherency, Split Locks & CAS Storms** | [`episodes/high_performance/09_mesi_and_atomics/`](episodes/high_performance/09_mesi_and_atomics/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
 | **Episode 10** | **Why a 3-Line C++ Spinlock Is 3.3x SLOWER Than `std::mutex` (And the 1-Line Fix)** | [`episodes/high_performance/10_locks_under_the_hood/`](episodes/high_performance/10_locks_under_the_hood/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
 | **Episode 11** | **Every Pointer Is a Lie: Syscalls, Page Faults & the Hardware MMU in C++20** | [`episodes/high_performance/11_syscalls_traps_and_mmu/`](episodes/high_performance/11_syscalls_traps_and_mmu/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
+| **Episode 12** | **Stop Calling `new` on the Hot Path: `malloc`, Arenas, Slab Pools & C++17 `std::pmr`** | [`episodes/high_performance/12_memory_allocators_and_pmr/`](episodes/high_performance/12_memory_allocators_and_pmr/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
 | **Episode 13** | **Is C++ Actually Faster Than Java? (When the JIT Wins, Why It Loses & What 'Fast' Means in Production)** | [`episodes/high_performance/13_cpp_vs_java_jit/`](episodes/high_performance/13_cpp_vs_java_jit/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
 | **Episode 14** | **The Physics of Memory Safety: C++20 vs. Rust 1.91 vs. Java 21 (Spatial Bounds, AVX-512 & Temporal Lifetimes)** | [`episodes/high_performance/14_memory_safety_physics/`](episodes/high_performance/14_memory_safety_physics/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
 
@@ -645,6 +646,36 @@ bazel run -c opt //episodes/high_performance/11_syscalls_traps_and_mmu:benchmark
 # Run Episode 11 Community Challenge
 bazel run -c opt //common/syscalls_traps_and_mmu:challenge
 bazel run -c opt //episodes/high_performance/11_syscalls_traps_and_mmu:challenge
+```
+
+---
+
+## 🧱 Episode 12: Stop Calling `new` on the Hot Path (Arenas, Slab Pools & C++17 `std::pmr`)
+
+Located under [`common/memory_allocators/`](common/memory_allocators/) and [`episodes/high_performance/12_memory_allocators_and_pmr/`](episodes/high_performance/12_memory_allocators_and_pmr/), this suite benchmarks **`glibc 2.39` (`ptmalloc2`)**, **`jemalloc 5.3.0`**, custom C++20 **`BumpArena`**, zero-header intrusive **`FixedSlabPool`**, **`ThreadMagazinePool<32>`**, and C++17 **`std::pmr`** on a 16-core **AMD Ryzen 9 8945HX** (`Linux 7.0`, `GCC 13.3` & `Clang 18.1`) with two-pass unmultiplexed `perf stat` counters ([Live Godbolt Assembly](https://godbolt.org/z/7hTYGsWjb)):
+
+1. **Battle 1 — `glibc` `16B` Chunk Headers, `7`-Slot `tcache` Spillover & Cross-Thread Magazines:**
+   - Single `32B` `OrderNode` alloc/free: `new`/`delete` = **`8.02 ns`** vs. `FixedSlabPool` (`0B` header `union Slot`) = **`1.39 ns` (`5.77x`)** vs. `BumpArena` (`4` inline instructions) = **`0.739 ns` (`10.85x`)**. Burst of `1,024` objects: `10,240 ns` (`new`/`delete`) vs. **`738 ns` (`BumpArena + O(1) Reset` — `13.88x` faster!)**.
+   - On `4P/4C` cross-thread handoffs over lock-free SPSC rings, `ThreadMagazinePool<32>` boosts Google Benchmark throughput by **`1.49x`** (`5.87 ms` $\rightarrow$ `3.95 ms`; **`91.1M ops/s`** vs. `70.3M/s` `glibc` & `47.2M/s` `jemalloc`).
+2. **Battle 2 — The Fresh Heap Illusion vs. Production "Heap Aging" (`65,536` `OrderNode`s):**
+   - A fresh startup scan runs in **`58.2 µs` (`0.88–0.91 ns/node`)** (`48B` sequential `glibc` stride, `98.8%` same `4 KiB` page, `1.62` IPC). After mixed-size market churn, scanning the *exact same* list collapses **`7.5x` slower** to **`433.7 µs` (`6.57–6.89 ns/node`)** (`405.4 µs` under `jemalloc`), with a `1.12 MiB` average pointer jump, **`95.23M` cache misses (`10.7x`)**, **`2.93M` `dTLB` misses (`16.0x`)**, and `0.29` IPC.
+   - Compacted `BumpArena` (`32B` stride) and chained `std::pmr` restore **`57.6–58.0 µs`** (`1.70` IPC, `-91.1%` cache misses, `-94.0%` `dTLB` misses), while request-scoped `std::pmr::unordered_map` on `monotonic_buffer_resource` cuts lifecycle latency **`2.77x`** (`109.9 µs` $\rightarrow$ **`39.6 µs`**).
+3. **Battle 3 — C++17 `std::pmr` Stack Scratchpads & The Nested `std::string` Trap (`24` Fills/Packet):**
+   - Omitting `using allocator_type = std::pmr::polymorphic_allocator<>;` leaves `std::uses_allocator_v` `false`, leaking **`24` secret `::operator new` calls per packet (`434 ns`)** whenever strings exceed `15` bytes (SSO). Declaring `allocator_type` drops global allocations to **`0`**, hitting **`146 ns/packet`** (**`3.14x` faster** than `459 ns` `std::vector`, **`-74.8%` retired instructions**), with an honest `+0.40 ns` virtual `do_allocate` calibration (`0.55 ns` raw inline vs. `0.95 ns` virtual).
+
+### Running Episode 12 Tests, Reproducer & Benchmarks
+
+```bash
+# Run memory_allocators unit tests
+bazel test -c opt //common/memory_allocators:memory_allocators_test
+
+# Run Cold-Open Heap Aging & std::pmr Nested-String Escape Reproducer
+bazel run -c opt //:memory_allocators_heap_aging_repro
+
+# Run Google Benchmarks & Forensic Challenge
+bazel run -c opt //:memory_allocators_benchmark -- --benchmark_min_time=0.25s
+bazel run -c opt //:memory_allocators_challenge
+./episodes/high_performance/12_memory_allocators_and_pmr/run_ep12_forensics.sh
 ```
 
 ---
