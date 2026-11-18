@@ -239,6 +239,26 @@ alias(
     actual = "//episodes/high_performance/14_memory_safety_physics:java_challenge_zgc",
 )
 
+alias(
+    name = "memory_allocators",
+    actual = "//common/memory_allocators:memory_allocators",
+)
+
+alias(
+    name = "memory_allocators_benchmark",
+    actual = "//common/memory_allocators:memory_allocators_benchmark",
+)
+
+alias(
+    name = "memory_allocators_challenge",
+    actual = "//common/memory_allocators:challenge",
+)
+
+alias(
+    name = "memory_allocators_heap_aging_repro",
+    actual = "//common/memory_allocators:live_heap_aging_repro",
+)
+
 
 
 
