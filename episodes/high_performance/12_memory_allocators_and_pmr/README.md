@@ -14,7 +14,7 @@
   limitations under the License.
 -->
 
-# Episode 12: Stop Calling `new` on the Hot Path — How `malloc`, Arenas, Slab Pools & C++17 `std::pmr` Work in Silicon
+# Episode 12: Why Our C++ Code Got 7.5x Slower Hours Later — `malloc`, Arenas, Slab Pools & C++17 `std::pmr`
 
 [![Live Compiler Explorer](https://img.shields.io/badge/Godbolt-x86--64_Assembly-blue)](https://godbolt.org/z/7hTYGsWjb)
 

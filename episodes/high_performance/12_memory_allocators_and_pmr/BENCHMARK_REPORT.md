@@ -15,7 +15,7 @@
 -->
 
 # 🔬 Episode 12 Benchmark & Hardware Telemetry Report
-## **"Stop Calling `new` on the Hot Path: How `malloc`, Arenas, Slab Pools & C++17 `std::pmr` Work in Silicon"**
+## **"Why Our C++ Code Got 7.5x Slower Hours Later (Arenas, Slab Pools & C++17 `std::pmr`)"**
 
 ---
 

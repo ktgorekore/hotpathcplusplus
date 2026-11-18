@@ -45,7 +45,7 @@ All episode companion benchmarks, challenges, and hardware verification suites a
 | **Episode 09** | **Inside the Silicon Switchboard: MESI Coherency, Split Locks & CAS Storms** | [`episodes/high_performance/09_mesi_and_atomics/`](episodes/high_performance/09_mesi_and_atomics/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
 | **Episode 10** | **Why a 3-Line C++ Spinlock Is 3.3x SLOWER Than `std::mutex` (And the 1-Line Fix)** | [`episodes/high_performance/10_locks_under_the_hood/`](episodes/high_performance/10_locks_under_the_hood/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
 | **Episode 11** | **Every Pointer Is a Lie: Syscalls, Page Faults & the Hardware MMU in C++20** | [`episodes/high_performance/11_syscalls_traps_and_mmu/`](episodes/high_performance/11_syscalls_traps_and_mmu/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
-| **Episode 12** | **Stop Calling `new` on the Hot Path: `malloc`, Arenas, Slab Pools & C++17 `std::pmr`** | [`episodes/high_performance/12_memory_allocators_and_pmr/`](episodes/high_performance/12_memory_allocators_and_pmr/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
+| **Episode 12** | **What Actually Happens When We Call `new` in C++? (`malloc`, Arenas, Slab Pools & C++17 `std::pmr`)** | [`episodes/high_performance/12_memory_allocators_and_pmr/`](episodes/high_performance/12_memory_allocators_and_pmr/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
 | **Episode 13** | **Is C++ Actually Faster Than Java? (When the JIT Wins, Why It Loses & What 'Fast' Means in Production)** | [`episodes/high_performance/13_cpp_vs_java_jit/`](episodes/high_performance/13_cpp_vs_java_jit/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
 | **Episode 14** | **The Physics of Memory Safety: C++20 vs. Rust 1.91 vs. Java 21 (Spatial Bounds, AVX-512 & Temporal Lifetimes)** | [`episodes/high_performance/14_memory_safety_physics/`](episodes/high_performance/14_memory_safety_physics/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
 
@@ -650,7 +650,7 @@ bazel run -c opt //episodes/high_performance/11_syscalls_traps_and_mmu:challenge
 
 ---
 
-## 🧱 Episode 12: Stop Calling `new` on the Hot Path (Arenas, Slab Pools & C++17 `std::pmr`)
+## 🧱 Episode 12: Why Our C++ Code Got 7.5x Slower Hours Later (Arenas, Slab Pools & C++17 `std::pmr`)
 
 Located under [`common/memory_allocators/`](common/memory_allocators/) and [`episodes/high_performance/12_memory_allocators_and_pmr/`](episodes/high_performance/12_memory_allocators_and_pmr/), this suite benchmarks **`glibc 2.39` (`ptmalloc2`)**, **`jemalloc 5.3.0`**, custom C++20 **`BumpArena`**, zero-header intrusive **`FixedSlabPool`**, **`ThreadMagazinePool<32>`**, and C++17 **`std::pmr`** on a 16-core **AMD Ryzen 9 8945HX** (`Linux 7.0`, `GCC 13.3` & `Clang 18.1`) with two-pass unmultiplexed `perf stat` counters ([Live Godbolt Assembly](https://godbolt.org/z/7hTYGsWjb)):
 
