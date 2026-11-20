@@ -19,7 +19,7 @@
 set -euo pipefail
 
 EP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${EP_DIR}/../../.." && pwd)"
+REPO_ROOT="$(cd "${EP_DIR}/../.." && pwd)"
 BUILD_DIR="/tmp/ep15_build"
 OUT_DIR="/tmp/ep15_telemetry"
 mkdir -p "${BUILD_DIR}" "${OUT_DIR}" "${EP_DIR}/assembly"
@@ -154,6 +154,30 @@ run_perf_3pass() {
   run_perf_3pass "Java 21 HashMap<Long,Long> Aged 2M 80/20" "${JAVA_G1}" --mode=b1_aged_jdk --iters=40
   run_perf_3pass "Java 21 fastutil Long2Long Aged 2M 80/20" "${JAVA_G1}" --mode=b1_aged_fastutil --iters=40
   run_perf_3pass "Python 3.12 dict Aged 2M 80/20" python3 "${EP_DIR}/python_hash_map_bench.py" --mode=b1_aged_packed --iters=6
+
+  run_perf_3pass "C++20 std::unordered_map Iter 2M Full" "${CPP_CHALLENGE}" --mode=b1_iter_full_std --iters=40
+  run_perf_3pass "C++20 absl::flat_hash_map Iter 2M Full" "${CPP_CHALLENGE}" --mode=b1_iter_full_absl --iters=40
+  run_perf_3pass "Rust 1.91 SipHash Iter 2M Full" "${BUILD_DIR}/bench_rust" --mode=b1_iter_full_sip --iters=40
+  run_perf_3pass "Rust 1.91 FxHash Iter 2M Full" "${BUILD_DIR}/bench_rust" --mode=b1_iter_full_fx --iters=40
+  run_perf_3pass "Go 1.22.2 map Iter 2M Full" "${BUILD_DIR}/bench_go122" --mode=b1_iter_full_packed --iters=40
+  if [[ "${HAS_GO124}" -eq 1 ]]; then
+    run_perf_3pass "Go 1.24.0 SwissTable map Iter 2M Full" "${BUILD_DIR}/bench_go124" --mode=b1_iter_full_packed --iters=40
+  fi
+  run_perf_3pass "Java 21 HashMap<Long,Long> Iter 2M Full" "${JAVA_G1}" --mode=b1_iter_full_jdk --iters=40
+  run_perf_3pass "Java 21 fastutil Long2Long Iter 2M Full" "${JAVA_G1}" --mode=b1_iter_full_fastutil --iters=40
+  run_perf_3pass "Python 3.12 dict Iter 2M Full" python3 "${EP_DIR}/python_hash_map_bench.py" --mode=b1_iter_full_packed --iters=10
+
+  run_perf_3pass "C++20 std::unordered_map Sparse 200K" "${CPP_CHALLENGE}" --mode=b1_iter_sparse_std --iters=200
+  run_perf_3pass "C++20 absl::flat_hash_map Sparse 200K" "${CPP_CHALLENGE}" --mode=b1_iter_sparse_absl --iters=200
+  run_perf_3pass "Rust 1.91 SipHash Sparse 200K" "${BUILD_DIR}/bench_rust" --mode=b1_iter_sparse_sip --iters=200
+  run_perf_3pass "Rust 1.91 FxHash Sparse 200K" "${BUILD_DIR}/bench_rust" --mode=b1_iter_sparse_fx --iters=200
+  run_perf_3pass "Go 1.22.2 map Sparse 200K" "${BUILD_DIR}/bench_go122" --mode=b1_iter_sparse_packed --iters=200
+  if [[ "${HAS_GO124}" -eq 1 ]]; then
+    run_perf_3pass "Go 1.24.0 SwissTable map Sparse 200K" "${BUILD_DIR}/bench_go124" --mode=b1_iter_sparse_packed --iters=200
+  fi
+  run_perf_3pass "Java 21 HashMap<Long,Long> Sparse 200K" "${JAVA_G1}" --mode=b1_iter_sparse_jdk --iters=200
+  run_perf_3pass "Java 21 fastutil Long2Long Sparse 200K" "${JAVA_G1}" --mode=b1_iter_sparse_fastutil --iters=200
+  run_perf_3pass "Python 3.12 dict Sparse 200K" python3 "${EP_DIR}/python_hash_map_bench.py" --mode=b1_iter_sparse_packed --iters=40
 } 2>&1 | tee "${OUT_DIR}/07_pmu_perf_stat.txt"
 
 echo ""

@@ -53,6 +53,26 @@ Every language runs identical SplitMix64 streams modeling an **Edge API Gateway 
 
 ---
 
+## 2B. Battle 1B: Read Throughput — Full-Table (`2M`) vs. Post-Peak Sparse (`200K`) Iteration
+
+Periodic TTL expiration sweeps, billing rollups, and snapshot exporters iterate every live entry (`sum += k ^ v`, `0x34e6d4b436e4fbb4` full / `0xc8118d222e4566bb` sparse after evicting `90%` of entries without shrinking capacity):
+
+| Runtime & Container | Full-Table `2M` Sweep (`ms/swp` / `ns/live` / `M/s`) | Post-Peak Sparse `200K` (`90%` Evicted, `ms/swp` / `ns/live` / `M/s`) | Traversal Complexity & Cache Physics |
+| :--- | :---: | :---: | :--- |
+| **Rust `1.91` `HashMap` (`SipHash-1-3`)** | **`2.41 ms` (`1.21 ns`, `829.1 M/s`)** | **`1.10 ms` (`5.50 ns`, `181.9 M/s`)** | `hashbrown` SIMD `RawIter`: skips 16 empty control tags/instr (`1.51` IPC full) |
+| **Rust `1.91` `HashMap` (`FxHash`)** | **`2.44 ms` (`1.22 ns`, `819.3 M/s`)** | **`1.13 ms` (`5.64 ns`, `177.2 M/s`)** | Identical layout to SipHash (hashing never runs during iteration!) |
+| **C++20 `absl::flat_hash_map`** | `8.04 ms` / `8.08 ms` `GBench` (`4.02 ns`, `248.6 M/s`) | `3.02 ms` / `2.77 ms` `GBench` (`15.12 ns`, `66.1–72.3 M/s`) | `O(capacity)`: must scan all `4.19M` `kDeleted` ctrl bytes at `4.8%` fill (`3.8x` slower/live) |
+| **Java `21` `fastutil` `Long2Long`** | `11.60 ms` (`5.80 ns` challenge & JMH, `172.5 M/s`) | `4.76 ms` (`21.83 ns` JMH / `23.79 ns`, `42.0–45.8 M/s`) | `fastIterator()` scans contiguous `long[]` without allocation (`O(capacity)`) |
+| **Go `1.22.2` `map` (8-Slot Buckets)** | `12.87 ms` (`6.44 ns`, `155.4 M/s`) | `4.36 ms` (`21.79 ns`, `45.9 M/s`) | Beats `Go 1.24.0` by **`45%`** on sparse sweeps (`19.5M` vs `56.1M` LLC misses) |
+| **Go `1.24.0` `map` (SwissTable)** | `13.89 ms` (`6.95 ns`, `144.0 M/s`) | `6.32 ms` (`31.59 ns`, `31.7 M/s`) | Walks unshrunk split-directory sub-tables + control words |
+| **Java `21` `java.util.HashMap`** | `21.00 ms` (`7.44 ns` JMH / `10.50 ns`, `95.2–134.4 M/s`) | `6.71 ms` (`24.73 ns` JMH / `33.53 ns`, `29.8–40.4 M/s`) | **`3.2x–4.6x` faster than C++ `std`** on full sweep via G1GC locality; still `O(capacity)` sparse |
+| **C++20 `std::unordered_map`** | **`67.87 ms` / `67.9 ms` `GBench` (`33.94 ns`, `29.5 M/s`)** | **`3.11 ms` / `2.79 ms` `GBench` (`15.53 ns`, `64.4–71.6 M/s`)** | **`28x` behind Rust** full (`0.13` IPC chasing fragmented nodes), yet **`21.8x` faster** (`O(live)`) sparse! |
+| **Python `3.12.3` `dict`** | `173.03 ms` (`86.51 ns`, `11.6 M/s`) | `38.15 ms` (`190.74 ns`, `5.2 M/s`) | Scans `dk_entries` including `DKIX_DUMMY` tombstones |
+
+> **Key Empirical Flip (Why Single-Op Benchmarks Mislead):** At `2M` full occupancy, C++'s `std::unordered_map` (`67.9 ms`) trails even garbage-collected boxed `Java HashMap` (`7.44–10.50 ns/live`) and `Rust` (`1.21 ns/live`, **`28x` faster**) because node pointers scatter across DRAM. Yet after `90%` TTL eviction inside an unshrunk peak table (`200K` live in `4.19M` capacity), `std::unordered_map` walks **only live nodes (`O(live)`)** in `2.79–3.11 ms`—cutting per-entry cost from `33.9 ns` to `15.5 ns` and matching `absl::flat_hash_map` (`2.77–3.02 ms`, whose `O(capacity)` control scan rises from `4.0 ns` to `15.1 ns/live`)!
+
+---
+
 ## 3. Battle 2: Memory Footprint & Unreserved Insert Tail Latency (`2,000,000` Entries)
 
 ### Battle 2A: Isolated Process `VmRSS` / Live JVM Heap Footprint
@@ -126,6 +146,34 @@ Three strictly unmultiplexed passes (`nmi_watchdog=1`, `<= 4` hardware events pe
 | **Java `21` `HashMap<Long, Long>`** | `30.55B` | `11.00B` | `0.36` | `119.8M` | `469.4M` | `148.6M` | **`368.0M`** |
 | **Java `21` `fastutil` `Long2Long`** | `21.01B` | `8.17B` | `0.39` | `152.2M` | `363.6M` | `142.0M` | `250.5M` |
 | **Python `3.12` `dict` (`6` passes)** | `66.52B` | `118.77B` | `1.79` | `78.3M` | `808.0M` | `69.9M` | `197.9M` |
+
+### 5C. Full-Table `2,000,000`-Entry Iteration (`40` Sweeps = `80M` Live; Python `10` = `20M`)
+
+| Implementation | Cycles | Instructions | IPC | Branch Misses | L1D Misses | `dTLB` Load Misses | LLC `cache-misses` |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **C++20 `std::unordered_map`** | `16.21B` | `2.18B` | **`0.13`** | `9.04M` | `119.4M` | **`27.14M`** | **`75.99M`** |
+| **C++20 `absl::flat_hash_map`** | `2.50B` | `2.37B` | `0.95` | `81.89M` | `66.55M` | `2.92M` | `7.56M` |
+| **Rust `1.91` `SipHash-1-3`** | `1.25B` | `1.89B` | **`1.51`** | **`18.69M`** | **`65.44M`** | `2.87M` | `6.63M` |
+| **Rust `1.91` `FxHash`** | **`1.20B`** | **`1.73B`** | `1.44` | **`18.62M`** | `65.61M` | `2.87M` | **`6.62M`** |
+| **Go `1.22.2` `map`** | `3.84B` | `11.53B` | `3.00` | `33.36M` | `73.21M` | **`2.65M`** | `9.95M` |
+| **Go `1.24.0` `map` (SwissTable)** | `3.97B` | `10.70B` | `2.69` | `28.32M` | `70.27M` | **`2.65M`** | `9.37M` |
+| **Java `21` `HashMap<Long, Long>`** | `19.10B` | `11.97B` | `0.63` | `169.18M` | `300.88M` | `11.37M` | `58.40M` |
+| **Java `21` `fastutil` `Long2Long`** | `13.33B` | `9.25B` | `0.69` | `130.27M` | `185.49M` | `7.53M` | `29.16M` |
+| **Python `3.12` `dict` (`10` passes)** | `33.76B` | `102.28B` | `3.03` | `60.03M` | `495.30M` | `9.85M` | `79.46M` |
+
+### 5D. Post-Peak Sparse `200,000`-Entry Iteration (`90%` Evicted, `200` Sweeps = `40M` Live; Python `40` = `8M`)
+
+| Implementation | Cycles | Instructions | IPC | Branch Misses | L1D Misses | `dTLB` Load Misses | LLC `cache-misses` |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **C++20 `std::unordered_map`** | `5.92B` | `2.08B` | `0.35` | **`9.36M`** | `89.27M` | `28.47M` | `68.06M` |
+| **C++20 `absl::flat_hash_map`** | `4.37B` | **`7.10B`** (`3.4x` `std`) | `1.63` | `48.60M` | `102.02M` | `7.52M` | `56.99M` |
+| **Rust `1.91` `SipHash-1-3`** | `2.49B` | `2.02B` | `0.81` | `46.49M` | **`78.45M`** | `7.45M` | `50.08M` |
+| **Rust `1.91` `FxHash`** | **`2.16B`** | **`1.72B`** | `0.80` | `46.96M` | `78.65M` | `7.45M` | `49.89M` |
+| **Go `1.22.2` `map`** | `6.24B` | `18.29B` | `2.93` | `55.61M` | `270.15M` | `7.22M` | **`19.46M`** |
+| **Go `1.24.0` `map` (SwissTable)** | `8.35B` | `10.38B` | `1.24` | `52.03M` | `246.35M` | **`7.15M`** | `56.06M` (`2.88x` `1.22`) |
+| **Java `21` `HashMap<Long, Long>`** | `21.63B` | `13.48B` | `0.62` | `122.96M` | `317.25M` | `21.54M` | `123.40M` |
+| **Java `21` `fastutil` `Long2Long`** | `15.19B` | `12.64B` | `0.83` | `114.82M` | `322.34M` | `13.85M` | `55.21M` |
+| **Python `3.12` `dict` (`40` passes)** | `33.56B` | `80.64B` | `2.40` | `53.41M` | `534.37M` | `14.02M` | `99.10M` |
 
 ---
 

@@ -410,6 +410,44 @@ BuildAgedAbslFlatSession(const GatewayDataset& ds) {
   return m;
 }
 
+/**
+ * @brief Evicts 90% of keys (retaining i % 10 == 0) without shrinking
+ *        allocated capacity, modeling post-peak TTL expiration.
+ * @tparam MapT Associative map type supporting erase(key).
+ * @param map Mutable populated hash map.
+ * @param ds Dataset whose keys were inserted into `map`.
+ */
+template <typename MapT>
+inline void EvictNinetyPercent(MapT& map, const GatewayDataset& ds) {
+  for (std::size_t i = 0; i < ds.keys.size(); ++i) {
+    if ((i % 10U) != 0U) {
+      map.erase(ds.keys[i]);
+    }
+  }
+}
+
+/**
+ * @brief Builds a post-peak sparse std::unordered_map with 90% entries evicted
+ *        and full 2M bucket array retained.
+ */
+[[nodiscard]] inline std::unordered_map<std::uint64_t, std::uint64_t>
+BuildAgedStdUnorderedPackedSparse(const GatewayDataset& ds) {
+  auto m = BuildAgedStdUnorderedPacked(ds, true);
+  EvictNinetyPercent(m, ds);
+  return m;
+}
+
+/**
+ * @brief Builds a post-peak sparse absl::flat_hash_map with 90% entries evicted
+ *        as tombstones inside the retained 4.19M-slot control array.
+ */
+[[nodiscard]] inline absl::flat_hash_map<std::uint64_t, std::uint64_t>
+BuildAgedAbslFlatPackedSparse(const GatewayDataset& ds) {
+  auto m = BuildAgedAbslFlatPacked(ds, true);
+  EvictNinetyPercent(m, ds);
+  return m;
+}
+
 }  // namespace hotpath::episode15
 
 // Clean non-mangled C-linkage lookup kernels for llvm-objdump / perf annotate.
@@ -488,6 +526,35 @@ extern "C" {
     }
   }
   return hotpath::episode15::FinalizeChecksum(sum, hits);
+}
+
+/**
+ * @brief Timed full/sparse sweep across std::unordered_map<uint64_t, uint64_t>.
+ */
+[[gnu::noinline]] inline std::uint64_t ep15_std_unordered_iter_packed(
+    const std::unordered_map<std::uint64_t, std::uint64_t>& map) noexcept {
+  std::uint64_t sum = 0;
+  std::uint64_t count = 0;
+  for (const auto& [k, v] : map) {
+    sum += (k ^ v);
+    ++count;
+  }
+  return hotpath::episode15::FinalizeChecksum(sum, count);
+}
+
+/**
+ * @brief Timed full/sparse sweep across absl::flat_hash_map<uint64_t,
+ * uint64_t>.
+ */
+[[gnu::noinline]] inline std::uint64_t ep15_absl_flat_iter_packed(
+    const absl::flat_hash_map<std::uint64_t, std::uint64_t>& map) noexcept {
+  std::uint64_t sum = 0;
+  std::uint64_t count = 0;
+  for (const auto& [k, v] : map) {
+    sum += (k ^ v);
+    ++count;
+  }
+  return hotpath::episode15::FinalizeChecksum(sum, count);
 }
 
 }  // extern "C"

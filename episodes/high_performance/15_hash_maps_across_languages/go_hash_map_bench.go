@@ -195,6 +195,26 @@ func findSession(m map[uint64]SessionState, queries []uint64) uint64 {
 	return finalizeChecksum(sum, hits)
 }
 
+//go:noinline
+func iterPacked(m map[uint64]uint64) uint64 {
+	var sum uint64
+	var count uint64
+	for k, v := range m {
+		sum += k ^ v
+		count++
+	}
+	return finalizeChecksum(sum, count)
+}
+
+func printSweepRow(label string, totalMs float64, sweeps, live int, checksum uint64) {
+	msPerSweep := totalMs / float64(sweeps)
+	totalLive := sweeps * live
+	nsPerLive := (totalMs * 1_000_000.0) / float64(totalLive)
+	mops := float64(totalLive) / (totalMs * 1_000.0)
+	fmt.Printf("%-42s | %6.2f ms/swp | %6.2f ns/live | %7.2f M/s | checksum=0x%x\n",
+		label, msPerSweep, nsPerLive, mops, checksum)
+}
+
 func printLookupRow(label string, totalMs float64, totalOps int, checksum uint64) {
 	nsPerOp := (totalMs * 1_000_000.0) / float64(totalOps)
 	mops := float64(totalOps) / (totalMs * 1_000.0)
@@ -403,6 +423,40 @@ func runBattle3HashDos(prime uint64, ver string) {
 	fmt.Printf("%-42s | %8.2f ms\n", fmt.Sprintf("Go %s map (Crafted Prime Keys)", ver), dosMs)
 }
 
+func runIterPacked(iters int, sparse bool, ver string) {
+	ds := buildDataset(numAgedEntries, 1024)
+	churn := applyHeapChurn(300_000)
+	m := make(map[uint64]uint64, len(ds.keys))
+	for i, k := range ds.keys {
+		m[k] = ds.packedVals[i]
+	}
+	runtime.KeepAlive(churn)
+	churn = nil
+	if sparse {
+		for i, k := range ds.keys {
+			if i%10 != 0 {
+				delete(m, k)
+			}
+		}
+	}
+	runtime.GC()
+
+	live := len(m)
+	label := fmt.Sprintf("Go %s map[uint64]uint64 (Iter 2M Full)", ver)
+	if sparse {
+		label = fmt.Sprintf("Go %s map[uint64]uint64 (Sparse 200K)", ver)
+	}
+
+	sink := iterPacked(m)
+	t0 := time.Now()
+	for it := 0; it < iters; it++ {
+		sink += iterPacked(m)
+	}
+	ms := float64(time.Since(t0).Nanoseconds()) / 1e6
+	GlobalSink += sink
+	printSweepRow(label, ms, iters, live, sink)
+}
+
 func runSelfTests() {
 	ds := buildDataset(16_384, 32_768)
 	m := make(map[uint64]uint64, len(ds.keys))
@@ -417,7 +471,24 @@ func runSelfTests() {
 	if cMiss != 0 {
 		panic("expected zero miss checksum")
 	}
-	fmt.Printf("Go %s self-test PASSED: 16K 80/20 checksum=0x%x\n", runtime.Version(), c)
+	cFull := iterPacked(m)
+	if cFull == 0 {
+		panic("expected non-zero full sweep checksum")
+	}
+	for i, k := range ds.keys {
+		if i%10 != 0 {
+			delete(m, k)
+		}
+	}
+	if len(m) != 1639 {
+		panic(fmt.Sprintf("expected 1639 sparse entries, got %d", len(m)))
+	}
+	cSparse := iterPacked(m)
+	if cSparse == 0 {
+		panic("expected non-zero sparse sweep checksum")
+	}
+	fmt.Printf("Go %s self-test PASSED: 16K lookup=0x%x, iter_full=0x%x, iter_sparse=0x%x\n",
+		runtime.Version(), c, cFull, cSparse)
 }
 
 func main() {
@@ -439,11 +510,15 @@ func main() {
 			runAgedPacked(10, false, ver)
 			runAgedPacked(10, true, ver)
 			runAgedSession(10, ver)
+			runIterPacked(20, false, ver)
+			runIterPacked(60, true, ver)
 		} else {
 			runL1Packed(iters, ver)
 			runAgedPacked(iters, false, ver)
 			runAgedPacked(iters, true, ver)
 			runAgedSession(iters, ver)
+			runIterPacked(iters, false, ver)
+			runIterPacked(iters, true, ver)
 		}
 		runBattle2Rss(ver)
 		runBattle2Tail(ver)
@@ -468,6 +543,16 @@ func main() {
 			iters = 40
 		}
 		runAgedSession(iters, ver)
+	case "b1_iter_full_packed":
+		if iters == 0 {
+			iters = 40
+		}
+		runIterPacked(iters, false, ver)
+	case "b1_iter_sparse_packed":
+		if iters == 0 {
+			iters = 200
+		}
+		runIterPacked(iters, true, ver)
 	case "b2_rss":
 		runBattle2Rss(ver)
 	case "b2_rss_packed":

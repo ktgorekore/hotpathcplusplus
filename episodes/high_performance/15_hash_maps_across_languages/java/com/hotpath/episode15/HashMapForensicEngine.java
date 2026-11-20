@@ -14,8 +14,10 @@
 
 package com.hotpath.episode15;
 
+import it.unimi.dsi.fastutil.longs.Long2LongMap;
 import it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.objects.ObjectIterator;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -251,6 +253,48 @@ public final class HashMapForensicEngine {
       }
     }
     return finalizeChecksum(sum, hits);
+  }
+
+  public static HashMap<Long, Long> buildAgedJdkPackedSparse(GatewayDataset ds) {
+    HashMap<Long, Long> map = buildAgedJdkPacked(ds);
+    for (int i = 0; i < ds.keys.length; i++) {
+      if ((i % 10) != 0) {
+        map.remove(ds.keys[i]);
+      }
+    }
+    return map;
+  }
+
+  public static Long2LongOpenHashMap buildAgedFastutilPackedSparse(GatewayDataset ds) {
+    Long2LongOpenHashMap map = buildAgedFastutilPacked(ds);
+    for (int i = 0; i < ds.keys.length; i++) {
+      if ((i % 10) != 0) {
+        map.remove(ds.keys[i]);
+      }
+    }
+    return map;
+  }
+
+  public static long iterJdkPacked(HashMap<Long, Long> map) {
+    long sum = 0L;
+    long count = 0L;
+    for (var entry : map.entrySet()) {
+      sum += (entry.getKey() ^ entry.getValue());
+      count++;
+    }
+    return finalizeChecksum(sum, count);
+  }
+
+  public static long iterFastutilPacked(Long2LongOpenHashMap map) {
+    long sum = 0L;
+    long count = 0L;
+    ObjectIterator<Long2LongMap.Entry> it = map.long2LongEntrySet().fastIterator();
+    while (it.hasNext()) {
+      Long2LongMap.Entry entry = it.next();
+      sum += (entry.getLongKey() ^ entry.getLongValue());
+      count++;
+    }
+    return finalizeChecksum(sum, count);
   }
 
   /**

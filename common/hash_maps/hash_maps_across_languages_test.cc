@@ -80,5 +80,28 @@ TEST(HashMapsAcrossLanguagesTest, PercentilesAreMonotonic) {
   EXPECT_DOUBLE_EQ(p.max_ns, 1000.0);
 }
 
+TEST(HashMapsAcrossLanguagesTest, FullAndSparseIterationParity) {
+  const GatewayDataset ds = BuildDataset(16'384, 64);
+  const auto full_std = BuildAgedStdUnorderedPacked(ds, true);
+  const auto full_absl = BuildAgedAbslFlatPacked(ds, true);
+  EXPECT_EQ(full_std.size(), 16'384U);
+  EXPECT_EQ(full_absl.size(), 16'384U);
+
+  const std::uint64_t c_full_std = ep15_std_unordered_iter_packed(full_std);
+  const std::uint64_t c_full_absl = ep15_absl_flat_iter_packed(full_absl);
+  EXPECT_NE(c_full_std, 0ULL);
+  EXPECT_EQ(c_full_std, c_full_absl);
+
+  const auto sparse_std = BuildAgedStdUnorderedPackedSparse(ds);
+  const auto sparse_absl = BuildAgedAbslFlatPackedSparse(ds);
+  EXPECT_EQ(sparse_std.size(), 1'639U);
+  EXPECT_EQ(sparse_absl.size(), 1'639U);
+
+  const std::uint64_t c_sparse_std = ep15_std_unordered_iter_packed(sparse_std);
+  const std::uint64_t c_sparse_absl = ep15_absl_flat_iter_packed(sparse_absl);
+  EXPECT_NE(c_sparse_std, 0ULL);
+  EXPECT_EQ(c_sparse_std, c_sparse_absl);
+}
+
 }  // namespace
 }  // namespace hotpath::episode15

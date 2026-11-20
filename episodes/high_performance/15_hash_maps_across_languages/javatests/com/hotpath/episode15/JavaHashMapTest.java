@@ -57,4 +57,28 @@ final class JavaHashMapTest {
     }
     assertEquals(HashMapForensicEngine.NUM_HASHDOS_KEYS, map.size());
   }
+
+  @Test
+  void fullAndSparseIterationChecksumsMatch() {
+    var ds = HashMapForensicEngine.buildDataset(16_384, 64);
+    var fullJdk = HashMapForensicEngine.buildAgedJdkPacked(ds);
+    var fullFu = HashMapForensicEngine.buildAgedFastutilPacked(ds);
+    assertEquals(16_384, fullJdk.size());
+    assertEquals(16_384, fullFu.size());
+
+    long cFullJdk = HashMapForensicEngine.iterJdkPacked(fullJdk);
+    long cFullFu = HashMapForensicEngine.iterFastutilPacked(fullFu);
+    assertNotEquals(0L, cFullJdk);
+    assertEquals(cFullJdk, cFullFu);
+
+    var sparseJdk = HashMapForensicEngine.buildAgedJdkPackedSparse(ds);
+    var sparseFu = HashMapForensicEngine.buildAgedFastutilPackedSparse(ds);
+    assertEquals(1_639, sparseJdk.size());
+    assertEquals(1_639, sparseFu.size());
+
+    long cSparseJdk = HashMapForensicEngine.iterJdkPacked(sparseJdk);
+    long cSparseFu = HashMapForensicEngine.iterFastutilPacked(sparseFu);
+    assertNotEquals(0L, cSparseJdk);
+    assertEquals(cSparseJdk, cSparseFu);
+  }
 }

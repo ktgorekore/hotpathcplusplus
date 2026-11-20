@@ -302,6 +302,52 @@ fn find_session_fx(map: &HashMap<u64, SessionState, FxBuildHasher>, queries: &[u
     finalize_checksum(sum, hits)
 }
 
+#[no_mangle]
+#[inline(never)]
+pub extern "C" fn rust_siphash_iter_packed(map: &HashMap<u64, u64>) -> u64 {
+    let mut sum = 0u64;
+    let mut count = 0u64;
+    for (&k, &v) in map.iter() {
+        sum = sum.wrapping_add(k ^ v);
+        count += 1;
+    }
+    finalize_checksum(sum, count)
+}
+
+#[no_mangle]
+#[inline(never)]
+pub extern "C" fn rust_fxhash_iter_packed(map: &HashMap<u64, u64, FxBuildHasher>) -> u64 {
+    let mut sum = 0u64;
+    let mut count = 0u64;
+    for (&k, &v) in map.iter() {
+        sum = sum.wrapping_add(k ^ v);
+        count += 1;
+    }
+    finalize_checksum(sum, count)
+}
+
+fn evict_ninety_percent<S: std::hash::BuildHasher>(
+    map: &mut HashMap<u64, u64, S>,
+    keys: &[u64],
+) {
+    for (i, k) in keys.iter().enumerate() {
+        if i % 10 != 0 {
+            map.remove(k);
+        }
+    }
+}
+
+fn print_sweep_row(label: &str, total_ms: f64, sweeps: usize, live: usize, checksum: u64) {
+    let ms_per_sweep = total_ms / (sweeps as f64);
+    let total_live = sweeps * live;
+    let ns_per_live = (total_ms * 1_000_000.0) / (total_live as f64);
+    let mops = (total_live as f64) / (total_ms * 1_000.0);
+    println!(
+        "{:<42} | {:>6.2} ms/swp | {:>6.2} ns/live | {:>7.2} M/s | checksum=0x{:x}",
+        label, ms_per_sweep, ns_per_live, mops, checksum
+    );
+}
+
 fn print_lookup_row(label: &str, total_ms: f64, total_ops: usize, checksum: u64) {
     let ns_per_op = (total_ms * 1_000_000.0) / (total_ops as f64);
     let mops = (total_ops as f64) / (total_ms * 1_000.0);
@@ -614,6 +660,63 @@ fn run_battle3_hashdos(prime: u64) {
     );
 }
 
+fn run_iter_sip(iters: usize, sparse: bool) {
+    let ds = build_dataset(NUM_AGED_ENTRIES, 1024);
+    let churn = apply_heap_churn(300_000);
+    let mut map = HashMap::with_capacity(ds.keys.len());
+    for i in 0..ds.keys.len() {
+        map.insert(ds.keys[i], ds.packed_vals[i]);
+    }
+    drop(churn);
+    if sparse {
+        evict_ninety_percent(&mut map, &ds.keys);
+    }
+    let live = map.len();
+    let mut sink = rust_siphash_iter_packed(&map);
+    let t0 = Instant::now();
+    for _ in 0..iters {
+        let m_ref = black_box(&map);
+        sink = sink.wrapping_add(black_box(rust_siphash_iter_packed(m_ref)));
+    }
+    let ms = t0.elapsed().as_secs_f64() * 1000.0;
+    black_box(sink);
+    let label = if sparse {
+        "Rust 1.91 HashMap SipHash (Sparse 200K)"
+    } else {
+        "Rust 1.91 HashMap SipHash (Iter 2M Full)"
+    };
+    print_sweep_row(label, ms, iters, live, sink);
+}
+
+fn run_iter_fx(iters: usize, sparse: bool) {
+    let ds = build_dataset(NUM_AGED_ENTRIES, 1024);
+    let churn = apply_heap_churn(300_000);
+    let mut map: HashMap<u64, u64, FxBuildHasher> =
+        HashMap::with_capacity_and_hasher(ds.keys.len(), FxBuildHasher::default());
+    for i in 0..ds.keys.len() {
+        map.insert(ds.keys[i], ds.packed_vals[i]);
+    }
+    drop(churn);
+    if sparse {
+        evict_ninety_percent(&mut map, &ds.keys);
+    }
+    let live = map.len();
+    let mut sink = rust_fxhash_iter_packed(&map);
+    let t0 = Instant::now();
+    for _ in 0..iters {
+        let m_ref = black_box(&map);
+        sink = sink.wrapping_add(black_box(rust_fxhash_iter_packed(m_ref)));
+    }
+    let ms = t0.elapsed().as_secs_f64() * 1000.0;
+    black_box(sink);
+    let label = if sparse {
+        "Rust 1.91 HashMap FxHash (Sparse 200K)"
+    } else {
+        "Rust 1.91 HashMap FxHash (Iter 2M Full)"
+    };
+    print_sweep_row(label, ms, iters, live, sink);
+}
+
 fn run_self_tests() {
     let ds = build_dataset(16_384, 32_768);
     let mut sip_map = HashMap::with_capacity(ds.keys.len());
@@ -636,6 +739,20 @@ fn run_self_tests() {
     );
     assert_eq!(c_miss, 0);
 
+    let c_full_sip = rust_siphash_iter_packed(&sip_map);
+    let c_full_fx = rust_fxhash_iter_packed(&fx_map);
+    assert_ne!(c_full_sip, 0);
+    assert_eq!(c_full_sip, c_full_fx);
+
+    evict_ninety_percent(&mut sip_map, &ds.keys);
+    evict_ninety_percent(&mut fx_map, &ds.keys);
+    assert_eq!(sip_map.len(), 1_639);
+    assert_eq!(fx_map.len(), 1_639);
+    let c_sparse_sip = rust_siphash_iter_packed(&sip_map);
+    let c_sparse_fx = rust_fxhash_iter_packed(&fx_map);
+    assert_ne!(c_sparse_sip, 0);
+    assert_eq!(c_sparse_sip, c_sparse_fx);
+
     let inv = mod_inverse_u64(FX_SEED);
     assert_eq!(FX_SEED.wrapping_mul(inv), 1u64);
     let fx_dos = build_fxhash_collision_keys(1024);
@@ -647,8 +764,8 @@ fn run_self_tests() {
         assert_eq!(digest >> 57, 0);
     }
     println!(
-        "Rust 1.91 self-test PASSED: 16K 80/20 checksum=0x{:x}, FxHash H1+H2 collision verified.",
-        c_sip
+        "Rust 1.91 self-test PASSED: 16K lookup=0x{:x}, iter_full=0x{:x}, iter_sparse=0x{:x}, FxHash collision verified.",
+        c_sip, c_full_sip, c_sparse_sip
     );
 }
 
@@ -679,6 +796,10 @@ fn main() {
             run_aged_fx(if iters > 0 { iters } else { 10 }, true);
             run_aged_session_sip(if iters > 0 { iters } else { 10 });
             run_aged_session_fx(if iters > 0 { iters } else { 10 });
+            run_iter_sip(if iters > 0 { iters } else { 20 }, false);
+            run_iter_fx(if iters > 0 { iters } else { 20 }, false);
+            run_iter_sip(if iters > 0 { iters } else { 60 }, true);
+            run_iter_fx(if iters > 0 { iters } else { 60 }, true);
             run_battle2_rss();
             run_battle2_tail();
             run_battle3_hashdos(prime);
@@ -691,6 +812,10 @@ fn main() {
         "b1_miss_fx" => run_aged_fx(if iters > 0 { iters } else { 40 }, true),
         "b1_aged_session_sip" => run_aged_session_sip(if iters > 0 { iters } else { 40 }),
         "b1_aged_session_fx" => run_aged_session_fx(if iters > 0 { iters } else { 40 }),
+        "b1_iter_full_sip" => run_iter_sip(if iters > 0 { iters } else { 40 }, false),
+        "b1_iter_full_fx" => run_iter_fx(if iters > 0 { iters } else { 40 }, false),
+        "b1_iter_sparse_sip" => run_iter_sip(if iters > 0 { iters } else { 200 }, true),
+        "b1_iter_sparse_fx" => run_iter_fx(if iters > 0 { iters } else { 200 }, true),
         "b2_rss" => run_battle2_rss(),
         "b2_tail" => run_battle2_tail(),
         "b3_hashdos" => run_battle3_hashdos(prime),

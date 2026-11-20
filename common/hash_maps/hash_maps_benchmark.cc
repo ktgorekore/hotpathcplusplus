@@ -71,6 +71,16 @@ const absl::flat_hash_map<std::uint64_t, SessionState>& GetAgedAbslSession() {
   return map;
 }
 
+const std::unordered_map<std::uint64_t, std::uint64_t>& GetAgedStdSparse() {
+  static const auto map = BuildAgedStdUnorderedPackedSparse(GetAgedDataset());
+  return map;
+}
+
+const absl::flat_hash_map<std::uint64_t, std::uint64_t>& GetAgedAbslSparse() {
+  static const auto map = BuildAgedAbslFlatPackedSparse(GetAgedDataset());
+  return map;
+}
+
 void BM_Battle1_L1_StdUnorderedMap_80_20(benchmark::State& state) {
   const auto& ds = GetL1Dataset();
   const auto& map = GetL1StdPacked();
@@ -174,6 +184,54 @@ void BM_Battle1_Aged2M_AbslFlatHashMap_Session24B(benchmark::State& state) {
                           static_cast<std::int64_t>(ds.queries_80_20.size()));
 }
 BENCHMARK(BM_Battle1_Aged2M_AbslFlatHashMap_Session24B);
+
+void BM_Battle1B_IterFull2M_StdUnorderedMap(benchmark::State& state) {
+  const auto& map = GetAgedStdPacked();
+  for (auto _ : state) {
+    std::uint64_t res = ep15_std_unordered_iter_packed(map);
+    benchmark::DoNotOptimize(res);
+  }
+  state.SetItemsProcessed(state.iterations() *
+                          static_cast<std::int64_t>(map.size()));
+}
+BENCHMARK(BM_Battle1B_IterFull2M_StdUnorderedMap)
+    ->Unit(benchmark::kMillisecond);
+
+void BM_Battle1B_IterFull2M_AbslFlatHashMap(benchmark::State& state) {
+  const auto& map = GetAgedAbslPacked();
+  for (auto _ : state) {
+    std::uint64_t res = ep15_absl_flat_iter_packed(map);
+    benchmark::DoNotOptimize(res);
+  }
+  state.SetItemsProcessed(state.iterations() *
+                          static_cast<std::int64_t>(map.size()));
+}
+BENCHMARK(BM_Battle1B_IterFull2M_AbslFlatHashMap)
+    ->Unit(benchmark::kMillisecond);
+
+void BM_Battle1B_IterSparse200K_StdUnorderedMap(benchmark::State& state) {
+  const auto& map = GetAgedStdSparse();
+  for (auto _ : state) {
+    std::uint64_t res = ep15_std_unordered_iter_packed(map);
+    benchmark::DoNotOptimize(res);
+  }
+  state.SetItemsProcessed(state.iterations() *
+                          static_cast<std::int64_t>(map.size()));
+}
+BENCHMARK(BM_Battle1B_IterSparse200K_StdUnorderedMap)
+    ->Unit(benchmark::kMillisecond);
+
+void BM_Battle1B_IterSparse200K_AbslFlatHashMap(benchmark::State& state) {
+  const auto& map = GetAgedAbslSparse();
+  for (auto _ : state) {
+    std::uint64_t res = ep15_absl_flat_iter_packed(map);
+    benchmark::DoNotOptimize(res);
+  }
+  state.SetItemsProcessed(state.iterations() *
+                          static_cast<std::int64_t>(map.size()));
+}
+BENCHMARK(BM_Battle1B_IterSparse200K_AbslFlatHashMap)
+    ->Unit(benchmark::kMillisecond);
 
 void BM_Battle2_Insert2M_StdUnorderedMap_Unreserved(benchmark::State& state) {
   const auto& ds = GetAgedDataset();

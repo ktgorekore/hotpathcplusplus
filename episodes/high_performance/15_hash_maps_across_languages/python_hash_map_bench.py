@@ -153,6 +153,29 @@ def lookup_session(d: Dict[int, SessionState], queries: List[int]) -> int:
     return (total ^ ((hits * 0x9E3779B97F4A7C15) & MASK64)) & MASK64
 
 
+def iter_packed(d: Dict[int, int]) -> int:
+    """Runs timed full/sparse sweep over packed integer dict."""
+    total = 0
+    count = 0
+    for k, v in d.items():
+        total = (total + (k ^ v)) & MASK64
+        count += 1
+    return (total ^ ((count * 0x9E3779B97F4A7C15) & MASK64)) & MASK64
+
+
+def print_sweep_row(
+    label: str, total_ms: float, sweeps: int, live: int, checksum: int
+) -> None:
+    """Prints unified Episode 15 iteration telemetry line."""
+    ms_per_sweep = total_ms / float(sweeps)
+    total_live = sweeps * live
+    ns_per_live = (total_ms * 1_000_000.0) / float(total_live)
+    mops = float(total_live) / (total_ms * 1_000.0)
+    print(
+        f"{label:<42} | {ms_per_sweep:>6.2f} ms/swp | {ns_per_live:>6.2f} ns/live | {mops:>7.2f} M/s | checksum=0x{checksum:x}"
+    )
+
+
 def print_row(label: str, total_ms: float, total_ops: int, checksum: int) -> None:
     """Prints unified Episode 15 benchmark telemetry line."""
     ns_per_op = (total_ms * 1_000_000.0) / float(total_ops)
@@ -313,6 +336,28 @@ def run_battle3_hashdos(prime: int) -> None:
     )
 
 
+def run_iter_packed(iters: int, sparse: bool) -> None:
+    """Benchmarks full-table (2M) or 90%-evicted sparse (200K) dict sweep."""
+    keys, packed_vals, _, _, _ = build_dataset(NUM_AGED_ENTRIES, 64)
+    d = dict(zip(keys, packed_vals))
+    if sparse:
+        for i, k in enumerate(keys):
+            if (i % 10) != 0:
+                del d[k]
+    live = len(d)
+    sink = iter_packed(d)
+    t0 = time.perf_counter_ns()
+    for _ in range(iters):
+        sink = (sink + iter_packed(d)) & MASK64
+    t1 = time.perf_counter_ns()
+    label = (
+        "Python 3.12 dict[int, int] (Sparse 200K)"
+        if sparse
+        else "Python 3.12 dict[int, int] (Iter 2M Full)"
+    )
+    print_sweep_row(label, (t1 - t0) / 1e6, iters, live, sink)
+
+
 def run_self_tests() -> None:
     """Verifies identical SplitMix64 checksums against C++/Rust/Go/Java."""
     keys, packed_vals, _, queries_80_20, queries_100_miss = build_dataset(
@@ -323,7 +368,17 @@ def run_self_tests() -> None:
     assert c != 0
     c_miss = lookup_packed(d, queries_100_miss)
     assert c_miss == 0
-    print(f"Python 3.12 self-test PASSED: 16K 80/20 checksum=0x{c:x}")
+    c_full = iter_packed(d)
+    assert c_full != 0
+    for i, k in enumerate(keys):
+        if (i % 10) != 0:
+            del d[k]
+    assert len(d) == 1_639
+    c_sparse = iter_packed(d)
+    assert c_sparse != 0
+    print(
+        f"Python 3.12 self-test PASSED: 16K lookup=0x{c:x}, iter_full=0x{c_full:x}, iter_sparse=0x{c_sparse:x}"
+    )
 
 
 def main() -> None:
@@ -344,6 +399,8 @@ def main() -> None:
         run_aged_packed(args.iters or 2, False)
         run_aged_packed(args.iters or 2, True)
         run_aged_session(args.iters or 2)
+        run_iter_packed(args.iters or 6, False)
+        run_iter_packed(args.iters or 20, True)
         run_battle2_rss()
         run_battle2_tail()
         run_battle3_hashdos(args.prime)
@@ -355,6 +412,10 @@ def main() -> None:
         run_aged_packed(args.iters or 6, True)
     elif args.mode == "b1_aged_session":
         run_aged_session(args.iters or 6)
+    elif args.mode == "b1_iter_full_packed":
+        run_iter_packed(args.iters or 10, False)
+    elif args.mode == "b1_iter_sparse_packed":
+        run_iter_packed(args.iters or 40, True)
     elif args.mode == "b2_rss":
         run_battle2_rss()
     elif args.mode == "b2_rss_packed":

@@ -160,6 +160,69 @@ public final class JavaForensicChallenge {
         "Java 21 fastutil Long2Object (Aged 24B)", ms, (long) iters * ds.queries8020.length, sink);
   }
 
+  private static void printSweepRow(
+      String label, double totalMs, int sweeps, int liveEntries, long checksum) {
+    double msPerSweep = totalMs / sweeps;
+    long totalLive = (long) sweeps * liveEntries;
+    double nsPerLive = (totalMs * 1_000_000.0) / totalLive;
+    double mops = totalLive / (totalMs * 1_000.0);
+    System.out.printf(
+        "%-42s | %6.2f ms/swp | %6.2f ns/live | %7.2f M/s | checksum=0x%s%n",
+        label, msPerSweep, nsPerLive, mops, Long.toHexString(checksum));
+  }
+
+  private static void runIterJdk(int iters, boolean sparse) {
+    var ds = HashMapForensicEngine.buildDataset(HashMapForensicEngine.NUM_AGED_ENTRIES, 1024);
+    var map =
+        sparse
+            ? HashMapForensicEngine.buildAgedJdkPackedSparse(ds)
+            : HashMapForensicEngine.buildAgedJdkPacked(ds);
+    int live = map.size();
+    long sink = 0L;
+    for (int w = 0; w < 3; w++) {
+      sink += HashMapForensicEngine.iterJdkPacked(map);
+    }
+    long t0 = System.nanoTime();
+    for (int i = 0; i < iters; i++) {
+      sink += HashMapForensicEngine.iterJdkPacked(map);
+    }
+    double ms = (System.nanoTime() - t0) / 1e6;
+    globalSink = sink;
+    printSweepRow(
+        sparse ? "Java 21 HashMap<Long,Long> (Sparse 200K)" : "Java 21 HashMap<Long,Long> (Iter 2M Full)",
+        ms,
+        iters,
+        live,
+        sink);
+  }
+
+  private static void runIterFastutil(int iters, boolean sparse) {
+    var ds = HashMapForensicEngine.buildDataset(HashMapForensicEngine.NUM_AGED_ENTRIES, 1024);
+    var map =
+        sparse
+            ? HashMapForensicEngine.buildAgedFastutilPackedSparse(ds)
+            : HashMapForensicEngine.buildAgedFastutilPacked(ds);
+    int live = map.size();
+    long sink = 0L;
+    for (int w = 0; w < 3; w++) {
+      sink += HashMapForensicEngine.iterFastutilPacked(map);
+    }
+    long t0 = System.nanoTime();
+    for (int i = 0; i < iters; i++) {
+      sink += HashMapForensicEngine.iterFastutilPacked(map);
+    }
+    double ms = (System.nanoTime() - t0) / 1e6;
+    globalSink = sink;
+    printSweepRow(
+        sparse
+            ? "Java 21 fastutil Long2Long (Sparse 200K)"
+            : "Java 21 fastutil Long2Long (Iter 2M Full)",
+        ms,
+        iters,
+        live,
+        sink);
+  }
+
   private static void runBattle2Rss() {
     var ds = HashMapForensicEngine.buildDataset(HashMapForensicEngine.NUM_AGED_ENTRIES, 1024);
     System.out.println("\n=== Java 21 Battle 2A: Live Heap Footprint (2,000,000 Entries) ===");
@@ -328,6 +391,10 @@ public final class JavaForensicChallenge {
         runAgedFastutil(iters > 0 ? iters : 10, true);
         runAgedSessionJdk(iters > 0 ? iters : 10);
         runAgedSessionFastutil(iters > 0 ? iters : 10);
+        runIterJdk(iters > 0 ? iters : 20, false);
+        runIterFastutil(iters > 0 ? iters : 20, false);
+        runIterJdk(iters > 0 ? iters : 60, true);
+        runIterFastutil(iters > 0 ? iters : 60, true);
         runBattle2Rss();
         runBattle2Tail();
         runBattle3HashDos();
@@ -340,6 +407,10 @@ public final class JavaForensicChallenge {
       case "b1_miss_fastutil" -> runAgedFastutil(iters > 0 ? iters : 40, true);
       case "b1_aged_session_jdk" -> runAgedSessionJdk(iters > 0 ? iters : 40);
       case "b1_aged_session_fastutil" -> runAgedSessionFastutil(iters > 0 ? iters : 40);
+      case "b1_iter_full_jdk" -> runIterJdk(iters > 0 ? iters : 40, false);
+      case "b1_iter_full_fastutil" -> runIterFastutil(iters > 0 ? iters : 40, false);
+      case "b1_iter_sparse_jdk" -> runIterJdk(iters > 0 ? iters : 200, true);
+      case "b1_iter_sparse_fastutil" -> runIterFastutil(iters > 0 ? iters : 200, true);
       case "b2_rss" -> runBattle2Rss();
       case "b2_tail" -> runBattle2Tail();
       case "b3_hashdos" -> runBattle3HashDos();

@@ -55,6 +55,8 @@ public class JavaHashMapBenchmark {
   private Long2LongOpenHashMap agedFastutilPacked;
   private HashMap<Long, SessionState> agedJdkSession;
   private Long2ObjectOpenHashMap<SessionState> agedFastutilSession;
+  private HashMap<Long, Long> sparseJdkPacked;
+  private Long2LongOpenHashMap sparseFastutilPacked;
 
   private long[] normalDosKeys;
   private long[] bucketZeroDosKeys;
@@ -72,6 +74,8 @@ public class JavaHashMapBenchmark {
     agedFastutilPacked = HashMapForensicEngine.buildAgedFastutilPacked(agedDataset);
     agedJdkSession = HashMapForensicEngine.buildAgedJdkSession(agedDataset);
     agedFastutilSession = HashMapForensicEngine.buildAgedFastutilSession(agedDataset);
+    sparseJdkPacked = HashMapForensicEngine.buildAgedJdkPackedSparse(agedDataset);
+    sparseFastutilPacked = HashMapForensicEngine.buildAgedFastutilPackedSparse(agedDataset);
 
     normalDosKeys =
         HashMapForensicEngine.buildDataset(HashMapForensicEngine.NUM_HASHDOS_KEYS, 64).keys;
@@ -128,6 +132,30 @@ public class JavaHashMapBenchmark {
   public long BM_Battle1_Aged2M_FastutilLong2Object_Session24B() {
     return HashMapForensicEngine.lookupFastutilSession(
         agedFastutilSession, agedDataset.queries8020);
+  }
+
+  @Benchmark
+  @OperationsPerInvocation(HashMapForensicEngine.NUM_AGED_ENTRIES)
+  public long BM_Battle1B_IterFull2M_JavaHashMap() {
+    return HashMapForensicEngine.iterJdkPacked(agedJdkPacked);
+  }
+
+  @Benchmark
+  @OperationsPerInvocation(HashMapForensicEngine.NUM_AGED_ENTRIES)
+  public long BM_Battle1B_IterFull2M_FastutilLong2Long() {
+    return HashMapForensicEngine.iterFastutilPacked(agedFastutilPacked);
+  }
+
+  @Benchmark
+  @OperationsPerInvocation(200_000)
+  public long BM_Battle1B_IterSparse200K_JavaHashMap() {
+    return HashMapForensicEngine.iterJdkPacked(sparseJdkPacked);
+  }
+
+  @Benchmark
+  @OperationsPerInvocation(200_000)
+  public long BM_Battle1B_IterSparse200K_FastutilLong2Long() {
+    return HashMapForensicEngine.iterFastutilPacked(sparseFastutilPacked);
   }
 
   @Benchmark

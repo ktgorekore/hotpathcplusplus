@@ -52,6 +52,21 @@ void PrintLookupRow(const std::string& label, double total_ms,
             << "\n";
 }
 
+void PrintSweepRow(const std::string& label, double total_ms,
+                   std::size_t sweeps, std::size_t live_entries,
+                   std::uint64_t checksum) {
+  const double ms_per_sweep = total_ms / static_cast<double>(sweeps);
+  const std::size_t total_live = sweeps * live_entries;
+  const double ns_per_live =
+      (total_ms * 1'000'000.0) / static_cast<double>(total_live);
+  const double mops = static_cast<double>(total_live) / (total_ms * 1'000.0);
+  std::cout << std::left << std::setw(42) << label << " | " << std::right
+            << std::setw(6) << std::fixed << std::setprecision(2)
+            << ms_per_sweep << " ms/swp | " << std::setw(6) << ns_per_live
+            << " ns/live | " << std::setw(7) << mops << " M/s | checksum=0x"
+            << std::hex << checksum << std::dec << "\n";
+}
+
 void RunL1Std(std::size_t iters) {
   const GatewayDataset ds = BuildDataset(kNumL1Entries, kNumQueries);
   const auto map = BuildAgedStdUnorderedPacked(ds, true);
@@ -164,6 +179,41 @@ void RunAgedSessionAbsl(std::size_t iters) {
   const double ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
   PrintLookupRow("C++20 absl::flat_hash_map (Aged 24B)", ms, iters * q_len,
                  sink);
+}
+
+template <typename MapT, typename SweepFn>
+void RunIterLoop(const std::string& label, const MapT& map, std::size_t iters,
+                 SweepFn&& sweep_fn) {
+  std::uint64_t sink = sweep_fn(map);
+  const std::size_t live = map.size();
+  const auto t0 = Clock::now();
+  for (std::size_t i = 0; i < iters; ++i) {
+    const auto* ptr = &map;
+    DoNotOptimize(ptr);
+    sink += sweep_fn(*ptr);
+    DoNotOptimize(sink);
+  }
+  const auto t1 = Clock::now();
+  const double ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+  PrintSweepRow(label, ms, iters, live, sink);
+}
+
+void RunIterStd(std::size_t iters, bool sparse) {
+  const GatewayDataset ds = BuildDataset(kNumAgedEntries, 1024);
+  const auto map = sparse ? BuildAgedStdUnorderedPackedSparse(ds)
+                          : BuildAgedStdUnorderedPacked(ds, true);
+  RunIterLoop(sparse ? "C++20 std::unordered_map (Sparse 200K)"
+                     : "C++20 std::unordered_map (Iter 2M Full)",
+              map, iters, ep15_std_unordered_iter_packed);
+}
+
+void RunIterAbsl(std::size_t iters, bool sparse) {
+  const GatewayDataset ds = BuildDataset(kNumAgedEntries, 1024);
+  const auto map = sparse ? BuildAgedAbslFlatPackedSparse(ds)
+                          : BuildAgedAbslFlatPacked(ds, true);
+  RunIterLoop(sparse ? "C++20 absl::flat_hash_map (Sparse 200K)"
+                     : "C++20 absl::flat_hash_map (Iter 2M Full)",
+              map, iters, ep15_absl_flat_iter_packed);
 }
 
 template <typename MapT>
@@ -343,6 +393,10 @@ int main(int argc, char** argv) {
     RunAgedAbsl(iters > 0 ? iters : 10, true);
     RunAgedSessionStd(iters > 0 ? iters : 10);
     RunAgedSessionAbsl(iters > 0 ? iters : 10);
+    RunIterStd(iters > 0 ? iters : 20, false);
+    RunIterAbsl(iters > 0 ? iters : 20, false);
+    RunIterStd(iters > 0 ? iters : 60, true);
+    RunIterAbsl(iters > 0 ? iters : 60, true);
     RunBattle2Rss();
     RunBattle2Tail();
     RunBattle3HashDos();
@@ -362,6 +416,14 @@ int main(int argc, char** argv) {
     RunAgedSessionStd(iters > 0 ? iters : 40);
   } else if (mode == "b1_aged_session_absl") {
     RunAgedSessionAbsl(iters > 0 ? iters : 40);
+  } else if (mode == "b1_iter_full_std") {
+    RunIterStd(iters > 0 ? iters : 40, false);
+  } else if (mode == "b1_iter_full_absl") {
+    RunIterAbsl(iters > 0 ? iters : 40, false);
+  } else if (mode == "b1_iter_sparse_std") {
+    RunIterStd(iters > 0 ? iters : 200, true);
+  } else if (mode == "b1_iter_sparse_absl") {
+    RunIterAbsl(iters > 0 ? iters : 200, true);
   } else if (mode == "b2_rss") {
     RunBattle2Rss();
   } else if (mode == "b2_rss_std_packed") {
