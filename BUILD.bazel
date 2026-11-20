@@ -259,6 +259,41 @@ alias(
     actual = "//common/memory_allocators:live_heap_aging_repro",
 )
 
+alias(
+    name = "hash_maps",
+    actual = "//common/hash_maps:hash_maps",
+)
+
+alias(
+    name = "hash_maps_benchmark",
+    actual = "//common/hash_maps:hash_maps_benchmark",
+)
+
+alias(
+    name = "hash_maps_challenge",
+    actual = "//common/hash_maps:challenge",
+)
+
+alias(
+    name = "hash_maps_hashdos_repro",
+    actual = "//common/hash_maps:live_hashdos_repro",
+)
+
+alias(
+    name = "ep15_java_benchmarks",
+    actual = "//episodes/high_performance/15_hash_maps_across_languages:java_benchmarks",
+)
+
+alias(
+    name = "ep15_java_challenge",
+    actual = "//episodes/high_performance/15_hash_maps_across_languages:java_challenge",
+)
+
+alias(
+    name = "ep15_java_challenge_zgc",
+    actual = "//episodes/high_performance/15_hash_maps_across_languages:java_challenge_zgc",
+)
+
 
 
 
