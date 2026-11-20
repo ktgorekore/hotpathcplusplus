@@ -44,6 +44,8 @@ maven.install(
         "org.apache.logging.log4j:log4j-core:2.24.3",
         # Google Java Format for strict Google Java Style compliance
         "com.google.googlejavaformat:google-java-format:1.24.0",
+        # Unboxed Primitive Collections (it.unimi.dsi.fastutil)
+        "it.unimi.dsi:fastutil:8.5.19",
     ],
     fetch_sources = True,
     repositories = [
