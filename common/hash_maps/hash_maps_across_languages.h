@@ -319,6 +319,9 @@ struct TailPercentiles {
 /**
  * @brief Combines accumulated value sum and hit count into a cross-language
  *        verification digest.
+ * @param sum Accumulated hash/value sum across probe/iteration passes.
+ * @param hits Total successful key hits encountered during the pass.
+ * @return 64-bit cross-language verification digest.
  */
 [[nodiscard]] inline std::uint64_t FinalizeChecksum(
     std::uint64_t sum, std::uint64_t hits) noexcept {
@@ -328,6 +331,9 @@ struct TailPercentiles {
 /**
  * @brief Builds an aged std::unordered_map<uint64_t, uint64_t> after heap
  *        fragmentation churn so nodes span dispersed memory pages.
+ * @param ds Pre-built deterministic Edge Gateway dataset.
+ * @param reserve_capacity Whether to pre-allocate buckets via reserve().
+ * @return Populated std::unordered_map<uint64_t, uint64_t>.
  */
 [[nodiscard]] inline std::unordered_map<std::uint64_t, std::uint64_t>
 BuildAgedStdUnorderedPacked(const GatewayDataset& ds, bool reserve_capacity) {
@@ -355,6 +361,9 @@ BuildAgedStdUnorderedPacked(const GatewayDataset& ds, bool reserve_capacity) {
 /**
  * @brief Builds an aged absl::flat_hash_map<uint64_t, uint64_t> under the
  *        exact same heap-churn harness.
+ * @param ds Pre-built deterministic Edge Gateway dataset.
+ * @param reserve_capacity Whether to pre-allocate slots via reserve().
+ * @return Populated absl::flat_hash_map<uint64_t, uint64_t>.
  */
 [[nodiscard]] inline absl::flat_hash_map<std::uint64_t, std::uint64_t>
 BuildAgedAbslFlatPacked(const GatewayDataset& ds, bool reserve_capacity) {
@@ -373,6 +382,8 @@ BuildAgedAbslFlatPacked(const GatewayDataset& ds, bool reserve_capacity) {
 /**
  * @brief Builds an aged std::unordered_map<uint64_t, SessionState> (`24B`
  *        value stored inline inside heap node).
+ * @param ds Pre-built deterministic Edge Gateway dataset.
+ * @return Populated std::unordered_map<uint64_t, SessionState>.
  */
 [[nodiscard]] inline std::unordered_map<std::uint64_t, SessionState>
 BuildAgedStdUnorderedSession(const GatewayDataset& ds) {
@@ -397,6 +408,8 @@ BuildAgedStdUnorderedSession(const GatewayDataset& ds) {
 /**
  * @brief Builds an aged absl::flat_hash_map<uint64_t, SessionState> (`24B`
  *        value stored inline in flat slot array).
+ * @param ds Pre-built deterministic Edge Gateway dataset.
+ * @return Populated absl::flat_hash_map<uint64_t, SessionState>.
  */
 [[nodiscard]] inline absl::flat_hash_map<std::uint64_t, SessionState>
 BuildAgedAbslFlatSession(const GatewayDataset& ds) {
@@ -429,6 +442,8 @@ inline void EvictNinetyPercent(MapT& map, const GatewayDataset& ds) {
 /**
  * @brief Builds a post-peak sparse std::unordered_map with 90% entries evicted
  *        and full 2M bucket array retained.
+ * @param ds Pre-built deterministic Edge Gateway dataset.
+ * @return Populated sparse std::unordered_map<uint64_t, uint64_t>.
  */
 [[nodiscard]] inline std::unordered_map<std::uint64_t, std::uint64_t>
 BuildAgedStdUnorderedPackedSparse(const GatewayDataset& ds) {
@@ -440,6 +455,8 @@ BuildAgedStdUnorderedPackedSparse(const GatewayDataset& ds) {
 /**
  * @brief Builds a post-peak sparse absl::flat_hash_map with 90% entries evicted
  *        as tombstones inside the retained 4.19M-slot control array.
+ * @param ds Pre-built deterministic Edge Gateway dataset.
+ * @return Populated sparse absl::flat_hash_map<uint64_t, uint64_t>.
  */
 [[nodiscard]] inline absl::flat_hash_map<std::uint64_t, std::uint64_t>
 BuildAgedAbslFlatPackedSparse(const GatewayDataset& ds) {
@@ -455,8 +472,12 @@ extern "C" {
 
 /**
  * @brief Timed lookup batch against std::unordered_map<uint64_t, uint64_t>.
+ * @param map Populated standard unordered map.
+ * @param queries Pointer to contiguous 64-bit lookup query keys.
+ * @param n Number of query keys in `queries`.
+ * @return SplitMix-finalized cross-language verification checksum.
  */
-[[gnu::noinline]] inline std::uint64_t ep15_std_unordered_find_packed(
+[[gnu::noinline]] inline std::uint64_t Ep15StdUnorderedFindPacked(
     const std::unordered_map<std::uint64_t, std::uint64_t>& map,
     const std::uint64_t* queries, std::size_t n) noexcept {
   std::uint64_t sum = 0;
@@ -473,8 +494,12 @@ extern "C" {
 
 /**
  * @brief Timed lookup batch against absl::flat_hash_map<uint64_t, uint64_t>.
+ * @param map Populated Abseil flat SwissTable map.
+ * @param queries Pointer to contiguous 64-bit lookup query keys.
+ * @param n Number of query keys in `queries`.
+ * @return SplitMix-finalized cross-language verification checksum.
  */
-[[gnu::noinline]] inline std::uint64_t ep15_absl_flat_find_packed(
+[[gnu::noinline]] inline std::uint64_t Ep15AbslFlatFindPacked(
     const absl::flat_hash_map<std::uint64_t, std::uint64_t>& map,
     const std::uint64_t* queries, std::size_t n) noexcept {
   std::uint64_t sum = 0;
@@ -491,8 +516,12 @@ extern "C" {
 
 /**
  * @brief Timed lookup batch against std::unordered_map<uint64_t, SessionState>.
+ * @param map Populated session map keyed by 64-bit account ID.
+ * @param queries Pointer to contiguous 64-bit lookup query keys.
+ * @param n Number of query keys in `queries`.
+ * @return SplitMix-finalized cross-language verification checksum.
  */
-[[gnu::noinline]] inline std::uint64_t ep15_std_unordered_find_session(
+[[gnu::noinline]] inline std::uint64_t Ep15StdUnorderedFindSession(
     const std::unordered_map<std::uint64_t, hotpath::episode15::SessionState>&
         map,
     const std::uint64_t* queries, std::size_t n) noexcept {
@@ -510,9 +539,13 @@ extern "C" {
 
 /**
  * @brief Timed lookup batch against absl::flat_hash_map<uint64_t,
- * SessionState>.
+ *        SessionState>.
+ * @param map Populated Abseil SwissTable session map.
+ * @param queries Pointer to contiguous 64-bit lookup query keys.
+ * @param n Number of query keys in `queries`.
+ * @return SplitMix-finalized cross-language verification checksum.
  */
-[[gnu::noinline]] inline std::uint64_t ep15_absl_flat_find_session(
+[[gnu::noinline]] inline std::uint64_t Ep15AbslFlatFindSession(
     const absl::flat_hash_map<std::uint64_t, hotpath::episode15::SessionState>&
         map,
     const std::uint64_t* queries, std::size_t n) noexcept {
@@ -530,8 +563,10 @@ extern "C" {
 
 /**
  * @brief Timed full/sparse sweep across std::unordered_map<uint64_t, uint64_t>.
+ * @param map Populated standard unordered map.
+ * @return SplitMix-finalized sweep checksum over all live entries.
  */
-[[gnu::noinline]] inline std::uint64_t ep15_std_unordered_iter_packed(
+[[gnu::noinline]] inline std::uint64_t Ep15StdUnorderedIterPacked(
     const std::unordered_map<std::uint64_t, std::uint64_t>& map) noexcept {
   std::uint64_t sum = 0;
   std::uint64_t count = 0;
@@ -544,9 +579,11 @@ extern "C" {
 
 /**
  * @brief Timed full/sparse sweep across absl::flat_hash_map<uint64_t,
- * uint64_t>.
+ *        uint64_t>.
+ * @param map Populated Abseil flat SwissTable map.
+ * @return SplitMix-finalized sweep checksum over all live entries.
  */
-[[gnu::noinline]] inline std::uint64_t ep15_absl_flat_iter_packed(
+[[gnu::noinline]] inline std::uint64_t Ep15AbslFlatIterPacked(
     const absl::flat_hash_map<std::uint64_t, std::uint64_t>& map) noexcept {
   std::uint64_t sum = 0;
   std::uint64_t count = 0;

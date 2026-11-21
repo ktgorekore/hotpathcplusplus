@@ -53,7 +53,11 @@ public final class JavaForensicChallenge {
     }
     double ms = (System.nanoTime() - t0) / 1e6;
     globalSink = sink;
-    printRow("Java 21 HashMap<Long,Long> (L1 1K 80/20)", ms, (long) iters * ds.queries8020.length, sink);
+    printRow(
+        "Java 21 HashMap<Long,Long> (L1 1K 80/20)",
+        ms,
+        (long) iters * ds.queries8020.length,
+        sink);
   }
 
   private static void runL1Fastutil(int iters) {
@@ -72,7 +76,11 @@ public final class JavaForensicChallenge {
     }
     double ms = (System.nanoTime() - t0) / 1e6;
     globalSink = sink;
-    printRow("Java 21 fastutil Long2Long (L1 1K 80/20)", ms, (long) iters * ds.queries8020.length, sink);
+    printRow(
+        "Java 21 fastutil Long2Long (L1 1K 80/20)",
+        ms,
+        (long) iters * ds.queries8020.length,
+        sink);
   }
 
   private static void runAgedJdk(int iters, boolean missOnly) {
@@ -137,7 +145,11 @@ public final class JavaForensicChallenge {
     }
     double ms = (System.nanoTime() - t0) / 1e6;
     globalSink = sink;
-    printRow("Java 21 HashMap<Long,Session> (Aged 24B)", ms, (long) iters * ds.queries8020.length, sink);
+    printRow(
+        "Java 21 HashMap<Long,Session> (Aged 24B)",
+        ms,
+        (long) iters * ds.queries8020.length,
+        sink);
   }
 
   private static void runAgedSessionFastutil(int iters) {
@@ -189,7 +201,9 @@ public final class JavaForensicChallenge {
     double ms = (System.nanoTime() - t0) / 1e6;
     globalSink = sink;
     printSweepRow(
-        sparse ? "Java 21 HashMap<Long,Long> (Sparse 200K)" : "Java 21 HashMap<Long,Long> (Iter 2M Full)",
+        sparse
+            ? "Java 21 HashMap<Long,Long> (Sparse 200K)"
+            : "Java 21 HashMap<Long,Long> (Iter 2M Full)",
         ms,
         iters,
         live,
@@ -315,7 +329,8 @@ public final class JavaForensicChallenge {
 
   private static void printTail(String label, HashMapForensicEngine.TailResult r) {
     System.out.printf(
-        "%-42s | total=%7.1f ms | p50=%4.0f ns | p99=%5.0f ns | p99.9=%6.0f ns | p99.99=%7.0f ns | max=%10.0f ns%n",
+        "%-42s | total=%7.1f ms | p50=%4.0f ns | p99=%5.0f ns "
+            + "| p99.9=%6.0f ns | p99.99=%7.0f ns | max=%10.0f ns%n",
         label, r.totalMs(), r.p50Ns(), r.p99Ns(), r.p999Ns(), r.p9999Ns(), r.maxNs());
   }
 

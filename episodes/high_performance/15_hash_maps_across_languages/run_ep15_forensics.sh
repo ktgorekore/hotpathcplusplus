@@ -208,10 +208,10 @@ clang++ -std=c++20 -O3 -march=znver4 -S -masm=intel -fno-asynchronous-unwind-tab
   cat "${OUT_DIR}/godbolt_clang.s"
   echo ""
   echo "# --- 2. C++20 std::unordered_map Lookup Kernel (GCC 13 -O3 -march=native) ---"
-  llvm-objdump -d --disassemble-symbols=ep15_std_unordered_find_packed -M intel "${CPP_CHALLENGE}" || true
+  llvm-objdump -d --disassemble-symbols=Ep15StdUnorderedFindPacked -M intel "${CPP_CHALLENGE}" || true
   echo ""
   echo "# --- 3. C++20 absl::flat_hash_map Lookup Kernel (GCC 13 -O3 -march=native) ---"
-  llvm-objdump -d --disassemble-symbols=ep15_absl_flat_find_packed -M intel "${CPP_CHALLENGE}" || true
+  llvm-objdump -d --disassemble-symbols=Ep15AbslFlatFindPacked -M intel "${CPP_CHALLENGE}" || true
   echo ""
   echo "# --- 4. Rust 1.91 SipHash-1-3 vs FxHash Lookup Kernels ---"
   llvm-objdump -d --disassemble-symbols=rust_siphash_find_packed -M intel "${BUILD_DIR}/bench_rust" || true

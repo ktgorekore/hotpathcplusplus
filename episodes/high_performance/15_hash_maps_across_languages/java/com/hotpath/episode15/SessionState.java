@@ -47,6 +47,9 @@ public final class SessionState {
    * @return 64-bit digest value
    */
   public long digest() {
-    return quotaRemaining ^ lastSeenNs ^ Integer.toUnsignedLong(tierFlags) ^ Integer.toUnsignedLong(rateWindowHits);
+    return quotaRemaining
+        ^ lastSeenNs
+        ^ Integer.toUnsignedLong(tierFlags)
+        ^ Integer.toUnsignedLong(rateWindowHits);
   }
 }

@@ -66,7 +66,8 @@ public class JavaHashMapBenchmark {
     l1Dataset =
         HashMapForensicEngine.buildDataset(HashMapForensicEngine.NUM_L1_ENTRIES, L1_JMH_QUERIES);
     agedDataset =
-        HashMapForensicEngine.buildDataset(HashMapForensicEngine.NUM_AGED_ENTRIES, AGED_JMH_QUERIES);
+        HashMapForensicEngine.buildDataset(
+            HashMapForensicEngine.NUM_AGED_ENTRIES, AGED_JMH_QUERIES);
 
     l1JdkPacked = HashMapForensicEngine.buildAgedJdkPacked(l1Dataset);
     l1FastutilPacked = HashMapForensicEngine.buildAgedFastutilPacked(l1Dataset);

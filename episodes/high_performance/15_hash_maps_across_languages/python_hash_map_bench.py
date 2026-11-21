@@ -172,7 +172,9 @@ def print_sweep_row(
     ns_per_live = (total_ms * 1_000_000.0) / float(total_live)
     mops = float(total_live) / (total_ms * 1_000.0)
     print(
-        f"{label:<42} | {ms_per_sweep:>6.2f} ms/swp | {ns_per_live:>6.2f} ns/live | {mops:>7.2f} M/s | checksum=0x{checksum:x}"
+        f"{label:<42} | {ms_per_sweep:>6.2f} ms/swp | "
+        f"{ns_per_live:>6.2f} ns/live | {mops:>7.2f} M/s | "
+        f"checksum=0x{checksum:x}"
     )
 
 
@@ -254,7 +256,10 @@ def run_battle2_rss_mode(target: str = "both") -> None:
         delta = max(0, rss_after - rss_before)
         table_bytes = sys.getsizeof(d_packed)
         print(
-            f"{'Python 3.12 dict[int, int] (2M table)':<42} | RSS={delta / (1024 * 1024):>6.1f} MiB ({delta / len(keys):>5.1f} B/entry) | dict_table={table_bytes / (1024 * 1024):.1f} MiB"
+            f"{'Python 3.12 dict[int, int] (2M table)':<42} | "
+            f"RSS={delta / (1024 * 1024):>6.1f} MiB "
+            f"({delta / len(keys):>5.1f} B/entry) | "
+            f"dict_table={table_bytes / (1024 * 1024):.1f} MiB"
         )
         del d_packed
         gc.collect()
@@ -271,7 +276,9 @@ def run_battle2_rss_mode(target: str = "both") -> None:
         rss_after_s = read_vm_rss_bytes()
         delta_s = max(0, rss_after_s - rss_before_s)
         print(
-            f"{'Python 3.12 dict[int, Session] (2M full)':<42} | RSS={delta_s / (1024 * 1024):>6.1f} MiB ({delta_s / len(keys):>5.1f} B/entry)"
+            f"{'Python 3.12 dict[int, Session] (2M full)':<42} | "
+            f"RSS={delta_s / (1024 * 1024):>6.1f} MiB "
+            f"({delta_s / len(keys):>5.1f} B/entry)"
         )
         del d_sess
 
@@ -305,8 +312,10 @@ def run_battle2_tail() -> None:
         "\n=== Python 3.12 Battle 2B: Streaming Insert Tail Latency (0 -> 2,000,000) ==="
     )
     print(
-        f"{'Python 3.12 dict[int, int] (Unreserved)':<42} | total={(t_all_1 - t_all_0) / 1e6:>7.1f} ms | "
-        f"p50={pct(0.50):>4} ns | p99={pct(0.99):>5} ns | p99.9={pct(0.999):>6} ns | "
+        f"{'Python 3.12 dict[int, int] (Unreserved)':<42} | "
+        f"total={(t_all_1 - t_all_0) / 1e6:>7.1f} ms | "
+        f"p50={pct(0.50):>4} ns | p99={pct(0.99):>5} ns | "
+        f"p99.9={pct(0.999):>6} ns | "
         f"p99.99={pct(0.9999):>7} ns | max={samples[-1]:>10} ns"
     )
 
@@ -316,7 +325,8 @@ def run_battle3_hashdos(prime: int) -> None:
     keys, _, _, _, _ = build_dataset(NUM_HASHDOS_KEYS, 1024)
     dos_keys = [(i + 1) * prime for i in range(NUM_HASHDOS_KEYS)]
     print(
-        f"\n=== Python 3.12 Battle 3: Adversarial HashDoS ({NUM_HASHDOS_KEYS} Keys, prime={prime}) ==="
+        f"\n=== Python 3.12 Battle 3: Adversarial HashDoS "
+        f"({NUM_HASHDOS_KEYS} Keys, prime={prime}) ==="
     )
 
     d_norm: Dict[int, int] = {}
@@ -377,7 +387,8 @@ def run_self_tests() -> None:
     c_sparse = iter_packed(d)
     assert c_sparse != 0
     print(
-        f"Python 3.12 self-test PASSED: 16K lookup=0x{c:x}, iter_full=0x{c_full:x}, iter_sparse=0x{c_sparse:x}"
+        f"Python 3.12 self-test PASSED: 16K lookup=0x{c:x}, "
+        f"iter_full=0x{c_full:x}, iter_sparse=0x{c_sparse:x}"
     )
 
 

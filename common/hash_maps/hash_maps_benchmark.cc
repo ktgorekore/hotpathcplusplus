@@ -85,8 +85,8 @@ void BM_Battle1_L1_StdUnorderedMap_80_20(benchmark::State& state) {
   const auto& ds = GetL1Dataset();
   const auto& map = GetL1StdPacked();
   for (auto _ : state) {
-    std::uint64_t res = ep15_std_unordered_find_packed(
-        map, ds.queries_80_20.data(), ds.queries_80_20.size());
+    std::uint64_t res = Ep15StdUnorderedFindPacked(map, ds.queries_80_20.data(),
+                                                   ds.queries_80_20.size());
     benchmark::DoNotOptimize(res);
   }
   state.SetItemsProcessed(state.iterations() *
@@ -98,8 +98,8 @@ void BM_Battle1_L1_AbslFlatHashMap_80_20(benchmark::State& state) {
   const auto& ds = GetL1Dataset();
   const auto& map = GetL1AbslPacked();
   for (auto _ : state) {
-    std::uint64_t res = ep15_absl_flat_find_packed(map, ds.queries_80_20.data(),
-                                                   ds.queries_80_20.size());
+    std::uint64_t res = Ep15AbslFlatFindPacked(map, ds.queries_80_20.data(),
+                                               ds.queries_80_20.size());
     benchmark::DoNotOptimize(res);
   }
   state.SetItemsProcessed(state.iterations() *
@@ -111,8 +111,8 @@ void BM_Battle1_Aged2M_StdUnorderedMap_80_20(benchmark::State& state) {
   const auto& ds = GetAgedDataset();
   const auto& map = GetAgedStdPacked();
   for (auto _ : state) {
-    std::uint64_t res = ep15_std_unordered_find_packed(
-        map, ds.queries_80_20.data(), ds.queries_80_20.size());
+    std::uint64_t res = Ep15StdUnorderedFindPacked(map, ds.queries_80_20.data(),
+                                                   ds.queries_80_20.size());
     benchmark::DoNotOptimize(res);
   }
   state.SetItemsProcessed(state.iterations() *
@@ -124,8 +124,8 @@ void BM_Battle1_Aged2M_AbslFlatHashMap_80_20(benchmark::State& state) {
   const auto& ds = GetAgedDataset();
   const auto& map = GetAgedAbslPacked();
   for (auto _ : state) {
-    std::uint64_t res = ep15_absl_flat_find_packed(map, ds.queries_80_20.data(),
-                                                   ds.queries_80_20.size());
+    std::uint64_t res = Ep15AbslFlatFindPacked(map, ds.queries_80_20.data(),
+                                               ds.queries_80_20.size());
     benchmark::DoNotOptimize(res);
   }
   state.SetItemsProcessed(state.iterations() *
@@ -137,7 +137,7 @@ void BM_Battle1_Aged2M_StdUnorderedMap_100_Miss(benchmark::State& state) {
   const auto& ds = GetAgedDataset();
   const auto& map = GetAgedStdPacked();
   for (auto _ : state) {
-    std::uint64_t res = ep15_std_unordered_find_packed(
+    std::uint64_t res = Ep15StdUnorderedFindPacked(
         map, ds.queries_100_miss.data(), ds.queries_100_miss.size());
     benchmark::DoNotOptimize(res);
   }
@@ -150,8 +150,8 @@ void BM_Battle1_Aged2M_AbslFlatHashMap_100_Miss(benchmark::State& state) {
   const auto& ds = GetAgedDataset();
   const auto& map = GetAgedAbslPacked();
   for (auto _ : state) {
-    std::uint64_t res = ep15_absl_flat_find_packed(
-        map, ds.queries_100_miss.data(), ds.queries_100_miss.size());
+    std::uint64_t res = Ep15AbslFlatFindPacked(map, ds.queries_100_miss.data(),
+                                               ds.queries_100_miss.size());
     benchmark::DoNotOptimize(res);
   }
   state.SetItemsProcessed(state.iterations() * static_cast<std::int64_t>(
@@ -163,7 +163,7 @@ void BM_Battle1_Aged2M_StdUnorderedMap_Session24B(benchmark::State& state) {
   const auto& ds = GetAgedDataset();
   const auto& map = GetAgedStdSession();
   for (auto _ : state) {
-    std::uint64_t res = ep15_std_unordered_find_session(
+    std::uint64_t res = Ep15StdUnorderedFindSession(
         map, ds.queries_80_20.data(), ds.queries_80_20.size());
     benchmark::DoNotOptimize(res);
   }
@@ -176,8 +176,8 @@ void BM_Battle1_Aged2M_AbslFlatHashMap_Session24B(benchmark::State& state) {
   const auto& ds = GetAgedDataset();
   const auto& map = GetAgedAbslSession();
   for (auto _ : state) {
-    std::uint64_t res = ep15_absl_flat_find_session(
-        map, ds.queries_80_20.data(), ds.queries_80_20.size());
+    std::uint64_t res = Ep15AbslFlatFindSession(map, ds.queries_80_20.data(),
+                                                ds.queries_80_20.size());
     benchmark::DoNotOptimize(res);
   }
   state.SetItemsProcessed(state.iterations() *
@@ -188,7 +188,7 @@ BENCHMARK(BM_Battle1_Aged2M_AbslFlatHashMap_Session24B);
 void BM_Battle1B_IterFull2M_StdUnorderedMap(benchmark::State& state) {
   const auto& map = GetAgedStdPacked();
   for (auto _ : state) {
-    std::uint64_t res = ep15_std_unordered_iter_packed(map);
+    std::uint64_t res = Ep15StdUnorderedIterPacked(map);
     benchmark::DoNotOptimize(res);
   }
   state.SetItemsProcessed(state.iterations() *
@@ -200,7 +200,7 @@ BENCHMARK(BM_Battle1B_IterFull2M_StdUnorderedMap)
 void BM_Battle1B_IterFull2M_AbslFlatHashMap(benchmark::State& state) {
   const auto& map = GetAgedAbslPacked();
   for (auto _ : state) {
-    std::uint64_t res = ep15_absl_flat_iter_packed(map);
+    std::uint64_t res = Ep15AbslFlatIterPacked(map);
     benchmark::DoNotOptimize(res);
   }
   state.SetItemsProcessed(state.iterations() *
@@ -212,7 +212,7 @@ BENCHMARK(BM_Battle1B_IterFull2M_AbslFlatHashMap)
 void BM_Battle1B_IterSparse200K_StdUnorderedMap(benchmark::State& state) {
   const auto& map = GetAgedStdSparse();
   for (auto _ : state) {
-    std::uint64_t res = ep15_std_unordered_iter_packed(map);
+    std::uint64_t res = Ep15StdUnorderedIterPacked(map);
     benchmark::DoNotOptimize(res);
   }
   state.SetItemsProcessed(state.iterations() *
@@ -224,7 +224,7 @@ BENCHMARK(BM_Battle1B_IterSparse200K_StdUnorderedMap)
 void BM_Battle1B_IterSparse200K_AbslFlatHashMap(benchmark::State& state) {
   const auto& map = GetAgedAbslSparse();
   for (auto _ : state) {
-    std::uint64_t res = ep15_absl_flat_iter_packed(map);
+    std::uint64_t res = Ep15AbslFlatIterPacked(map);
     benchmark::DoNotOptimize(res);
   }
   state.SetItemsProcessed(state.iterations() *

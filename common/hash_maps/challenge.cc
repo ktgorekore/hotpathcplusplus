@@ -70,14 +70,14 @@ void PrintSweepRow(const std::string& label, double total_ms,
 void RunL1Std(std::size_t iters) {
   const GatewayDataset ds = BuildDataset(kNumL1Entries, kNumQueries);
   const auto map = BuildAgedStdUnorderedPacked(ds, true);
-  std::uint64_t sink = ep15_std_unordered_find_packed(
-      map, ds.queries_80_20.data(), ds.queries_80_20.size());
+  std::uint64_t sink = Ep15StdUnorderedFindPacked(map, ds.queries_80_20.data(),
+                                                  ds.queries_80_20.size());
   const std::uint64_t* q_ptr = ds.queries_80_20.data();
   const std::size_t q_len = ds.queries_80_20.size();
   const auto t0 = Clock::now();
   for (std::size_t i = 0; i < iters; ++i) {
     DoNotOptimize(q_ptr);
-    sink += ep15_std_unordered_find_packed(map, q_ptr, q_len);
+    sink += Ep15StdUnorderedFindPacked(map, q_ptr, q_len);
     DoNotOptimize(sink);
   }
   const auto t1 = Clock::now();
@@ -89,14 +89,14 @@ void RunL1Std(std::size_t iters) {
 void RunL1Absl(std::size_t iters) {
   const GatewayDataset ds = BuildDataset(kNumL1Entries, kNumQueries);
   const auto map = BuildAgedAbslFlatPacked(ds, true);
-  std::uint64_t sink = ep15_absl_flat_find_packed(map, ds.queries_80_20.data(),
-                                                  ds.queries_80_20.size());
+  std::uint64_t sink = Ep15AbslFlatFindPacked(map, ds.queries_80_20.data(),
+                                              ds.queries_80_20.size());
   const std::uint64_t* q_ptr = ds.queries_80_20.data();
   const std::size_t q_len = ds.queries_80_20.size();
   const auto t0 = Clock::now();
   for (std::size_t i = 0; i < iters; ++i) {
     DoNotOptimize(q_ptr);
-    sink += ep15_absl_flat_find_packed(map, q_ptr, q_len);
+    sink += Ep15AbslFlatFindPacked(map, q_ptr, q_len);
     DoNotOptimize(sink);
   }
   const auto t1 = Clock::now();
@@ -111,11 +111,11 @@ void RunAgedStd(std::size_t iters, bool miss_only) {
   const auto& queries = miss_only ? ds.queries_100_miss : ds.queries_80_20;
   const std::uint64_t* q_ptr = queries.data();
   const std::size_t q_len = queries.size();
-  std::uint64_t sink = ep15_std_unordered_find_packed(map, q_ptr, q_len);
+  std::uint64_t sink = Ep15StdUnorderedFindPacked(map, q_ptr, q_len);
   const auto t0 = Clock::now();
   for (std::size_t i = 0; i < iters; ++i) {
     DoNotOptimize(q_ptr);
-    sink += ep15_std_unordered_find_packed(map, q_ptr, q_len);
+    sink += Ep15StdUnorderedFindPacked(map, q_ptr, q_len);
     DoNotOptimize(sink);
   }
   const auto t1 = Clock::now();
@@ -131,11 +131,11 @@ void RunAgedAbsl(std::size_t iters, bool miss_only) {
   const auto& queries = miss_only ? ds.queries_100_miss : ds.queries_80_20;
   const std::uint64_t* q_ptr = queries.data();
   const std::size_t q_len = queries.size();
-  std::uint64_t sink = ep15_absl_flat_find_packed(map, q_ptr, q_len);
+  std::uint64_t sink = Ep15AbslFlatFindPacked(map, q_ptr, q_len);
   const auto t0 = Clock::now();
   for (std::size_t i = 0; i < iters; ++i) {
     DoNotOptimize(q_ptr);
-    sink += ep15_absl_flat_find_packed(map, q_ptr, q_len);
+    sink += Ep15AbslFlatFindPacked(map, q_ptr, q_len);
     DoNotOptimize(sink);
   }
   const auto t1 = Clock::now();
@@ -150,11 +150,11 @@ void RunAgedSessionStd(std::size_t iters) {
   const auto map = BuildAgedStdUnorderedSession(ds);
   const std::uint64_t* q_ptr = ds.queries_80_20.data();
   const std::size_t q_len = ds.queries_80_20.size();
-  std::uint64_t sink = ep15_std_unordered_find_session(map, q_ptr, q_len);
+  std::uint64_t sink = Ep15StdUnorderedFindSession(map, q_ptr, q_len);
   const auto t0 = Clock::now();
   for (std::size_t i = 0; i < iters; ++i) {
     DoNotOptimize(q_ptr);
-    sink += ep15_std_unordered_find_session(map, q_ptr, q_len);
+    sink += Ep15StdUnorderedFindSession(map, q_ptr, q_len);
     DoNotOptimize(sink);
   }
   const auto t1 = Clock::now();
@@ -168,11 +168,11 @@ void RunAgedSessionAbsl(std::size_t iters) {
   const auto map = BuildAgedAbslFlatSession(ds);
   const std::uint64_t* q_ptr = ds.queries_80_20.data();
   const std::size_t q_len = ds.queries_80_20.size();
-  std::uint64_t sink = ep15_absl_flat_find_session(map, q_ptr, q_len);
+  std::uint64_t sink = Ep15AbslFlatFindSession(map, q_ptr, q_len);
   const auto t0 = Clock::now();
   for (std::size_t i = 0; i < iters; ++i) {
     DoNotOptimize(q_ptr);
-    sink += ep15_absl_flat_find_session(map, q_ptr, q_len);
+    sink += Ep15AbslFlatFindSession(map, q_ptr, q_len);
     DoNotOptimize(sink);
   }
   const auto t1 = Clock::now();
@@ -204,7 +204,7 @@ void RunIterStd(std::size_t iters, bool sparse) {
                           : BuildAgedStdUnorderedPacked(ds, true);
   RunIterLoop(sparse ? "C++20 std::unordered_map (Sparse 200K)"
                      : "C++20 std::unordered_map (Iter 2M Full)",
-              map, iters, ep15_std_unordered_iter_packed);
+              map, iters, Ep15StdUnorderedIterPacked);
 }
 
 void RunIterAbsl(std::size_t iters, bool sparse) {
@@ -213,7 +213,7 @@ void RunIterAbsl(std::size_t iters, bool sparse) {
                           : BuildAgedAbslFlatPacked(ds, true);
   RunIterLoop(sparse ? "C++20 absl::flat_hash_map (Sparse 200K)"
                      : "C++20 absl::flat_hash_map (Iter 2M Full)",
-              map, iters, ep15_absl_flat_iter_packed);
+              map, iters, Ep15AbslFlatIterPacked);
 }
 
 template <typename MapT>
@@ -366,9 +366,14 @@ void RunBattle3HashDos() {
 }
 
 }  // namespace
-}  // namespace hotpath::episode15
 
-int main(int argc, char** argv) {
+/**
+ * @brief Dispatches Episode 15 C++20 forensic challenge modes from CLI flags.
+ * @param argc Argument count passed from process main().
+ * @param argv Argument vector passed from process main().
+ * @return Process exit code (0 on success, non-zero on unknown mode).
+ */
+int RunChallengeCli(int argc, char** argv) {
   std::string mode = "all";
   std::size_t iters = 0;
 
@@ -381,7 +386,6 @@ int main(int argc, char** argv) {
     }
   }
 
-  using namespace hotpath::episode15;
   if (mode == "all") {
     std::cout
         << "=== Battle 1: L1 (1,024) vs. Aged Post-Churn (2,000,000) ===\n";
@@ -451,4 +455,10 @@ int main(int argc, char** argv) {
     return 1;
   }
   return 0;
+}
+
+}  // namespace hotpath::episode15
+
+int main(int argc, char** argv) {
+  return hotpath::episode15::RunChallengeCli(argc, argv);
 }

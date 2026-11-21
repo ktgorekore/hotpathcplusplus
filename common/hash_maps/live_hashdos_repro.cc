@@ -33,8 +33,11 @@
 #include "common/hash_maps/hash_maps_across_languages.h"
 
 int main() {
-  using namespace hotpath::episode15;
   using Clock = std::chrono::steady_clock;
+  using hotpath::episode15::BuildDataset;
+  using hotpath::episode15::BuildLibstdcxxHashDosKeys;
+  using hotpath::episode15::GatewayDataset;
+  using hotpath::episode15::kNumHashDosKeys;
 
   std::uint64_t prime = 0;
   const std::vector<std::uint64_t> crafted =

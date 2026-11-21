@@ -27,15 +27,15 @@ TEST(HashMapsAcrossLanguagesTest, PresentAndAbsentKeysAreDisjoint) {
   const auto std_map = BuildAgedStdUnorderedPacked(ds, true);
   const auto absl_map = BuildAgedAbslFlatPacked(ds, true);
 
-  const std::uint64_t std_80_20 = ep15_std_unordered_find_packed(
+  const std::uint64_t std_80_20 = Ep15StdUnorderedFindPacked(
       std_map, ds.queries_80_20.data(), ds.queries_80_20.size());
-  const std::uint64_t absl_80_20 = ep15_absl_flat_find_packed(
+  const std::uint64_t absl_80_20 = Ep15AbslFlatFindPacked(
       absl_map, ds.queries_80_20.data(), ds.queries_80_20.size());
   EXPECT_EQ(std_80_20, absl_80_20);
 
-  const std::uint64_t std_miss = ep15_std_unordered_find_packed(
+  const std::uint64_t std_miss = Ep15StdUnorderedFindPacked(
       std_map, ds.queries_100_miss.data(), ds.queries_100_miss.size());
-  const std::uint64_t absl_miss = ep15_absl_flat_find_packed(
+  const std::uint64_t absl_miss = Ep15AbslFlatFindPacked(
       absl_map, ds.queries_100_miss.data(), ds.queries_100_miss.size());
   EXPECT_EQ(std_miss, 0ULL);
   EXPECT_EQ(absl_miss, 0ULL);
@@ -46,9 +46,9 @@ TEST(HashMapsAcrossLanguagesTest, SessionStateLookupParity) {
   const auto std_map = BuildAgedStdUnorderedSession(ds);
   const auto absl_map = BuildAgedAbslFlatSession(ds);
 
-  const std::uint64_t std_sum = ep15_std_unordered_find_session(
+  const std::uint64_t std_sum = Ep15StdUnorderedFindSession(
       std_map, ds.queries_80_20.data(), ds.queries_80_20.size());
-  const std::uint64_t absl_sum = ep15_absl_flat_find_session(
+  const std::uint64_t absl_sum = Ep15AbslFlatFindSession(
       absl_map, ds.queries_80_20.data(), ds.queries_80_20.size());
   EXPECT_NE(std_sum, 0ULL);
   EXPECT_EQ(std_sum, absl_sum);
@@ -87,8 +87,8 @@ TEST(HashMapsAcrossLanguagesTest, FullAndSparseIterationParity) {
   EXPECT_EQ(full_std.size(), 16'384U);
   EXPECT_EQ(full_absl.size(), 16'384U);
 
-  const std::uint64_t c_full_std = ep15_std_unordered_iter_packed(full_std);
-  const std::uint64_t c_full_absl = ep15_absl_flat_iter_packed(full_absl);
+  const std::uint64_t c_full_std = Ep15StdUnorderedIterPacked(full_std);
+  const std::uint64_t c_full_absl = Ep15AbslFlatIterPacked(full_absl);
   EXPECT_NE(c_full_std, 0ULL);
   EXPECT_EQ(c_full_std, c_full_absl);
 
@@ -97,8 +97,8 @@ TEST(HashMapsAcrossLanguagesTest, FullAndSparseIterationParity) {
   EXPECT_EQ(sparse_std.size(), 1'639U);
   EXPECT_EQ(sparse_absl.size(), 1'639U);
 
-  const std::uint64_t c_sparse_std = ep15_std_unordered_iter_packed(sparse_std);
-  const std::uint64_t c_sparse_absl = ep15_absl_flat_iter_packed(sparse_absl);
+  const std::uint64_t c_sparse_std = Ep15StdUnorderedIterPacked(sparse_std);
+  const std::uint64_t c_sparse_absl = Ep15AbslFlatIterPacked(sparse_absl);
   EXPECT_NE(c_sparse_std, 0ULL);
   EXPECT_EQ(c_sparse_std, c_sparse_absl);
 }

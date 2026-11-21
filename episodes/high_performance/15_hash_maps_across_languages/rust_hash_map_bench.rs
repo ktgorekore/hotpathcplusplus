@@ -326,10 +326,7 @@ pub extern "C" fn rust_fxhash_iter_packed(map: &HashMap<u64, u64, FxBuildHasher>
     finalize_checksum(sum, count)
 }
 
-fn evict_ninety_percent<S: std::hash::BuildHasher>(
-    map: &mut HashMap<u64, u64, S>,
-    keys: &[u64],
-) {
+fn evict_ninety_percent<S: std::hash::BuildHasher>(map: &mut HashMap<u64, u64, S>, keys: &[u64]) {
     for (i, k) in keys.iter().enumerate() {
         if i % 10 != 0 {
             map.remove(k);
