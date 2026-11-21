@@ -760,20 +760,22 @@ bazel run -c opt //common/memory_safety:challenge
 
 ---
 
-## 🗺️ Episode 15: Hash Maps Across Languages — Why Rust's Default HashMap Beats C++ (What 'Fast' Really Means)
+## 🗺️ Episode 15: C++ vs. Rust vs. Java Hash Maps — How Memory Layout Decides Everything
 
-Located under [`common/hash_maps/`](common/hash_maps/) and [`episodes/high_performance/15_hash_maps_across_languages/`](episodes/high_performance/15_hash_maps_across_languages/), this 5-language benchmark, unmultiplexed `perf stat` PMU, and disassembly suite tests an **Edge API Gateway Rate-Limiter & Session Directory** (`16B` packed token-bucket entries & `24B` `SessionState` structs) across **C++20 (`std::unordered_map` vs. `absl::flat_hash_map`)**, **Rust `1.91.0` (`SipHash-1-3` vs. `FxHash`)**, **Go `1.22.2` & Go `1.24.0` (SwissTable `#54766`)**, **Java 21 LTS (`java.util.HashMap` vs. `fastutil` `8.5.19`)**, and **Python `3.12.3` (`dict`)** on **AMD Ryzen 9 8945HX** (Live Godbolt: [`https://godbolt.org/z/hfchvGWGe`](https://godbolt.org/z/hfchvGWGe)):
+Located under [`common/hash_maps/`](common/hash_maps/) and [`episodes/high_performance/15_hash_maps_across_languages/`](episodes/high_performance/15_hash_maps_across_languages/), this bare-metal benchmark, unmultiplexed `perf stat` PMU, and disassembly suite goes deep on **C++20 (`std::unordered_map` vs. `absl::flat_hash_map`)**, **Rust `1.91.0` (`SipHash-1-3` vs. `FxHash`)**, and **Java 21 LTS (`java.util.HashMap` vs. `fastutil` `8.5.19`)** across five real production workloads on **AMD Ryzen 9 8945HX Zen 4** (Live Godbolt: [`https://godbolt.org/z/hfchvGWGe`](https://godbolt.org/z/hfchvGWGe); Go/Python lab baselines preserved in `BENCHMARK_REPORT.md`):
 
-- **Battle 1 — L1 (`1K`) vs. Aged Post-Churn (`2M` `80/20` & `100%` Miss):**
-  - On L1-resident keys, Rust's default `SipHash-1-3` (`6.97 ns`), Java `21` `HashMap` (`5.63–8.10 ns`), and Go `1.24.0` (`8.51 ns`) all beat `std::unordered_map` (`10.43–11.08 ns`, penalized by hardware `div` + pointer chasing), while `absl::flat_hash_map` (`2.57–3.60 ns`) and `Rust FxHash` (`3.19 ns`) lead.
-  - On aged `2,000,000`-entry maps, `Rust FxHash` (`13.22 ns`) and `absl::flat_hash_map` (`14.54–14.92 ns`) beat `std::unordered_map` (`37.59–37.85 ns`) by **`2.5x–2.9x`**; on `100%` misses, SwissTable `EMPTY` byte exit drops `Rust FxHash` to **`5.54 ns`**, `absl` to **`5.93–6.45 ns`**, and even `Rust SipHash` (`11.76 ns`) beats `std::unordered_map` (`34.46 ns`) by **`2.9x`**. Go `1.24.0` cuts LLC misses **`2.08x`** (`354.2M` $\rightarrow$ `170.0M`) over Go `1.22.2`.
-- **Battle 2 — Memory Footprint (`2M`) & Unreserved Insert Tail Latency:**
-  - `16B` entries: `fastutil` (`66.0 MiB`, `34.6 B/entry`) & `absl`/`Rust` (`68.0–68.1 MiB`, `35.7 B/entry`) vs. `std::unordered_map` (`77.5 MiB`, `40.6 B/entry`) vs. boxed `Java HashMap` (`169.3 MiB`, `88.7 B/entry` — **`2.56x`** `fastutil`). For `32B` (`24B` `SessionState`), `std::unordered_map` (`108.0 MiB`, `56.6 B/entry`) uses **`18%` less RAM** than flat power-of-two `absl`/`Rust` (`132.0 MiB`, `69.2 B/entry`).
-  - Unreserved inserts spike to **`79.91 ms`** (`std::unordered_map`), **`37.16 ms`** (`Rust`), **`26.30 ms`** (`absl`), and **`30.98 / 46.82 ms`** (`Java G1 / ZGC`), fixed down to **`18–98 µs`** with `.reserve()`—while **Go `1.24.0` keeps unreserved `Max` at `156.7 µs` (`510x` lower!)**.
-- **Battle 3 — Live Adversarial HashDoS (`40,000` Keys):**
-  - Prime-bucket multiples collapse `std::unordered_map` **`1,254x`** (`0.88 ms` $\rightarrow$ `1,101 ms`; `11.1 s` post-fragmentation in `GBench`) with `40,000/40,000` entries in `bucket(0)`, and `K^-1` targeting collapses `Rust FxHash` **`1,056x`** (`735.8 ms`). `Rust SipHash-1-3` (`0.70 ms`), `absl::flat_hash_map` (`0.43 ms`), `Go` (`0.54–0.78 ms`), and `Python` (`1.68 ms`) remain flat, while `Java 21 HashMap` degrades gracefully via `JEP 180` RB-treeification (`5.70 ms`).
+- **Story 1 — Edge Rate-Limiter Lookups (`2M` Aged `80/20` & `100%` Bot Misses):**
+  - On aged `2,000,000`-entry maps, `Rust FxHash` (`83.03M/s`), `absl::flat_hash_map` (`68.94M/s`), and `Java fastutil` (`47.18M/s`) lead `Java HashMap` (`29.12M/s`) and `std::unordered_map` (`26.56M/s`); on `100%` negative misses, SwissTable `0x80` EMPTY early-exit pushes `Rust FxHash` to **`270.9M/s`**, `absl` to **`161.7M/s`**, and even `Rust SipHash-1-3` (`109.2M/s`) **`3.8×`** ahead of `std::unordered_map` (`28.83M/s`). Unmultiplexed `perf stat` (`80M` probes) exposes `std::unordered_map` stalled at **`0.25 IPC`** (`206.9M` dTLB, `360.2M` LLC) vs. `Rust` (`174.3M–180.3M` LLC) and `absl` (`225.2M` LLC).
+- **Story 2 — `60s` Metrics Flush (`2M` Full) vs. `3 AM` `90%`-Evicted Flip (`200K` Sparse):**
+  - Walking all `2M` live counters, `Rust` finishes in **`2.45 ms`** (`1.51 IPC`) and `absl` in **`8.34 ms`**, while `std::unordered_map` stalls to **`78.83 ms`** (`0.13 IPC`, **`32×` slower**). After `90%` idle eviction inside unshrunk `4.19M` capacity, `std::unordered_map` walks only live nodes (`2.08B` insns) and jumps **`20.4×`** to **`3.86 ms`**—edging out standalone `absl` (`3.94 ms`, `7.10B` insns)—while Rust's SIMD `RawIter` stays fastest at **`1.15–1.26 ms`**.
+- **Story 3 — JVM Stream Processor RAM (`16B`) & The `32B` Struct Cliff:**
+  - `16B` counters (`32 MB` / `30.5 MiB` raw): **`fastutil` (`66.0 MiB`, `34.6 B/entry`)** is leanest overall ahead of `Rust`/`absl` (`68.1 MiB`, `35.7 B/entry`) and `std::unordered_map` (`77.5 MiB`), cutting boxed `Java HashMap` (`169.3 MiB`, `88.7 B/entry`, `6M` extra GC objects) by **`61%`**. For `32B` (`8B + 24B`), `std::unordered_map` (`108.0 MiB`) uses **`18%` less RAM** than flat power-of-two `Rust`/`absl` (`132.0–132.1 MiB`).
+- **Story 4 — Cold-Start Warmup Freezes (`0 -> 2M` Inserts):**
+  - Unreserved inserts spike to **`70.00 ms`** (`std::unordered_map`), **`57.80 ms`** (`Java G1GC`), **`44.38 ms`** (`Java Generational ZGC` — mutator-thread resize copy!), **`35.71 ms`** (`Rust`), and **`25.16 ms`** (`absl`), all flattened to **`6.8–351.6 µs`** with upfront pre-sizing (`reserve()` / `with_capacity()` / initial capacity).
+- **Story 5 — Public JSON Batch API HashDoS (`40,000` Keys):**
+  - Multiples of GCC prime `42,043` collapse `std::unordered_map` **`1,251×`** (`0.83 ms` $\rightarrow$ **`1,043.32 ms`**; `11.3 s` in `GBench`) with `40,000/40,000` entries in `bucket(0)`, and `K^-1` targeting collapses `Rust FxHash` **`1,072×`** (`689.36 ms`), while salted `absl` (`0.43 ms`), keyed `Rust SipHash-1-3` (`0.64 ms`), and `Java 21 HashMap` `JEP 180` Red-Black trees (`5.86 ms`) stay resilient.
 
-### Running Episode 15 C++20, Rust, Go, Java 21 & Python Tests & Benchmarks
+### Running Episode 15 C++20, Rust & Java 21 Tests & Benchmarks
 
 ```bash
 # Run C++20 GoogleTest & Java 21 JUnit 5 tests
