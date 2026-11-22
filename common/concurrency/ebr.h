@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef COMMON_CONCURRENCY_EBR_H_
-#define COMMON_CONCURRENCY_EBR_H_
+#ifndef HOTPATH_COMMON_CONCURRENCY_EBR_H_
+#define HOTPATH_COMMON_CONCURRENCY_EBR_H_
 
 #include <atomic>
 #include <cstddef>
@@ -104,4 +104,4 @@ using cognitas::trading::EbrNode;
 using cognitas::trading::EpochBasedReclamation;
 }  // namespace hotpath
 
-#endif  // COMMON_CONCURRENCY_EBR_H_
+#endif  // HOTPATH_COMMON_CONCURRENCY_EBR_H_

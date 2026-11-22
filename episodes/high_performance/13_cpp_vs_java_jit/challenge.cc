@@ -252,10 +252,14 @@ void RunBattle2Suite() {
 }
 
 }  // namespace
-}  // namespace hotpath::cpp_vs_java_jit
 
-int main(int argc, char** argv) {
-  using namespace hotpath::cpp_vs_java_jit;
+/**
+ * @brief Dispatches Episode 13 C++20 vs. Java 21 JIT forensic challenge modes.
+ * @param argc Argument count passed from process main().
+ * @param argv Argument vector passed from process main().
+ * @return Process exit code (0 on success).
+ */
+int RunChallengeCli(int argc, char** argv) {
   PinThreadToCore(0);
 
   if (argc > 1) {
@@ -270,4 +274,10 @@ int main(int argc, char** argv) {
   RunBattle2Suite();
   RunBattle3SlabTailLatencyAndDeoptCheck(/*print_report=*/true);
   return 0;
+}
+
+}  // namespace hotpath::cpp_vs_java_jit
+
+int main(int argc, char** argv) {
+  return hotpath::cpp_vs_java_jit::RunChallengeCli(argc, argv);
 }

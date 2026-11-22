@@ -135,11 +135,12 @@ BenchResult RunParallelBench(int num_threads, std::int64_t iters_per_thread,
 }
 
 }  // namespace
-}  // namespace hotpath::episode09
 
-int main() {
-  using namespace hotpath::episode09;
-
+/**
+ * @brief Executes the Episode 09 MESI coherency and split-lock challenge suite.
+ * @return Process exit code (0 if all integrity checks pass, 1 otherwise).
+ */
+int RunChallengeCli() {
   std::cout
       << "===================================================================="
          "\n"
@@ -324,3 +325,7 @@ int main() {
   std::cout << "Integrity Check: " << (ok ? "PASSED ✅" : "FAILED ❌") << "\n";
   return ok ? 0 : 1;
 }
+
+}  // namespace hotpath::episode09
+
+int main() { return hotpath::episode09::RunChallengeCli(); }

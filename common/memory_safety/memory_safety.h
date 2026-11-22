@@ -826,8 +826,8 @@ inline std::int64_t RunTemporalWeakPtrHotLoop(
 
 }  // namespace hotpath::memory_safety
 
-namespace hotpath::ep14 {
-using namespace ::hotpath::memory_safety;
-}  // namespace hotpath::ep14
+namespace hotpath {
+namespace ep14 = ::hotpath::memory_safety;
+}  // namespace hotpath
 
 #endif  // HOTPATH_COMMON_MEMORY_SAFETY_MEMORY_SAFETY_H_

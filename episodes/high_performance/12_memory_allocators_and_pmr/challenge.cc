@@ -267,10 +267,14 @@ void RunParseMode(std::string_view mode, std::size_t packets) {
 }
 
 }  // namespace
-}  // namespace hotpath::memory_allocators
 
-int main(int argc, char** argv) {
-  using namespace hotpath::memory_allocators;
+/**
+ * @brief Dispatches Episode 12 memory allocator forensic challenge modes.
+ * @param argc Argument count passed from process main().
+ * @param argv Argument vector passed from process main().
+ * @return Process exit code (0 on success).
+ */
+int RunChallengeCli(int argc, char** argv) {
   std::string_view mode = "all";
   std::size_t iters = 0;
   for (int i = 1; i < argc; ++i) {
@@ -327,4 +331,10 @@ int main(int argc, char** argv) {
     RunParseMode("b3_pmr_stack", 100000);
   }
   return 0;
+}
+
+}  // namespace hotpath::memory_allocators
+
+int main(int argc, char** argv) {
+  return hotpath::memory_allocators::RunChallengeCli(argc, argv);
 }

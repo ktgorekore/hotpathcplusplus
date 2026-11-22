@@ -260,11 +260,14 @@ int RunIsolatedPmuMode(const std::string& mode) {
 }
 
 }  // namespace
-}  // namespace hotpath::episode11
 
-int main(int argc, char** argv) {
-  using namespace hotpath::episode11;
-
+/**
+ * @brief Dispatches Episode 11 syscall, demand-paging, and MMU challenge modes.
+ * @param argc Argument count passed from process main().
+ * @param argv Argument vector passed from process main().
+ * @return Process exit code (0 on success, non-zero on invalid mode).
+ */
+int RunChallengeCli(int argc, char** argv) {
   if (argc > 1) {
     return RunIsolatedPmuMode(argv[1]);
   }
@@ -497,4 +500,10 @@ int main(int argc, char** argv) {
       "========================================================================"
       "========\n");
   return 0;
+}
+
+}  // namespace hotpath::episode11
+
+int main(int argc, char** argv) {
+  return hotpath::episode11::RunChallengeCli(argc, argv);
 }

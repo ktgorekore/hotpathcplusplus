@@ -185,11 +185,12 @@ LockBenchmarkResult RunShardedMapTrial(std::size_t num_threads,
 }
 
 }  // namespace
-}  // namespace hotpath::locks_under_the_hood
 
-int main() {
-  using namespace hotpath::locks_under_the_hood;
-
+/**
+ * @brief Executes the Episode 10 production lock retrofit challenge suite.
+ * @return Process exit code (0 if all invariants hold, 1 otherwise).
+ */
+int RunChallengeCli() {
   std::cout
       << "==================================================================\n"
       << "🔥 Hot Path C++ — Episode 10 Production Lock Retrofit Challenge 🔥\n"
@@ -272,3 +273,7 @@ int main() {
 
   return all_valid ? 0 : 1;
 }
+
+}  // namespace hotpath::locks_under_the_hood
+
+int main() { return hotpath::locks_under_the_hood::RunChallengeCli(); }

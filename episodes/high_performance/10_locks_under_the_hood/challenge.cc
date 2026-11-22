@@ -87,12 +87,12 @@ static_assert(std::is_trivially_copyable_v<RouteEntry>,
 
 class alignas(64) SharedMutexRouteCache {
  public:
-  RouteEntry read() const noexcept {
+  [[nodiscard]] RouteEntry Read() const noexcept {
     std::shared_lock<std::shared_mutex> lock(rw_mtx_);
     return entry_;
   }
 
-  void update(const RouteEntry& next) noexcept {
+  void Write(const RouteEntry& next) noexcept {
     std::unique_lock<std::shared_mutex> lock(rw_mtx_);
     entry_ = next;
   }
@@ -104,12 +104,12 @@ class alignas(64) SharedMutexRouteCache {
 
 class alignas(64) MutexRouteCache {
  public:
-  RouteEntry read() const noexcept {
+  [[nodiscard]] RouteEntry Read() const noexcept {
     std::lock_guard<std::mutex> lock(mtx_);
     return entry_;
   }
 
-  void update(const RouteEntry& next) noexcept {
+  void Write(const RouteEntry& next) noexcept {
     std::lock_guard<std::mutex> lock(mtx_);
     entry_ = next;
   }
@@ -125,7 +125,7 @@ class alignas(64) SeqlockRouteCache {
                 "Seqlock requires a trivially copyable payload (no heap ptrs)");
 
  public:
-  T read() const noexcept {
+  [[nodiscard]] T Read() const noexcept {
     T copy;
     for (;;) {
       const std::uint64_t seq1 = seq_.load(std::memory_order_acquire);
@@ -143,7 +143,7 @@ class alignas(64) SeqlockRouteCache {
     }
   }
 
-  void update(const T& next) noexcept {
+  void Write(const T& next) noexcept {
     std::lock_guard<std::mutex> guard(writer_mtx_);
     const std::uint64_t seq0 = seq_.load(std::memory_order_relaxed);
     seq_.store(seq0 + 1ULL, std::memory_order_relaxed);
@@ -300,9 +300,9 @@ RouteCacheResult RunRouteCacheTrial(std::size_t num_threads,
         if ((i % 100ULL) == 0ULL) {
           const std::uint64_t ver = (static_cast<std::uint64_t>(tid) << 32) | i;
           RouteEntry updated{0x0A000001u, 8080u, 1u, ver, ver * 1024ULL, 0ULL};
-          cache.update(updated);
+          cache.Write(updated);
         } else {
-          RouteEntry snap = cache.read();
+          RouteEntry snap = cache.Read();
           if (snap.quota_bytes != snap.version_epoch * 1024ULL) {
             torn_detected.store(true, std::memory_order_relaxed);
           }
@@ -409,11 +409,12 @@ LockBenchmarkResult RunShardedMapTrial(std::size_t num_threads,
 }
 
 }  // namespace
-}  // namespace hotpath::episode10
 
-int main() {
-  using namespace hotpath::episode10;
-
+/**
+ * @brief Executes the Episode 10 production lock retrofit challenge suite.
+ * @return Process exit code (0 if all invariants hold, 1 otherwise).
+ */
+int RunChallengeCli() {
   std::cout
       << "==================================================================\n"
       << "🔥 Hot Path C++ — Episode 10 Production Lock Retrofit Challenge 🔥\n"
@@ -496,3 +497,7 @@ int main() {
 
   return all_valid ? 0 : 1;
 }
+
+}  // namespace hotpath::episode10
+
+int main() { return hotpath::episode10::RunChallengeCli(); }

@@ -124,8 +124,8 @@ TEST(MesiCoherencyTest, NaiveAndReadBeforeCasSpinlocksPreserveLedgerIntegrity) {
 
   EXPECT_EQ(naive_ledger.sequence, kThreads * kOpsPerThread);
   EXPECT_EQ(ttas_ledger.sequence, kThreads * kOpsPerThread);
-  EXPECT_EQ(naive_ledger.total_Fill_qty, kThreads * kOpsPerThread * 10);
-  EXPECT_EQ(ttas_ledger.total_Fill_qty, kThreads * kOpsPerThread * 10);
+  EXPECT_EQ(naive_ledger.total_fill_qty, kThreads * kOpsPerThread * 10);
+  EXPECT_EQ(ttas_ledger.total_fill_qty, kThreads * kOpsPerThread * 10);
   EXPECT_EQ(naive_ledger.rolling_notional, kThreads * kOpsPerThread * 1000);
   EXPECT_EQ(ttas_ledger.rolling_notional, kThreads * kOpsPerThread * 1000);
   EXPECT_EQ(naive_ledger.venue_buckets, ttas_ledger.venue_buckets);

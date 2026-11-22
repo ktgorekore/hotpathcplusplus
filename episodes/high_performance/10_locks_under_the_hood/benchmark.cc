@@ -104,12 +104,20 @@ static_assert(std::is_trivially_copyable_v<RouteEntry>,
  */
 class alignas(64) SharedMutexRouteCache {
  public:
-  RouteEntry read() const noexcept {
+  /**
+   * @brief Reads the current routing entry under a shared reader lock.
+   * @return Copy of the current routing entry.
+   */
+  [[nodiscard]] RouteEntry Read() const noexcept {
     std::shared_lock<std::shared_mutex> lock(rw_mtx_);
     return entry_;
   }
 
-  void update(const RouteEntry& next) noexcept {
+  /**
+   * @brief Replaces the routing entry under an exclusive writer lock.
+   * @param next Updated routing entry snapshot.
+   */
+  void Write(const RouteEntry& next) noexcept {
     std::unique_lock<std::shared_mutex> lock(rw_mtx_);
     entry_ = next;
   }
@@ -125,12 +133,20 @@ class alignas(64) SharedMutexRouteCache {
  */
 class alignas(64) MutexRouteCache {
  public:
-  RouteEntry read() const noexcept {
+  /**
+   * @brief Reads the current routing entry under an exclusive lock.
+   * @return Copy of the current routing entry.
+   */
+  [[nodiscard]] RouteEntry Read() const noexcept {
     std::lock_guard<std::mutex> lock(mtx_);
     return entry_;
   }
 
-  void update(const RouteEntry& next) noexcept {
+  /**
+   * @brief Replaces the routing entry under an exclusive lock.
+   * @param next Updated routing entry snapshot.
+   */
+  void Write(const RouteEntry& next) noexcept {
     std::lock_guard<std::mutex> lock(mtx_);
     entry_ = next;
   }
@@ -152,7 +168,11 @@ class alignas(64) SeqlockRouteCache {
                 "Seqlock requires a trivially copyable payload (no heap ptrs)");
 
  public:
-  T read() const noexcept {
+  /**
+   * @brief Performs an optimistic wait-free read, retrying if a writer races.
+   * @return Tear-free snapshot of the stored payload.
+   */
+  [[nodiscard]] T Read() const noexcept {
     T copy;
     for (;;) {
       const std::uint64_t seq1 = seq_.load(std::memory_order_acquire);
@@ -170,7 +190,11 @@ class alignas(64) SeqlockRouteCache {
     }
   }
 
-  void update(const T& next) noexcept {
+  /**
+   * @brief Publishes a new payload snapshot using odd/even sequence fencing.
+   * @param next Updated payload snapshot.
+   */
+  void Write(const T& next) noexcept {
     std::lock_guard<std::mutex> guard(writer_mtx_);
     const std::uint64_t seq0 = seq_.load(std::memory_order_relaxed);
     seq_.store(seq0 + 1ULL, std::memory_order_relaxed);
@@ -439,9 +463,9 @@ void BM_WorkloadA_RouteCache_99R1W(benchmark::State& state, CacheType& cache) {
                          iter,
                          iter * 1024ULL,
                          0ULL};
-      cache.update(updated);
+      cache.Write(updated);
     } else {
-      RouteEntry snap = cache.read();
+      RouteEntry snap = cache.Read();
       benchmark::DoNotOptimize(snap);
     }
   }

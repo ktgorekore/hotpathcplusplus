@@ -38,8 +38,6 @@ inline void DoNotOptimize(T& val) {
   asm volatile("" : "+r,m"(val) : : "memory");
 }
 
-inline void ClobberMemory() { asm volatile("" : : : "memory"); }
-
 void PrintLookupRow(const std::string& label, double total_ms,
                     std::size_t total_ops, std::uint64_t checksum) {
   const double ns_per_op =

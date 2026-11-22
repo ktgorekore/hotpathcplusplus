@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef COMMON_MEASUREMENT_MEASUREMENT_HARNESS_H_
-#define COMMON_MEASUREMENT_MEASUREMENT_HARNESS_H_
+#ifndef HOTPATH_COMMON_MEASUREMENT_MEASUREMENT_HARNESS_H_
+#define HOTPATH_COMMON_MEASUREMENT_MEASUREMENT_HARNESS_H_
 
 #include <x86intrin.h>
 
@@ -82,4 +82,4 @@ inline void ForceOptimizationBarrier(const T& val) {
 
 }  // namespace cognitas::trading
 
-#endif  // COMMON_MEASUREMENT_MEASUREMENT_HARNESS_H_
+#endif  // HOTPATH_COMMON_MEASUREMENT_MEASUREMENT_HARNESS_H_

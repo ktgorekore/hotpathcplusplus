@@ -260,7 +260,7 @@ static_assert(offsetof(AlignedTelemetryHeader, seq_no) %
  */
 struct alignas(kCacheLineBytes) SharedOrderBookLedger {
   std::uint64_t sequence = 0;
-  std::uint64_t total_Fill_qty = 0;
+  std::uint64_t total_fill_qty = 0;
   std::uint64_t rolling_notional = 0;
   std::array<std::uint64_t, 5> venue_buckets{};
 
@@ -271,7 +271,7 @@ struct alignas(kCacheLineBytes) SharedOrderBookLedger {
    */
   void RecordExecution(std::uint64_t qty, std::uint64_t price_ticks) noexcept {
     const std::uint64_t seq = ++sequence;
-    total_Fill_qty += qty;
+    total_fill_qty += qty;
     rolling_notional += qty * price_ticks;
     for (std::size_t idx = 0; idx < venue_buckets.size(); ++idx) {
       venue_buckets[idx] =

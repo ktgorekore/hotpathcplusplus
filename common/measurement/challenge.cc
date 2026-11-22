@@ -48,6 +48,12 @@
 
 namespace cognitas::trading {
 
+#if defined(__GNUC__) && !defined(__clang__)
+#define HOTPATH_NO_TREE_VECTORIZE __attribute__((optimize("no-tree-vectorize")))
+#else
+#define HOTPATH_NO_TREE_VECTORIZE
+#endif
+
 // ============================================================================
 // CHALLENGE 1: THE INVISIBLE WORKLOAD (DEAD CODE TRAP)
 // ============================================================================
@@ -62,7 +68,7 @@ namespace cognitas::trading {
  */
 static void BM_Challenge_Trap1_DeadCode(benchmark::State& state) {
   for (auto _ : state) {
-    uint64_t sum = 0;
+    [[maybe_unused]] uint64_t sum = 0;
     for (uint64_t i = 0; i < 500; ++i) {
       sum += (i * 17) ^ (i >> 2);
     }
@@ -145,8 +151,8 @@ constexpr size_t kDataSize = 8192;
  *
  * @param state Benchmark state object.
  */
-__attribute__((optimize("no-tree-vectorize"))) static void
-BM_Challenge_Trap3_PredictablePattern(benchmark::State& state) {
+HOTPATH_NO_TREE_VECTORIZE static void BM_Challenge_Trap3_PredictablePattern(
+    benchmark::State& state) {
   std::vector<int64_t> pattern(kDataSize);
   for (size_t i = 0; i < kDataSize; ++i) {
     pattern[i] = (i % 2 == 0) ? 1 : -1;
@@ -154,6 +160,9 @@ BM_Challenge_Trap3_PredictablePattern(benchmark::State& state) {
 
   for (auto _ : state) {
     int64_t count = 0;
+#if defined(__clang__)
+#pragma clang loop vectorize(disable)
+#endif
     for (size_t i = 0; i < kDataSize; ++i) {
       if (pattern[i] > 0) {
         count += pattern[i];
@@ -169,12 +178,15 @@ BENCHMARK(BM_Challenge_Trap3_PredictablePattern);
  *
  * @param state Benchmark state object.
  */
-__attribute__((optimize("no-tree-vectorize"))) static void
-BM_Challenge_Trap3_FixedWithEntropy(benchmark::State& state) {
+HOTPATH_NO_TREE_VECTORIZE static void BM_Challenge_Trap3_FixedWithEntropy(
+    benchmark::State& state) {
   const auto random_data = DatasetGenerator::GenerateUniformRandom(kDataSize);
 
   for (auto _ : state) {
     int64_t count = 0;
+#if defined(__clang__)
+#pragma clang loop vectorize(disable)
+#endif
     for (size_t i = 0; i < kDataSize; ++i) {
       if (random_data[i] > 0) {
         count += random_data[i];
@@ -184,5 +196,7 @@ BM_Challenge_Trap3_FixedWithEntropy(benchmark::State& state) {
   }
 }
 BENCHMARK(BM_Challenge_Trap3_FixedWithEntropy);
+
+#undef HOTPATH_NO_TREE_VECTORIZE
 
 }  // namespace cognitas::trading

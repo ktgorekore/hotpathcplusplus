@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef COMMON_CONCURRENCY_SEQLOCK_H_
-#define COMMON_CONCURRENCY_SEQLOCK_H_
+#ifndef HOTPATH_COMMON_CONCURRENCY_SEQLOCK_H_
+#define HOTPATH_COMMON_CONCURRENCY_SEQLOCK_H_
 
 #include <atomic>
 #include <cstdint>
@@ -139,4 +139,4 @@ namespace hotpath::concurrency {
 using SeqLock = ::cognitas::trading::SeqLock;
 }  // namespace hotpath::concurrency
 
-#endif  // COMMON_CONCURRENCY_SEQLOCK_H_
+#endif  // HOTPATH_COMMON_CONCURRENCY_SEQLOCK_H_

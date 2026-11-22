@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef COMMON_SHARED_MEMORY_BROADCAST_RING_BUFFER_H_
-#define COMMON_SHARED_MEMORY_BROADCAST_RING_BUFFER_H_
+#ifndef HOTPATH_COMMON_SHARED_MEMORY_BROADCAST_RING_BUFFER_H_
+#define HOTPATH_COMMON_SHARED_MEMORY_BROADCAST_RING_BUFFER_H_
 
 #include <atomic>
 #include <cstdint>
@@ -407,4 +407,4 @@ class BroadcastRingBuffer {
 
 }  // namespace cognitas::trading
 
-#endif  // COMMON_SHARED_MEMORY_BROADCAST_RING_BUFFER_H_
+#endif  // HOTPATH_COMMON_SHARED_MEMORY_BROADCAST_RING_BUFFER_H_

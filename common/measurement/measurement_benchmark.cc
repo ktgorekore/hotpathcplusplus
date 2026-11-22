@@ -38,6 +38,12 @@
 
 namespace cognitas::trading {
 
+#if defined(__GNUC__) && !defined(__clang__)
+#define HOTPATH_NO_TREE_VECTORIZE __attribute__((optimize("no-tree-vectorize")))
+#else
+#define HOTPATH_NO_TREE_VECTORIZE
+#endif
+
 // ============================================================================
 // PART 1: THE COMPILER TRAP — DEAD CODE ELIMINATION
 // ============================================================================
@@ -47,10 +53,12 @@ namespace cognitas::trading {
  *
  * Under -O3, the compiler detects no observable side effects and eliminates
  * the loop entirely into an instant return (`0.00 ns` reported).
+ *
+ * @param state Google Benchmark runner state.
  */
 static void BM_DeadCode_Eliminated(benchmark::State& state) {
   for (auto _ : state) {
-    uint64_t sum = 0;
+    [[maybe_unused]] uint64_t sum = 0;
     for (uint64_t i = 0; i < 1000; ++i) {
       sum += (i * 31) ^ (i >> 3);
     }
@@ -102,12 +110,17 @@ constexpr size_t kBranchArraySize = 16384;
  *
  * Decorated with no-tree-vectorize to preserve the conditional branch
  * instruction on x86-64, measuring actual branch predictor performance.
+ *
+ * @param state Google Benchmark runner state.
  */
-__attribute__((optimize("no-tree-vectorize"))) static void
-BM_Branch_PredictableSorted(benchmark::State& state) {
+HOTPATH_NO_TREE_VECTORIZE static void BM_Branch_PredictableSorted(
+    benchmark::State& state) {
   const auto data = DatasetGenerator::GenerateSorted(kBranchArraySize);
   for (auto _ : state) {
     int64_t sum = 0;
+#if defined(__clang__)
+#pragma clang loop vectorize(disable)
+#endif
     for (size_t i = 0; i < kBranchArraySize; ++i) {
       if (data[i] > 0) {
         sum += data[i];
@@ -123,12 +136,17 @@ BENCHMARK(BM_Branch_PredictableSorted);
  * @brief Unpredictable Branch: Random data triggers ~50% branch mispredictions.
  *
  * Each misprediction causes a 15-20 cycle pipeline flush on modern x86-64 CPUs.
+ *
+ * @param state Google Benchmark runner state.
  */
-__attribute__((optimize("no-tree-vectorize"))) static void
-BM_Branch_UnpredictableRandom(benchmark::State& state) {
+HOTPATH_NO_TREE_VECTORIZE static void BM_Branch_UnpredictableRandom(
+    benchmark::State& state) {
   const auto data = DatasetGenerator::GenerateUniformRandom(kBranchArraySize);
   for (auto _ : state) {
     int64_t sum = 0;
+#if defined(__clang__)
+#pragma clang loop vectorize(disable)
+#endif
     for (size_t i = 0; i < kBranchArraySize; ++i) {
       if (data[i] > 0) {
         sum += data[i];
@@ -144,12 +162,17 @@ BENCHMARK(BM_Branch_UnpredictableRandom);
  * @brief Branchless Execution: Compiles to conditional move (`cmovg`).
  *
  * Latency is deterministic and immune to input entropy.
+ *
+ * @param state Google Benchmark runner state.
  */
-__attribute__((optimize("no-tree-vectorize"))) static void
-BM_Branch_BranchlessCmov(benchmark::State& state) {
+HOTPATH_NO_TREE_VECTORIZE static void BM_Branch_BranchlessCmov(
+    benchmark::State& state) {
   const auto data = DatasetGenerator::GenerateUniformRandom(kBranchArraySize);
   for (auto _ : state) {
     int64_t sum = 0;
+#if defined(__clang__)
+#pragma clang loop vectorize(disable)
+#endif
     for (size_t i = 0; i < kBranchArraySize; ++i) {
       sum += (data[i] > 0 ? data[i] : 0);
     }
@@ -158,6 +181,8 @@ BM_Branch_BranchlessCmov(benchmark::State& state) {
   state.SetItemsProcessed(state.iterations() * kBranchArraySize);
 }
 BENCHMARK(BM_Branch_BranchlessCmov);
+
+#undef HOTPATH_NO_TREE_VECTORIZE
 
 // ============================================================================
 // PART 3: THE MEMORY TRAP — CACHE HIERARCHY LATENCY

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef COMMON_SHARED_MEMORY_MEMORY_MAP_H_
-#define COMMON_SHARED_MEMORY_MEMORY_MAP_H_
+#ifndef HOTPATH_COMMON_SHARED_MEMORY_MEMORY_MAP_H_
+#define HOTPATH_COMMON_SHARED_MEMORY_MEMORY_MAP_H_
 
 #include <cstddef>
 #include <string>
@@ -147,4 +147,4 @@ class MemoryMap {
 
 }  // namespace cognitas::trading
 
-#endif  // COMMON_SHARED_MEMORY_MEMORY_MAP_H_
+#endif  // HOTPATH_COMMON_SHARED_MEMORY_MEMORY_MAP_H_

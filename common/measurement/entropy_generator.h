@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef COMMON_MEASUREMENT_ENTROPY_GENERATOR_H_
-#define COMMON_MEASUREMENT_ENTROPY_GENERATOR_H_
+#ifndef HOTPATH_COMMON_MEASUREMENT_ENTROPY_GENERATOR_H_
+#define HOTPATH_COMMON_MEASUREMENT_ENTROPY_GENERATOR_H_
 
 #include <algorithm>
 #include <cstddef>
@@ -97,4 +97,4 @@ class DatasetGenerator {
 
 }  // namespace cognitas::trading
 
-#endif  // COMMON_MEASUREMENT_ENTROPY_GENERATOR_H_
+#endif  // HOTPATH_COMMON_MEASUREMENT_ENTROPY_GENERATOR_H_
