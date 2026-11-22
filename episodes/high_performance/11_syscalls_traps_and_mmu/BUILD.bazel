@@ -20,7 +20,7 @@ cc_binary(
     name = "benchmark",
     srcs = ["benchmark.cc"],
     deps = [
-        "//common/syscalls_traps_and_mmu:syscalls_traps_and_mmu",
+        "//common/syscalls_traps_and_mmu",
         "@google_benchmark//:benchmark_main",
     ],
 )
@@ -29,6 +29,6 @@ cc_binary(
     name = "challenge",
     srcs = ["challenge.cc"],
     deps = [
-        "//common/syscalls_traps_and_mmu:syscalls_traps_and_mmu",
+        "//common/syscalls_traps_and_mmu",
     ],
 )

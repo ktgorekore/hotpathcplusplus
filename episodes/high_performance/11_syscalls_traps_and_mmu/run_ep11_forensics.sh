@@ -15,7 +15,7 @@
 
 # ==============================================================================
 # Hot Path C++ — Episode 11 Hardware Telemetry & perf stat Runner
-# File: episodes/11_syscalls_traps_and_mmu/run_ep11_forensics.sh
+# File: episodes/high_performance/11_syscalls_traps_and_mmu/run_ep11_forensics.sh
 # ==============================================================================
 set -euo pipefail
 

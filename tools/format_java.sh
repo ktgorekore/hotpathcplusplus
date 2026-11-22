@@ -13,6 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# ==============================================================================
+# Formats all Java source files in the target directory via google-java-format.
+# File: tools/format_java.sh
+# ==============================================================================
 set -euo pipefail
 
 FORMATTER_BIN="${0}.runfiles/_main/tools/google_java_format"

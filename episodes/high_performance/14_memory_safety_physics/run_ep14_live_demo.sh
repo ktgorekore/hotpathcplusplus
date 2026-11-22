@@ -13,6 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# ==============================================================================
+# Hot Path C++ — Episode 14 Live Terminal Demo Wrapper
+# File: episodes/high_performance/14_memory_safety_physics/run_ep14_live_demo.sh
+# ==============================================================================
 set -euo pipefail
 EP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 exec "${EP_DIR}/run_ep14_forensics.sh" "$@"

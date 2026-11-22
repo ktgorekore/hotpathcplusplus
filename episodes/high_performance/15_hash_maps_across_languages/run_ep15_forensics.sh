@@ -15,11 +15,12 @@
 
 # ==============================================================================
 # Hot Path C++ — Episode 15: Hash Maps Across Languages Forensic Runner
+# File: episodes/high_performance/15_hash_maps_across_languages/run_ep15_forensics.sh
 # ==============================================================================
 set -euo pipefail
 
 EP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${EP_DIR}/../.." && pwd)"
+REPO_ROOT="$(cd "${EP_DIR}/../../.." && pwd)"
 BUILD_DIR="/tmp/ep15_build"
 OUT_DIR="/tmp/ep15_telemetry"
 mkdir -p "${BUILD_DIR}" "${OUT_DIR}" "${EP_DIR}/assembly"

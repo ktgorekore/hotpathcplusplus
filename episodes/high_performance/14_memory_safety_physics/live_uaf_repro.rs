@@ -20,41 +20,60 @@
 //! 2. Safe Generational Slab build:
 //!      rustc --edition=2021 -O --cfg safe_slab live_uaf_repro.rs
 
+/// Cache-aligned 32-byte limit order record matching the C++20 reproducer.
 #[repr(C, align(32))]
 #[derive(Clone, Copy, Debug)]
 pub struct Order {
+    /// Monotonic order identifier.
     pub order_id: u64,
+    /// Limit price in integer ticks.
     pub price_ticks: i64,
+    /// Order quantity in lots.
     pub quantity: u32,
+    /// Numeric symbol identifier.
     pub symbol_id: u32,
+    /// Lifecycle status bitmask (`1` = active).
     pub flags: u32,
+    /// Explicit padding preserving 32-byte alignment.
     pub reserved_pad: u32,
 }
 
+/// Safe 64-bit generational slab handle (`index` + `generation`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct OrderHandle {
+    /// Zero-based slot index within [`OrderSlabPool`].
     pub index: u32,
+    /// Slot generation counter incremented on every release.
     pub generation: u32,
 }
 
+/// Cache-line-aligned 64-byte slot inside [`OrderSlabPool`].
 #[repr(C, align(64))]
 #[derive(Clone, Copy)]
 pub struct OrderSlabSlot {
+    /// Stored order payload.
     pub order: Order,
+    /// Current slot generation counter.
     pub generation: u32,
+    /// Next free slot index in the intrusive free list.
     pub next_free: u32,
+    /// Occupancy flag (`1` = allocated, `0` = free).
     pub occupied: u8,
+    /// Trailing padding aligning each slot to 64 bytes.
     pub pad: [u8; 23],
 }
 
+/// Fixed-capacity generational slab allocator rejecting stale handles in O(1).
 pub struct OrderSlabPool {
     slots: Vec<OrderSlabSlot>,
     free_head: u32,
 }
 
 impl OrderSlabPool {
+    /// Sentinel index terminating the intrusive free list.
     pub const INVALID_INDEX: u32 = u32::MAX;
 
+    /// Pre-allocates a slab pool with `capacity` free slots.
     pub fn new(capacity: usize) -> Self {
         let mut slots = Vec::with_capacity(capacity);
         for i in 0..capacity {
@@ -83,6 +102,7 @@ impl OrderSlabPool {
         }
     }
 
+    /// Allocates a slot for `initial` and returns its generational [`OrderHandle`].
     #[inline]
     pub fn allocate(&mut self, initial: Order) -> Option<OrderHandle> {
         if self.free_head == Self::INVALID_INDEX {
@@ -100,6 +120,7 @@ impl OrderSlabPool {
         })
     }
 
+    /// Releases the slot addressed by `handle` and advances its generation counter.
     #[inline]
     pub fn release(&mut self, handle: OrderHandle) -> bool {
         let Some(slot) = self.slots.get_mut(handle.index as usize) else {
@@ -119,6 +140,7 @@ impl OrderSlabPool {
         true
     }
 
+    /// Resolves `handle` to a shared [`Order`] reference if occupied and generation-valid.
     #[inline]
     pub fn get(&self, handle: OrderHandle) -> Option<&Order> {
         let slot = self.slots.get(handle.index as usize)?;

@@ -30,7 +30,7 @@ cc_binary(
         "-march=native",
     ],
     deps = [
-        "//common/memory_safety:memory_safety",
+        "//common/memory_safety",
         "@google_benchmark//:benchmark_main",
     ],
 )
@@ -48,7 +48,7 @@ cc_binary(
         "-march=native",
     ],
     deps = [
-        "//common/memory_safety:memory_safety",
+        "//common/memory_safety",
     ],
 )
 
@@ -60,7 +60,7 @@ cc_binary(
         "-march=native",
     ],
     deps = [
-        "//common/memory_safety:memory_safety",
+        "//common/memory_safety",
     ],
 )
 
@@ -74,7 +74,7 @@ cc_binary(
         "-Wextra",
     ],
     deps = [
-        "//common/memory_safety:memory_safety",
+        "//common/memory_safety",
     ],
 )
 
@@ -89,7 +89,7 @@ cc_binary(
         "-DUSE_DANGLING_LOCAL=1",
     ],
     deps = [
-        "//common/memory_safety:memory_safety",
+        "//common/memory_safety",
     ],
 )
 

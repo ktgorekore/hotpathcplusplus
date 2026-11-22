@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Command go_hash_map_bench implements the Episode 15 ("Hash Maps Across
+// Languages") Go runtime benchmark and Linux perf stat driver across classic
+// 8-slot buckets (Go <= 1.23) and SwissTable maps (Go 1.24+).
 package main
 
 import (
@@ -291,7 +294,7 @@ func runAgedSession(iters int, ver string) {
 	printLookupRow(fmt.Sprintf("Go %s map[uint64]Session (Aged 24B)", ver), ms, iters*len(ds.queries8020), sink)
 }
 
-func measureLiveHeap(label string, buildFn func() interface{}, entries int) {
+func measureLiveHeap(label string, buildFn func() any, entries int) {
 	runtime.GC()
 	runtime.GC()
 	var mBefore, mAfter runtime.MemStats
@@ -322,7 +325,7 @@ func measureLiveHeap(label string, buildFn func() interface{}, entries int) {
 func runBattle2Rss(ver string) {
 	ds := buildDataset(numAgedEntries, 1024)
 	fmt.Printf("\n=== Go %s Battle 2A: Resident & Live Heap Footprint (2,000,000 Entries) ===\n", ver)
-	measureLiveHeap(fmt.Sprintf("Go %s map[uint64]uint64 (16B Packed)", ver), func() interface{} {
+	measureLiveHeap(fmt.Sprintf("Go %s map[uint64]uint64 (16B Packed)", ver), func() any {
 		m := make(map[uint64]uint64, len(ds.keys))
 		for i, k := range ds.keys {
 			m[k] = ds.packedVals[i]
@@ -330,7 +333,7 @@ func runBattle2Rss(ver string) {
 		return m
 	}, len(ds.keys))
 
-	measureLiveHeap(fmt.Sprintf("Go %s map[uint64]Session (32B)", ver), func() interface{} {
+	measureLiveHeap(fmt.Sprintf("Go %s map[uint64]Session (32B)", ver), func() any {
 		m := make(map[uint64]SessionState, len(ds.keys))
 		for i, k := range ds.keys {
 			m[k] = ds.sessionVals[i]
@@ -341,7 +344,7 @@ func runBattle2Rss(ver string) {
 
 func runBattle2RssPacked(ver string) {
 	ds := buildDataset(numAgedEntries, 1024)
-	measureLiveHeap(fmt.Sprintf("Go %s map[uint64]uint64 (16B Packed)", ver), func() interface{} {
+	measureLiveHeap(fmt.Sprintf("Go %s map[uint64]uint64 (16B Packed)", ver), func() any {
 		m := make(map[uint64]uint64, len(ds.keys))
 		for i, k := range ds.keys {
 			m[k] = ds.packedVals[i]
@@ -352,7 +355,7 @@ func runBattle2RssPacked(ver string) {
 
 func runBattle2RssSession(ver string) {
 	ds := buildDataset(numAgedEntries, 1024)
-	measureLiveHeap(fmt.Sprintf("Go %s map[uint64]Session (32B)", ver), func() interface{} {
+	measureLiveHeap(fmt.Sprintf("Go %s map[uint64]Session (32B)", ver), func() any {
 		m := make(map[uint64]SessionState, len(ds.keys))
 		for i, k := range ds.keys {
 			m[k] = ds.sessionVals[i]

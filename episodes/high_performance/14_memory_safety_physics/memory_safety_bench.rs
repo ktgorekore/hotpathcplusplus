@@ -22,47 +22,70 @@ use std::hint::black_box;
 use std::rc::{Rc, Weak};
 use std::time::Instant;
 
+/// Default power-of-two order book capacity (`65,536` orders = `2.0 MiB`).
 pub const DEFAULT_BOOK_CAPACITY: usize = 65_536;
+/// Bitmask wrapping indices into [`DEFAULT_BOOK_CAPACITY`].
 pub const DEFAULT_BOOK_MASK: u32 = (DEFAULT_BOOK_CAPACITY - 1) as u32;
+/// Status flag indicating an active resting order.
 pub const ORDER_FLAG_ACTIVE: u32 = 0x0000_0001;
+/// Sentinel status flag marking a canceled or reclaimed order.
 pub const ORDER_FLAG_CANCELED: u32 = 0xDEAD_0000;
 
+/// Cache-aligned 32-byte limit order matching C++20 `hotpath::memory_safety::Order`.
 #[repr(C, align(32))]
 #[derive(Clone, Copy, Debug)]
 pub struct Order {
+    /// Monotonic order identifier.
     pub order_id: u64,
+    /// Limit price in integer ticks.
     pub price_ticks: i64,
+    /// Order quantity in lots.
     pub quantity: u32,
+    /// Numeric symbol identifier.
     pub symbol_id: u32,
+    /// Lifecycle status bitmask (`ORDER_FLAG_ACTIVE` or `ORDER_FLAG_CANCELED`).
     pub flags: u32,
+    /// Explicit padding preserving 32-byte C layout alignment.
     pub reserved_pad: u32,
 }
 
+/// Packed 64-bit generational slab handle (`index` + `generation`).
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct OrderHandle {
+    /// Zero-based slot index within [`OrderSlabPool`].
     pub index: u32,
+    /// Slot generation counter validated on every lookup and release.
     pub generation: u32,
 }
 
+/// Single 64-byte cache-line-aligned slot inside [`OrderSlabPool`].
 #[repr(C, align(64))]
 #[derive(Clone, Copy)]
 pub struct OrderSlabSlot {
+    /// Stored order payload.
     pub order: Order,
+    /// Current generation counter for ABA/Use-After-Free detection.
     pub generation: u32,
+    /// Intrusive free-list link to the next available slot index.
     pub next_free: u32,
+    /// Occupancy flag (`1` = allocated, `0` = free).
     pub occupied: u8,
+    /// Trailing padding to fill a 64-byte cache line.
     pub pad: [u8; 23],
 }
 
+/// Fixed-capacity O(1) generational slab allocator with intrusive free list.
 pub struct OrderSlabPool {
     slots: Vec<OrderSlabSlot>,
     free_head: u32,
 }
 
 impl OrderSlabPool {
+    /// Sentinel index terminating the intrusive free list.
     pub const INVALID_INDEX: u32 = u32::MAX;
 
+    /// Creates a pre-allocated slab pool with `capacity` unoccupied slots.
     pub fn new(capacity: usize) -> Self {
         let mut slots = Vec::with_capacity(capacity);
         for i in 0..capacity {
@@ -91,6 +114,7 @@ impl OrderSlabPool {
         }
     }
 
+    /// Allocates a slot from the free list, storing `initial` and returning its handle.
     #[inline]
     pub fn allocate(&mut self, initial: Order) -> Option<OrderHandle> {
         if self.free_head == Self::INVALID_INDEX {
@@ -108,6 +132,7 @@ impl OrderSlabPool {
         })
     }
 
+    /// Releases the slot referenced by `handle` and advances its generation counter.
     #[inline]
     pub fn release(&mut self, handle: OrderHandle) -> bool {
         let Some(slot) = self.slots.get_mut(handle.index as usize) else {
@@ -128,6 +153,7 @@ impl OrderSlabPool {
         true
     }
 
+    /// Resolves `handle` to a shared [`Order`] reference if occupied and generation-valid.
     #[inline]
     pub fn get(&self, handle: OrderHandle) -> Option<&Order> {
         let slot = self.slots.get(handle.index as usize)?;
@@ -137,12 +163,17 @@ impl OrderSlabPool {
         Some(&slot.order)
     }
 
+    /// Returns an unchecked reference to the order stored at `index`, bypassing generation checks.
+    ///
+    /// # Safety
+    /// Caller must ensure `index` is strictly less than the pool's capacity.
     #[inline]
     pub unsafe fn get_unchecked_slot(&self, index: u32) -> &Order {
         &unsafe { self.slots.get_unchecked(index as usize) }.order
     }
 }
 
+/// Battle 1A.1: Sequential slice-iterator scan proving LLVM eliminates bounds checks.
 #[no_mangle]
 #[inline(never)]
 pub extern "C" fn rust_scan_sequential_iter(orders: *const Order, len: usize) -> i64 {
@@ -154,6 +185,7 @@ pub extern "C" fn rust_scan_sequential_iter(orders: *const Order, len: usize) ->
     total
 }
 
+/// Battle 1A.2: Sequential range-indexed scan (`0..slice.len()`) with LLVM range-check hoisting.
 #[no_mangle]
 #[inline(never)]
 pub extern "C" fn rust_scan_sequential_indexed(orders: *const Order, len: usize) -> i64 {
@@ -166,6 +198,7 @@ pub extern "C" fn rust_scan_sequential_indexed(orders: *const Order, len: usize)
     total
 }
 
+/// Battle 1B.1: Unchecked random batch gather via `slice::get_unchecked`.
 #[no_mangle]
 #[inline(never)]
 pub extern "C" fn rust_gather_batch_unchecked(
@@ -184,6 +217,7 @@ pub extern "C" fn rust_gather_batch_unchecked(
     total
 }
 
+/// Battle 1B.2: Safe bounds-checked random batch gather (`orders[idx]`).
 #[no_mangle]
 #[inline(never)]
 pub extern "C" fn rust_gather_batch_checked(
@@ -202,6 +236,7 @@ pub extern "C" fn rust_gather_batch_checked(
     total
 }
 
+/// Battle 1B.3: Safe non-panicking random batch gather via `slice::get`.
 #[no_mangle]
 #[inline(never)]
 pub extern "C" fn rust_gather_batch_option_get(
@@ -221,6 +256,7 @@ pub extern "C" fn rust_gather_batch_option_get(
     total
 }
 
+/// Battle 1B.4: Safe power-of-two bitmask-bounded random gather enabling LLVM SIMD vectorization.
 #[no_mangle]
 #[inline(never)]
 pub extern "C" fn rust_gather_batch_bitmask_safe(
@@ -242,6 +278,7 @@ pub extern "C" fn rust_gather_batch_bitmask_safe(
     total
 }
 
+/// Battle 1C.1: Latency-bound dependent order-book probe chain using unchecked indexing.
 #[no_mangle]
 #[inline(never)]
 pub extern "C" fn rust_probe_dependent_unchecked(
@@ -264,6 +301,7 @@ pub extern "C" fn rust_probe_dependent_unchecked(
     total
 }
 
+/// Battle 1C.2: Latency-bound dependent order-book probe chain with safe bounds checks.
 #[no_mangle]
 #[inline(never)]
 pub extern "C" fn rust_probe_dependent_checked(
@@ -286,9 +324,10 @@ pub extern "C" fn rust_probe_dependent_checked(
     total
 }
 
+/// Battle 3.1: Unchecked slab lookup demonstrating silent ABA corruption under slot recycling.
 #[no_mangle]
 #[inline(never)]
-pub extern "C" fn rust_temporal_unchecked_lookup(
+pub fn rust_temporal_unchecked_lookup(
     pool: &OrderSlabPool,
     handles: &[OrderHandle],
     lookup_order: &[u32],
@@ -304,9 +343,10 @@ pub extern "C" fn rust_temporal_unchecked_lookup(
     total
 }
 
+/// Battle 3.2: Safe O(1) generational handle lookup rejecting stale/recycled handles.
 #[no_mangle]
 #[inline(never)]
-pub extern "C" fn rust_temporal_generational_lookup(
+pub fn rust_temporal_generational_lookup(
     pool: &OrderSlabPool,
     handles: &[OrderHandle],
     lookup_order: &[u32],
@@ -321,11 +361,9 @@ pub extern "C" fn rust_temporal_generational_lookup(
     total
 }
 
+/// Battle 3.3: Safe reference-counted lookup via `Rc<Order>` / `Weak::upgrade()`.
 #[inline(never)]
-pub fn rust_temporal_rc_weak_lookup(
-    weak_handles: &[Weak<Order>],
-    lookup_order: &[u32],
-) -> i64 {
+pub fn rust_temporal_rc_weak_lookup(weak_handles: &[Weak<Order>], lookup_order: &[u32]) -> i64 {
     let mut total: i64 = 0;
     for &pos in lookup_order {
         if let Some(rc_order) = weak_handles[pos as usize].upgrade() {
@@ -404,7 +442,13 @@ fn main() {
                 ));
             }
             let elapsed = t0.elapsed().as_nanos() as f64;
-            print_row("1. Safe Slice Iterator (orders.iter())", elapsed, iters, count, acc);
+            print_row(
+                "1. Safe Slice Iterator (orders.iter())",
+                elapsed,
+                iters,
+                count,
+                acc,
+            );
         }
 
         if variant == "all" || variant == "indexed" {
@@ -420,7 +464,13 @@ fn main() {
                 ));
             }
             let elapsed = t0.elapsed().as_nanos() as f64;
-            print_row("2. Safe Indexed Loop (0..orders.len())", elapsed, iters, count, acc);
+            print_row(
+                "2. Safe Indexed Loop (0..orders.len())",
+                elapsed,
+                iters,
+                count,
+                acc,
+            );
         }
     }
 

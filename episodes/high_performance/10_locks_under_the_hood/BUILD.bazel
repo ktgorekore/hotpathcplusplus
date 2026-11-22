@@ -20,7 +20,7 @@ cc_binary(
     name = "benchmark",
     srcs = ["benchmark.cc"],
     deps = [
-        "//common/locks_under_the_hood:locks_under_the_hood",
+        "//common/locks_under_the_hood",
         "@google_benchmark//:benchmark_main",
     ],
 )
@@ -29,6 +29,6 @@ cc_binary(
     name = "challenge",
     srcs = ["challenge.cc"],
     deps = [
-        "//common/locks_under_the_hood:locks_under_the_hood",
+        "//common/locks_under_the_hood",
     ],
 )

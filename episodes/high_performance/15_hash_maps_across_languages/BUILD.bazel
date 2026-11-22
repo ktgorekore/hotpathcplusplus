@@ -26,7 +26,7 @@ cc_binary(
     name = "benchmark",
     srcs = ["benchmark.cc"],
     deps = [
-        "//common/hash_maps:hash_maps",
+        "//common/hash_maps",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@google_benchmark//:benchmark_main",
     ],
@@ -36,7 +36,7 @@ cc_binary(
     name = "challenge",
     srcs = ["challenge.cc"],
     deps = [
-        "//common/hash_maps:hash_maps",
+        "//common/hash_maps",
         "@abseil-cpp//absl/container:flat_hash_map",
     ],
 )
@@ -45,7 +45,7 @@ cc_binary(
     name = "live_hashdos_repro",
     srcs = ["live_hashdos_repro.cc"],
     deps = [
-        "//common/hash_maps:hash_maps",
+        "//common/hash_maps",
         "@abseil-cpp//absl/container:flat_hash_map",
     ],
 )

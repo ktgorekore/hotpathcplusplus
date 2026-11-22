@@ -20,7 +20,7 @@ cc_binary(
     name = "benchmark",
     srcs = ["benchmark.cc"],
     deps = [
-        "//common/mesi_coherency:mesi_coherency",
+        "//common/mesi_coherency",
         "@google_benchmark//:benchmark_main",
     ],
 )
@@ -29,6 +29,6 @@ cc_binary(
     name = "challenge",
     srcs = ["challenge.cc"],
     deps = [
-        "//common/mesi_coherency:mesi_coherency",
+        "//common/mesi_coherency",
     ],
 )

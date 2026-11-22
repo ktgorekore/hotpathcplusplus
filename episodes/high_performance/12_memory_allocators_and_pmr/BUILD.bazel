@@ -20,7 +20,7 @@ cc_binary(
     name = "benchmark",
     srcs = ["benchmark.cc"],
     deps = [
-        "//common/memory_allocators:memory_allocators",
+        "//common/memory_allocators",
         "@google_benchmark//:benchmark_main",
     ],
 )
@@ -29,7 +29,7 @@ cc_binary(
     name = "challenge",
     srcs = ["challenge.cc"],
     deps = [
-        "//common/memory_allocators:memory_allocators",
+        "//common/memory_allocators",
     ],
 )
 
@@ -37,6 +37,6 @@ cc_binary(
     name = "live_heap_aging_repro",
     srcs = ["live_heap_aging_repro.cc"],
     deps = [
-        "//common/memory_allocators:memory_allocators",
+        "//common/memory_allocators",
     ],
 )

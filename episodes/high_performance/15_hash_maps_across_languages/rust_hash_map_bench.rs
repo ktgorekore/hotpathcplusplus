@@ -36,12 +36,17 @@ const NUM_QUERIES: usize = 2_000_000;
 const NUM_HASHDOS_KEYS: usize = 40_000;
 const FX_SEED: u64 = 0x517cc1b727220a95;
 
+/// Inline 24-byte session state record matching C++20 and Go layouts.
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct SessionState {
+    /// Remaining API tokens in the active rate-limit window.
     pub quota_remaining: u64,
+    /// Last request timestamp in nanoseconds.
     pub last_seen_ns: u64,
+    /// Account tier bitflags.
     pub tier_flags: u32,
+    /// Request counter within the current rate-limit window.
     pub rate_window_hits: u32,
 }
 
@@ -238,13 +243,10 @@ fn build_fxhash_collision_keys(count: usize) -> Vec<u64> {
     out
 }
 
+/// Probes a default SipHash-1-3 `HashMap` across `n` queries and returns a verification checksum.
 #[no_mangle]
 #[inline(never)]
-pub extern "C" fn rust_siphash_find_packed(
-    map: &HashMap<u64, u64>,
-    queries: *const u64,
-    n: usize,
-) -> u64 {
+pub fn rust_siphash_find_packed(map: &HashMap<u64, u64>, queries: *const u64, n: usize) -> u64 {
     let slice = unsafe { std::slice::from_raw_parts(queries, n) };
     let mut sum = 0u64;
     let mut hits = 0u64;
@@ -257,9 +259,10 @@ pub extern "C" fn rust_siphash_find_packed(
     finalize_checksum(sum, hits)
 }
 
+/// Probes an `FxHasher`-backed `HashMap` across `n` queries and returns a verification checksum.
 #[no_mangle]
 #[inline(never)]
-pub extern "C" fn rust_fxhash_find_packed(
+pub fn rust_fxhash_find_packed(
     map: &HashMap<u64, u64, FxBuildHasher>,
     queries: *const u64,
     n: usize,
@@ -302,9 +305,10 @@ fn find_session_fx(map: &HashMap<u64, SessionState, FxBuildHasher>, queries: &[u
     finalize_checksum(sum, hits)
 }
 
+/// Iterates over every occupied entry in a SipHash-1-3 `HashMap` and returns its fold checksum.
 #[no_mangle]
 #[inline(never)]
-pub extern "C" fn rust_siphash_iter_packed(map: &HashMap<u64, u64>) -> u64 {
+pub fn rust_siphash_iter_packed(map: &HashMap<u64, u64>) -> u64 {
     let mut sum = 0u64;
     let mut count = 0u64;
     for (&k, &v) in map.iter() {
@@ -314,9 +318,10 @@ pub extern "C" fn rust_siphash_iter_packed(map: &HashMap<u64, u64>) -> u64 {
     finalize_checksum(sum, count)
 }
 
+/// Iterates over every occupied entry in an `FxHasher`-backed `HashMap` and returns its checksum.
 #[no_mangle]
 #[inline(never)]
-pub extern "C" fn rust_fxhash_iter_packed(map: &HashMap<u64, u64, FxBuildHasher>) -> u64 {
+pub fn rust_fxhash_iter_packed(map: &HashMap<u64, u64, FxBuildHasher>) -> u64 {
     let mut sum = 0u64;
     let mut count = 0u64;
     for (&k, &v) in map.iter() {

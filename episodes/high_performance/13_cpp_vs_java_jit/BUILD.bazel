@@ -30,7 +30,7 @@ cc_binary(
         "-march=native",
     ],
     deps = [
-        "//common/cpp_vs_java_jit:cpp_vs_java_jit",
+        "//common/cpp_vs_java_jit",
         "@google_benchmark//:benchmark_main",
     ],
 )
@@ -48,7 +48,7 @@ cc_binary(
         "-march=native",
     ],
     deps = [
-        "//common/cpp_vs_java_jit:cpp_vs_java_jit",
+        "//common/cpp_vs_java_jit",
     ],
 )
 
