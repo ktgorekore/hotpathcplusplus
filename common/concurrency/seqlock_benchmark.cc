@@ -34,6 +34,10 @@
 
 namespace cognitas::trading {
 
+/**
+ * @struct MarketQuotePayload
+ * @brief Cache-line-aligned market quote payload used for SeqLock benchmarks.
+ */
 struct alignas(64) MarketQuotePayload {
   uint64_t bid_price;
   uint64_t ask_price;
@@ -43,9 +47,10 @@ struct alignas(64) MarketQuotePayload {
   uint64_t sequence_id;
 };
 
-// -----------------------------------------------------------------------------
-// 1. Uncontended Read Benchmark (Single Thread)
-// -----------------------------------------------------------------------------
+/**
+ * @brief Benchmarks uncontended single-threaded optimistic `SeqLock` reads.
+ * @param state Google Benchmark runner state.
+ */
 static void BM_SeqLock_Read_Uncontended(benchmark::State& state) {
   SeqLock lock;
   MarketQuotePayload quote = {15000, 15001, 100, 200, 123456789, 1};
@@ -64,9 +69,10 @@ static void BM_SeqLock_Read_Uncontended(benchmark::State& state) {
 }
 BENCHMARK(BM_SeqLock_Read_Uncontended);
 
-// -----------------------------------------------------------------------------
-// 2. Uncontended Write Benchmark (Single Thread)
-// -----------------------------------------------------------------------------
+/**
+ * @brief Benchmarks uncontended single-threaded `SeqLock` writer commits.
+ * @param state Google Benchmark runner state.
+ */
 static void BM_SeqLock_Write_Uncontended(benchmark::State& state) {
   SeqLock lock;
   MarketQuotePayload quote = {0, 0, 0, 0, 0, 0};
@@ -87,9 +93,11 @@ static void BM_SeqLock_Write_Uncontended(benchmark::State& state) {
 }
 BENCHMARK(BM_SeqLock_Write_Uncontended);
 
-// -----------------------------------------------------------------------------
-// 3. Multi-Threaded Contention: 1 Writer + (N - 1) Readers
-// -----------------------------------------------------------------------------
+/**
+ * @brief Benchmarks multi-threaded `SeqLock` scalability with 1 writer and
+ *        `N - 1` concurrent optimistic readers.
+ * @param state Google Benchmark runner state.
+ */
 static void BM_SeqLock_Contention(benchmark::State& state) {
   static SeqLock lock;
   static MarketQuotePayload shared_quote = {0, 0, 0, 0, 0, 0};

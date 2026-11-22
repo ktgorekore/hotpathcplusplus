@@ -172,6 +172,9 @@ class PrefaultedArenaPool {
     }
   }
 
+  /**
+   * @brief Destroys the arena pool and unmaps its backing memory region.
+   */
   ~PrefaultedArenaPool() noexcept {
     if (arena_ != nullptr) {
       munmap(arena_, size_bytes_);
@@ -187,7 +190,10 @@ class PrefaultedArenaPool {
    */
   [[nodiscard]] std::uint8_t* Acquire() noexcept { return arena_; }
 
-  /** @brief Returns the size of the arena in bytes. */
+  /**
+   * @brief Returns the size of the arena in bytes.
+   * @return Page-rounded arena capacity in bytes.
+   */
   [[nodiscard]] std::size_t size_bytes() const noexcept { return size_bytes_; }
 
  private:
@@ -283,6 +289,9 @@ class OrderBookArena {
     }
   }
 
+  /**
+   * @brief Unmaps the backing order book virtual memory region.
+   */
   ~OrderBookArena() noexcept {
     if (raw_base_ != nullptr && raw_base_ != MAP_FAILED) {
       munmap(raw_base_, raw_len_);
@@ -292,16 +301,25 @@ class OrderBookArena {
   OrderBookArena(const OrderBookArena&) = delete;
   OrderBookArena& operator=(const OrderBookArena&) = delete;
 
-  /** @brief Returns a const pointer to the aligned `OrderLevelSlot` array. */
+  /**
+   * @brief Returns a const pointer to the aligned `OrderLevelSlot` array.
+   * @return Base pointer to the 2 MiB-aligned slot table.
+   */
   [[nodiscard]] const OrderLevelSlot* slots() const noexcept { return slots_; }
 
-  /** @brief Returns the pre-computed random lookup index vector. */
+  /**
+   * @brief Returns the pre-computed random lookup index vector.
+   * @return Const reference to the page-crossing lookup index sequence.
+   */
   [[nodiscard]] const std::vector<std::size_t>& random_indices()
       const noexcept {
     return random_indices_;
   }
 
-  /** @brief Returns total number of 64-byte slots in the arena. */
+  /**
+   * @brief Returns total number of 64-byte slots in the arena.
+   * @return Slot count (`total_bytes / sizeof(OrderLevelSlot)`).
+   */
   [[nodiscard]] std::size_t num_slots() const noexcept { return num_slots_; }
 
  private:

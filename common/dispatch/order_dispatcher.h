@@ -36,6 +36,9 @@ namespace hotpath::dispatch {
  */
 class BaseOrder {
  public:
+  /**
+   * @brief Virtual destructor for safe polymorphic deletion.
+   */
   virtual ~BaseOrder() = default;
 
   /**
@@ -51,9 +54,20 @@ class BaseOrder {
  */
 class BuyLimitOrder final : public BaseOrder {
  public:
+  /**
+   * @brief Constructs a BuyLimitOrder.
+   * @param id Unique order identifier.
+   * @param limit_price Maximum execution limit price.
+   * @param quantity Order share quantity.
+   */
   BuyLimitOrder(uint64_t id, double limit_price, uint32_t quantity)
       : id_(id), limit_price_(limit_price), quantity_(quantity) {}
 
+  /**
+   * @brief Executes the buy limit order if market price is at or below limit.
+   * @param current_price The prevailing market mid-price.
+   * @return Executed notional value if filled, or 0.0 otherwise.
+   */
   double Execute(double current_price) const override {
     if (current_price <= limit_price_) {
       return limit_price_ * quantity_;
@@ -61,8 +75,22 @@ class BuyLimitOrder final : public BaseOrder {
     return 0.0;
   }
 
+  /**
+   * @brief Returns the unique order identifier.
+   * @return Order ID.
+   */
   uint64_t id() const noexcept { return id_; }
+
+  /**
+   * @brief Returns the buy limit price.
+   * @return Maximum limit price.
+   */
   double limit_price() const noexcept { return limit_price_; }
+
+  /**
+   * @brief Returns the order share quantity.
+   * @return Share quantity.
+   */
   uint32_t quantity() const noexcept { return quantity_; }
 
  private:
@@ -76,14 +104,33 @@ class BuyLimitOrder final : public BaseOrder {
  */
 class SellMarketOrder final : public BaseOrder {
  public:
+  /**
+   * @brief Constructs a SellMarketOrder.
+   * @param id Unique order identifier.
+   * @param quantity Order share quantity.
+   */
   SellMarketOrder(uint64_t id, uint32_t quantity)
       : id_(id), quantity_(quantity) {}
 
+  /**
+   * @brief Executes the sell market order at the prevailing mid-price.
+   * @param current_price The prevailing market mid-price.
+   * @return Executed cash-flow proceeds (`current_price * quantity`).
+   */
   double Execute(double current_price) const override {
     return current_price * quantity_;
   }
 
+  /**
+   * @brief Returns the unique order identifier.
+   * @return Order ID.
+   */
   uint64_t id() const noexcept { return id_; }
+
+  /**
+   * @brief Returns the order share quantity.
+   * @return Share quantity.
+   */
   uint32_t quantity() const noexcept { return quantity_; }
 
  private:
@@ -96,12 +143,25 @@ class SellMarketOrder final : public BaseOrder {
  */
 class CancelOrder final : public BaseOrder {
  public:
+  /**
+   * @brief Constructs a CancelOrder for the target order ID.
+   * @param id Identifier of the order to cancel.
+   */
   explicit CancelOrder(uint64_t id) : id_(id) {}
 
+  /**
+   * @brief Processes a cancel request (zero notional cash flow).
+   * @param current_price Prevailing market mid-price (unused).
+   * @return Always 0.0.
+   */
   double Execute([[maybe_unused]] double current_price) const override {
     return 0.0;
   }
 
+  /**
+   * @brief Returns the canceled order identifier.
+   * @return Target order ID.
+   */
   uint64_t id() const noexcept { return id_; }
 
  private:
@@ -123,6 +183,11 @@ struct BuyLimit {
   double limit_price;
   uint32_t quantity;
 
+  /**
+   * @brief Executes the buy limit order if market price is at or below limit.
+   * @param current_price The prevailing market mid-price.
+   * @return Executed notional value if filled, or 0.0 otherwise.
+   */
   double Execute(double current_price) const noexcept {
     if (current_price <= limit_price) {
       return limit_price * quantity;
@@ -138,6 +203,11 @@ struct SellMarket {
   uint64_t id;
   uint32_t quantity;
 
+  /**
+   * @brief Executes the sell market order at the prevailing mid-price.
+   * @param current_price The prevailing market mid-price.
+   * @return Executed cash-flow proceeds (`current_price * quantity`).
+   */
   double Execute(double current_price) const noexcept {
     return current_price * quantity;
   }
@@ -149,6 +219,11 @@ struct SellMarket {
 struct Cancel {
   uint64_t id;
 
+  /**
+   * @brief Processes a cancel request (zero notional cash flow).
+   * @param current_price Prevailing market mid-price (unused).
+   * @return Always 0.0.
+   */
   double Execute([[maybe_unused]] double current_price) const noexcept {
     return 0.0;
   }
@@ -161,13 +236,8 @@ struct Cancel {
 using OrderVariant = std::variant<BuyLimit, SellMarket, Cancel>;
 
 /**
- * @brief Inlined execution helper evaluating an OrderVariant via std::visit.
- * @param order The variant order to execute.
- * @param current_price The prevailing market mid-price.
- * @return The cash-flow execution result.
- */
-/**
  * @brief Generic overloaded callable helper for std::visit pattern matching.
+ * @tparam Ts Callable types combined via variadic inheritance.
  */
 template <class... Ts>
 struct Overloaded : Ts... {

@@ -184,8 +184,14 @@ struct BrokenPmrVenueFill {
   std::uint32_t venue_flags = 0;
   std::pmr::string venue_exec_id;
 
-  /** @brief Constructs a fill whose inner `pmr::string` defaults to global
-   * heap. */
+  /**
+   * @brief Constructs a fill whose inner `pmr::string` defaults to global heap.
+   * @param id Unique order identifier.
+   * @param px Fill price in integer ticks.
+   * @param qty Executed share quantity.
+   * @param flags Venue status bitflags.
+   * @param exec_id Execution identifier string view.
+   */
   BrokenPmrVenueFill(std::uint64_t id, std::int64_t px, std::uint32_t qty,
                      std::uint32_t flags, std::string_view exec_id)
       : order_id(id),
@@ -208,11 +214,21 @@ struct PmrVenueFill {
   std::uint32_t venue_flags = 0;
   std::pmr::string venue_exec_id;
 
-  /** @brief Default allocator-extended constructor. */
+  /**
+   * @brief Default allocator-extended constructor.
+   * @param alloc Polymorphic allocator propagated to `venue_exec_id`.
+   */
   explicit PmrVenueFill(allocator_type alloc = {}) noexcept
       : venue_exec_id(alloc) {}
 
-  /** @brief Value constructor propagating the enclosing container's resource.
+  /**
+   * @brief Value constructor propagating the enclosing container's resource.
+   * @param id Unique order identifier.
+   * @param px Fill price in integer ticks.
+   * @param qty Executed share quantity.
+   * @param flags Venue status bitflags.
+   * @param exec_id Execution identifier string view.
+   * @param alloc Polymorphic allocator propagated to `venue_exec_id`.
    */
   PmrVenueFill(std::uint64_t id, std::int64_t px, std::uint32_t qty,
                std::uint32_t flags, std::string_view exec_id,
@@ -223,7 +239,11 @@ struct PmrVenueFill {
         venue_flags(flags),
         venue_exec_id(exec_id, alloc) {}
 
-  /** @brief Copy constructor with explicit allocator propagation. */
+  /**
+   * @brief Copy constructor with explicit allocator propagation.
+   * @param other Source fill instance to copy.
+   * @param alloc Polymorphic allocator propagated to `venue_exec_id`.
+   */
   PmrVenueFill(const PmrVenueFill& other, allocator_type alloc)
       : order_id(other.order_id),
         price_ticks(other.price_ticks),
@@ -231,7 +251,11 @@ struct PmrVenueFill {
         venue_flags(other.venue_flags),
         venue_exec_id(other.venue_exec_id, alloc) {}
 
-  /** @brief Move constructor with explicit allocator propagation. */
+  /**
+   * @brief Move constructor with explicit allocator propagation.
+   * @param other Source fill instance to move from.
+   * @param alloc Polymorphic allocator propagated to `venue_exec_id`.
+   */
   PmrVenueFill(PmrVenueFill&& other, allocator_type alloc)
       : order_id(other.order_id),
         price_ticks(other.price_ticks),
@@ -307,7 +331,10 @@ class BumpArena {
   BumpArena(const BumpArena&) = delete;
   BumpArena& operator=(const BumpArena&) = delete;
 
-  /** @brief Move constructor transferring arena ownership. */
+  /**
+   * @brief Move constructor transferring arena ownership.
+   * @param other Source BumpArena whose mapped slab is transferred.
+   */
   BumpArena(BumpArena&& other) noexcept
       : capacity_(other.capacity_),
         base_(other.base_),
@@ -319,7 +346,11 @@ class BumpArena {
     other.end_ = nullptr;
   }
 
-  /** @brief Move assignment operator transferring arena ownership. */
+  /**
+   * @brief Move assignment operator transferring arena ownership.
+   * @param other Source BumpArena whose mapped slab is transferred.
+   * @return Reference to this BumpArena instance.
+   */
   BumpArena& operator=(BumpArena&& other) noexcept {
     if (this != &other) {
       ReleaseMappedRegion(base_, capacity_);
@@ -379,12 +410,18 @@ class BumpArena {
    */
   void Reset() noexcept { cur_ = base_; }
 
-  /** @brief Returns number of bytes currently consumed in the arena. */
+  /**
+   * @brief Returns number of bytes currently consumed in the arena.
+   * @return Consumed byte offset from arena base.
+   */
   [[nodiscard]] std::size_t BytesUsed() const noexcept {
     return static_cast<std::size_t>(cur_ - base_);
   }
 
-  /** @brief Returns total mapped capacity in bytes. */
+  /**
+   * @brief Returns total mapped capacity in bytes.
+   * @return Total byte capacity of the backing slab.
+   */
   [[nodiscard]] std::size_t Capacity() const noexcept { return capacity_; }
 
  private:
@@ -487,10 +524,16 @@ class FixedSlabPool {
     available_ = capacity_;
   }
 
-  /** @brief Returns number of free slots currently available. */
+  /**
+   * @brief Returns number of free slots currently available.
+   * @return Count of unallocated slab slots.
+   */
   [[nodiscard]] std::size_t Available() const noexcept { return available_; }
 
-  /** @brief Returns total slot capacity of the slab. */
+  /**
+   * @brief Returns total slot capacity of the slab.
+   * @return Maximum number of objects the slab can hold.
+   */
   [[nodiscard]] std::size_t Capacity() const noexcept { return capacity_; }
 
  private:
@@ -514,7 +557,11 @@ class SpscRingQueue {
                 "SpscRingQueue Capacity must be a power of two >= 2");
 
  public:
-  /** @brief Pushes one item if space is available (producer thread only). */
+  /**
+   * @brief Pushes one item if space is available (producer thread only).
+   * @param value Item to enqueue.
+   * @return True if enqueued, false if the ring is full.
+   */
   [[nodiscard]] bool TryPush(T value) noexcept {
     const std::size_t head = head_.load(std::memory_order_relaxed);
     const std::size_t next = (head + 1) & kMask;
@@ -529,7 +576,11 @@ class SpscRingQueue {
     return true;
   }
 
-  /** @brief Pops one item if available (consumer thread only). */
+  /**
+   * @brief Pops one item if available (consumer thread only).
+   * @param out Reference receiving the dequeued item on success.
+   * @return True if an item was dequeued, false if the ring is empty.
+   */
   [[nodiscard]] bool TryPop(T& out) noexcept {
     const std::size_t tail = tail_.load(std::memory_order_relaxed);
     if (tail == cached_head_) {
@@ -591,7 +642,10 @@ class ThreadMagazinePool {
    */
   class LocalCache {
    public:
-    /** @brief Binds a thread cache to `pool`. */
+    /**
+     * @brief Binds a thread-local cache to its backing `ThreadMagazinePool`.
+     * @param pool Central magazine pool supplying refill/drain batches.
+     */
     explicit LocalCache(ThreadMagazinePool& pool) noexcept : pool_(pool) {}
 
     /** @brief Flushes any remaining cached slots back to `pool` on teardown. */
@@ -620,13 +674,14 @@ class ThreadMagazinePool {
     Magazine* free_mag_ = nullptr;
   };
 
+  /** @brief Reserve empty magazine headers kept in the central depot. */
+  static constexpr std::size_t kExtraEmptyMagazines = 128;
+
   /**
    * @brief Constructs a `ThreadMagazinePool` rounded up to whole `kBatchSize`
    * magazines.
    * @param min_capacity Minimum number of object slots to pre-allocate.
    */
-  static constexpr std::size_t kExtraEmptyMagazines = 128;
-
   explicit ThreadMagazinePool(std::size_t min_capacity) noexcept
       : magazine_count_((min_capacity + kBatchSize - 1) / kBatchSize + 16),
         total_mag_headers_(magazine_count_ + kExtraEmptyMagazines),
@@ -705,12 +760,16 @@ class ThreadMagazinePool {
     cache.free_mag_->slots[cache.free_mag_->count++] = slot;
   }
 
-  /** @brief Returns total slot capacity across all pre-allocated magazines. */
+  /**
+   * @brief Returns total slot capacity across all pre-allocated magazines.
+   * @return Total number of pre-allocated object slots.
+   */
   [[nodiscard]] std::size_t Capacity() const noexcept { return capacity_; }
 
   /**
    * @brief Returns number of slots currently sitting in the central depot
    * (note: slots held inside active `LocalCache`s count once flushed).
+   * @return Currently available slot count in the central depot.
    */
   [[nodiscard]] std::size_t DepotAvailableSlots() const noexcept {
     return available_slots_.load(std::memory_order_acquire);
@@ -807,17 +866,26 @@ class CountingMemoryResource final : public std::pmr::memory_resource {
     bytes_allocated_.store(0, std::memory_order_relaxed);
   }
 
-  /** @brief Returns total upstream `allocate()` calls observed. */
+  /**
+   * @brief Returns total upstream `allocate()` calls observed.
+   * @return Cumulative allocation count.
+   */
   [[nodiscard]] std::size_t alloc_count() const noexcept {
     return alloc_count_.load(std::memory_order_relaxed);
   }
 
-  /** @brief Returns total upstream `deallocate()` calls observed. */
+  /**
+   * @brief Returns total upstream `deallocate()` calls observed.
+   * @return Cumulative deallocation count.
+   */
   [[nodiscard]] std::size_t dealloc_count() const noexcept {
     return dealloc_count_.load(std::memory_order_relaxed);
   }
 
-  /** @brief Returns total upstream bytes allocated. */
+  /**
+   * @brief Returns total upstream bytes allocated.
+   * @return Cumulative allocated byte count.
+   */
   [[nodiscard]] std::size_t bytes_allocated() const noexcept {
     return bytes_allocated_.load(std::memory_order_relaxed);
   }
@@ -957,25 +1025,49 @@ class HeapAgingScenario {
   HeapAgingScenario(const HeapAgingScenario&) = delete;
   HeapAgingScenario& operator=(const HeapAgingScenario&) = delete;
 
-  /** @brief Head of fresh startup heap chain. */
+  /**
+   * @brief Returns head of the fresh startup heap order chain.
+   * @return Const pointer to first `OrderNode` in the fresh heap chain.
+   */
   [[nodiscard]] const OrderNode* fresh_head() const noexcept {
     return fresh_head_;
   }
-  /** @brief Head of aged fragmented heap chain. */
+
+  /**
+   * @brief Returns head of the aged fragmented heap order chain.
+   * @return Const pointer to first `OrderNode` in the aged heap chain.
+   */
   [[nodiscard]] const OrderNode* aged_head() const noexcept {
     return aged_head_;
   }
-  /** @brief Head of churned `FixedSlabPool<OrderNode>` chain. */
+
+  /**
+   * @brief Returns head of the churned `FixedSlabPool<OrderNode>` chain.
+   * @return Const pointer to first `OrderNode` in the slab chain.
+   */
   [[nodiscard]] const OrderNode* slab_head() const noexcept {
     return slab_head_;
   }
-  /** @brief Head of compacted `BumpArena` chain. */
+
+  /**
+   * @brief Returns head of the compacted `BumpArena` chain.
+   * @return Const pointer to first `OrderNode` in the bump-arena chain.
+   */
   [[nodiscard]] const OrderNode* arena_head() const noexcept {
     return arena_head_;
   }
-  /** @brief Head of chained `std::pmr::unsynchronized_pool_resource` chain. */
+
+  /**
+   * @brief Returns head of the chained `std::pmr::unsynchronized_pool_resource`
+   *        order chain.
+   * @return Const pointer to first `OrderNode` in the PMR pool chain.
+   */
   [[nodiscard]] const OrderNode* pmr_head() const noexcept { return pmr_head_; }
-  /** @brief Number of live orders in each chain. */
+
+  /**
+   * @brief Returns number of live orders in each benchmark chain.
+   * @return Order count per chain.
+   */
   [[nodiscard]] std::size_t order_count() const noexcept {
     return order_count_;
   }

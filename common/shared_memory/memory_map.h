@@ -96,12 +96,15 @@ class MemoryMap {
   ~MemoryMap();
 
   /**
-   * @brief Move constructor.
+   * @brief Move constructor transferring mapping ownership.
+   * @param other Source MemoryMap whose handle and mapping are transferred.
    */
   MemoryMap(MemoryMap&& other) noexcept;
 
   /**
-   * @brief Move assignment operator.
+   * @brief Move assignment operator transferring mapping ownership.
+   * @param other Source MemoryMap whose handle and mapping are transferred.
+   * @return Reference to this MemoryMap instance.
    */
   MemoryMap& operator=(MemoryMap&& other) noexcept;
 

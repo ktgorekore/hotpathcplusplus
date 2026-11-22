@@ -104,11 +104,19 @@ static_assert(std::is_trivially_copyable_v<RouteEntry>,
  */
 class alignas(kCacheLineBytes) SharedMutexRouteCache {
  public:
+  /**
+   * @brief Replaces the routing entry under an exclusive writer lock.
+   * @param next Updated routing entry snapshot.
+   */
   void Write(const RouteEntry& next) noexcept {
     std::unique_lock<std::shared_mutex> wl(rw_mtx_);
     entry_ = next;
   }
 
+  /**
+   * @brief Reads the current routing entry under a shared reader lock.
+   * @return Copy of the current routing entry.
+   */
   [[nodiscard]] RouteEntry Read() const noexcept {
     std::shared_lock<std::shared_mutex> rl(rw_mtx_);
     return entry_;
@@ -126,11 +134,19 @@ class alignas(kCacheLineBytes) SharedMutexRouteCache {
  */
 class alignas(kCacheLineBytes) MutexRouteCache {
  public:
+  /**
+   * @brief Replaces the routing entry under an exclusive mutex lock.
+   * @param next Updated routing entry snapshot.
+   */
   void Write(const RouteEntry& next) noexcept {
     std::lock_guard<std::mutex> lg(mtx_);
     entry_ = next;
   }
 
+  /**
+   * @brief Reads the current routing entry under an exclusive mutex lock.
+   * @return Copy of the current routing entry.
+   */
   [[nodiscard]] RouteEntry Read() const noexcept {
     std::lock_guard<std::mutex> lg(mtx_);
     return entry_;
@@ -152,6 +168,10 @@ class alignas(kCacheLineBytes) MutexRouteCache {
  */
 class alignas(kCacheLineBytes) SeqlockRouteCache {
  public:
+  /**
+   * @brief Publishes a new routing entry using odd/even sequence fencing.
+   * @param next Updated routing entry snapshot.
+   */
   void Write(const RouteEntry& next) noexcept {
     const std::uint64_t s = seq_.load(std::memory_order_relaxed);
     seq_.store(s + 1, std::memory_order_release);  // Odd = writer active
@@ -161,6 +181,10 @@ class alignas(kCacheLineBytes) SeqlockRouteCache {
     seq_.store(s + 2, std::memory_order_release);  // Even = consistent
   }
 
+  /**
+   * @brief Performs a wait-free optimistic read, retrying if a writer races.
+   * @return Tear-free snapshot of the current routing entry.
+   */
   [[nodiscard]] RouteEntry Read() const noexcept {
     RouteEntry copy;
     std::uint64_t s0 = 0;
@@ -202,6 +226,10 @@ class ShardedHashMap {
                 "NumShards must be a power of two.");
 
  public:
+  /**
+   * @struct MapShard
+   * @brief Cache-line-isolated hash table shard guarded by a dedicated mutex.
+   */
   struct alignas(kCacheLineBytes) MapShard {
     std::mutex mtx;
     std::array<std::uint64_t, 16> buckets{};
@@ -298,11 +326,13 @@ struct alignas(kCacheLineBytes) ProtectedState {
 struct alignas(kCacheLineBytes) NaiveTASLock {
   std::atomic_flag flag = ATOMIC_FLAG_INIT;
 
+  /** @brief Acquires the spinlock via unconditional `test_and_set` RMWs. */
   void lock() noexcept {
     while (flag.test_and_set(std::memory_order_acquire)) {
     }
   }
 
+  /** @brief Releases the spinlock with release memory ordering. */
   void unlock() noexcept { flag.clear(std::memory_order_release); }
 };
 
@@ -315,6 +345,7 @@ struct alignas(kCacheLineBytes) NaiveTASLock {
 struct alignas(kCacheLineBytes) TTASNoPauseLock {
   std::atomic<bool> locked{false};
 
+  /** @brief Acquires the spinlock by polling in `Shared (S)` without PAUSE. */
   void lock() noexcept {
     for (;;) {
       if (!locked.load(std::memory_order_relaxed) &&
@@ -326,6 +357,7 @@ struct alignas(kCacheLineBytes) TTASNoPauseLock {
     }
   }
 
+  /** @brief Releases the spinlock with release memory ordering. */
   void unlock() noexcept { locked.store(false, std::memory_order_release); }
 };
 
@@ -337,6 +369,8 @@ struct alignas(kCacheLineBytes) TTASNoPauseLock {
 struct alignas(kCacheLineBytes) TTASPauseLock {
   std::atomic<bool> locked{false};
 
+  /** @brief Acquires the spinlock using `Shared (S)` polling + `_mm_pause()`.
+   */
   void lock() noexcept {
     for (;;) {
       if (!locked.load(std::memory_order_relaxed) &&
@@ -349,6 +383,7 @@ struct alignas(kCacheLineBytes) TTASPauseLock {
     }
   }
 
+  /** @brief Releases the spinlock with release memory ordering. */
   void unlock() noexcept { locked.store(false, std::memory_order_release); }
 };
 
@@ -359,7 +394,10 @@ struct alignas(kCacheLineBytes) TTASPauseLock {
 struct alignas(kCacheLineBytes) StdMutexWrapper {
   std::mutex mtx;
 
+  /** @brief Acquires the wrapped `std::mutex`. */
   void lock() noexcept { mtx.lock(); }
+
+  /** @brief Releases the wrapped `std::mutex`. */
   void unlock() noexcept { mtx.unlock(); }
 };
 
@@ -374,6 +412,7 @@ struct alignas(kCacheLineBytes) StdMutexWrapper {
 struct alignas(kCacheLineBytes) RawFutexMutex {
   std::atomic<std::uint32_t> state{0};
 
+  /** @brief Acquires the futex via Ring-3 CAS fast path or `FUTEX_WAIT`. */
   void lock() noexcept {
     std::uint32_t c = 0;
     if (state.compare_exchange_strong(c, 1, std::memory_order_acquire,
@@ -390,6 +429,7 @@ struct alignas(kCacheLineBytes) RawFutexMutex {
     }
   }
 
+  /** @brief Releases the futex and wakes one waiter if state was contended. */
   void unlock() noexcept {
     if (state.exchange(0, std::memory_order_release) == 2) {
       syscall(SYS_futex, reinterpret_cast<std::uint32_t*>(&state),
@@ -406,6 +446,7 @@ struct alignas(kCacheLineBytes) RawFutexMutex {
 struct alignas(kCacheLineBytes) AdaptiveFutexMutex {
   std::atomic<std::uint32_t> state{0};
 
+  /** @brief Acquires the lock with bounded spinning before `FUTEX_WAIT`. */
   void lock() noexcept {
     std::uint32_t c = 0;
     if (state.compare_exchange_strong(c, 1, std::memory_order_acquire,
@@ -432,6 +473,7 @@ struct alignas(kCacheLineBytes) AdaptiveFutexMutex {
     }
   }
 
+  /** @brief Releases the lock and wakes one parked waiter if contended. */
   void unlock() noexcept {
     if (state.exchange(0, std::memory_order_release) == 2) {
       syscall(SYS_futex, reinterpret_cast<std::uint32_t*>(&state),
@@ -448,6 +490,7 @@ struct alignas(kCacheLineBytes) AdaptiveFutexMutex {
 struct alignas(kCacheLineBytes) Cpp20AtomicWaitLock {
   std::atomic<std::uint32_t> state{0};
 
+  /** @brief Acquires the lock via bounded spin followed by `atomic::wait`. */
   void lock() noexcept {
     std::uint32_t c = 0;
     if (state.compare_exchange_strong(c, 1, std::memory_order_acquire,
@@ -473,6 +516,7 @@ struct alignas(kCacheLineBytes) Cpp20AtomicWaitLock {
     }
   }
 
+  /** @brief Releases the lock and invokes `notify_one()` if contended. */
   void unlock() noexcept {
     if (state.exchange(0, std::memory_order_release) == 2) {
       state.notify_one();

@@ -76,6 +76,7 @@ class ShardedCounter {
                 "NumShards must be a power of two.");
 
  public:
+  /** @brief Constructs a zero-initialized sharded counter. */
   ShardedCounter() = default;
 
   /**
@@ -125,6 +126,7 @@ class ShardedCounter {
 template <std::uint64_t BatchSize = 64>
 class BatchedIdGenerator {
  public:
+  /** @brief Constructs a batched ID generator starting at watermark 0. */
   BatchedIdGenerator() = default;
 
   /**
@@ -289,6 +291,7 @@ struct alignas(kCacheLineBytes) SharedOrderBookLedger {
  */
 class alignas(kCacheLineBytes) NaiveCasSpinlock {
  public:
+  /** @brief Constructs an unlocked naive CAS spinlock. */
   NaiveCasSpinlock() = default;
 
   /**
@@ -321,6 +324,7 @@ class alignas(kCacheLineBytes) NaiveCasSpinlock {
  */
 class alignas(kCacheLineBytes) ReadBeforeCasSpinlock {
  public:
+  /** @brief Constructs an unlocked TTAS spinlock. */
   ReadBeforeCasSpinlock() = default;
 
   /**

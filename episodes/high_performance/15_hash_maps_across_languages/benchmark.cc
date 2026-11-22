@@ -81,6 +81,10 @@ const absl::flat_hash_map<std::uint64_t, std::uint64_t>& GetAgedAbslSparse() {
   return map;
 }
 
+/**
+ * @brief Battle 1 (L1): 80/20 hit/miss lookup on 1K-entry `std::unordered_map`.
+ * @param state Google Benchmark runner state.
+ */
 void BM_Battle1_L1_StdUnorderedMap_80_20(benchmark::State& state) {
   const auto& ds = GetL1Dataset();
   const auto& map = GetL1StdPacked();
@@ -94,6 +98,11 @@ void BM_Battle1_L1_StdUnorderedMap_80_20(benchmark::State& state) {
 }
 BENCHMARK(BM_Battle1_L1_StdUnorderedMap_80_20);
 
+/**
+ * @brief Battle 1 (L1): 80/20 hit/miss lookup on 1K-entry
+ * `absl::flat_hash_map`.
+ * @param state Google Benchmark runner state.
+ */
 void BM_Battle1_L1_AbslFlatHashMap_80_20(benchmark::State& state) {
   const auto& ds = GetL1Dataset();
   const auto& map = GetL1AbslPacked();
@@ -107,6 +116,10 @@ void BM_Battle1_L1_AbslFlatHashMap_80_20(benchmark::State& state) {
 }
 BENCHMARK(BM_Battle1_L1_AbslFlatHashMap_80_20);
 
+/**
+ * @brief Battle 1 (Aged 2M): 80/20 lookup on fragmented `std::unordered_map`.
+ * @param state Google Benchmark runner state.
+ */
 void BM_Battle1_Aged2M_StdUnorderedMap_80_20(benchmark::State& state) {
   const auto& ds = GetAgedDataset();
   const auto& map = GetAgedStdPacked();
@@ -120,6 +133,10 @@ void BM_Battle1_Aged2M_StdUnorderedMap_80_20(benchmark::State& state) {
 }
 BENCHMARK(BM_Battle1_Aged2M_StdUnorderedMap_80_20);
 
+/**
+ * @brief Battle 1 (Aged 2M): 80/20 lookup on aged `absl::flat_hash_map`.
+ * @param state Google Benchmark runner state.
+ */
 void BM_Battle1_Aged2M_AbslFlatHashMap_80_20(benchmark::State& state) {
   const auto& ds = GetAgedDataset();
   const auto& map = GetAgedAbslPacked();
@@ -133,6 +150,10 @@ void BM_Battle1_Aged2M_AbslFlatHashMap_80_20(benchmark::State& state) {
 }
 BENCHMARK(BM_Battle1_Aged2M_AbslFlatHashMap_80_20);
 
+/**
+ * @brief Battle 1 (Aged 2M): 100%-miss lookup on `std::unordered_map`.
+ * @param state Google Benchmark runner state.
+ */
 void BM_Battle1_Aged2M_StdUnorderedMap_100_Miss(benchmark::State& state) {
   const auto& ds = GetAgedDataset();
   const auto& map = GetAgedStdPacked();
@@ -146,6 +167,10 @@ void BM_Battle1_Aged2M_StdUnorderedMap_100_Miss(benchmark::State& state) {
 }
 BENCHMARK(BM_Battle1_Aged2M_StdUnorderedMap_100_Miss);
 
+/**
+ * @brief Battle 1 (Aged 2M): 100%-miss lookup on `absl::flat_hash_map`.
+ * @param state Google Benchmark runner state.
+ */
 void BM_Battle1_Aged2M_AbslFlatHashMap_100_Miss(benchmark::State& state) {
   const auto& ds = GetAgedDataset();
   const auto& map = GetAgedAbslPacked();
@@ -159,6 +184,10 @@ void BM_Battle1_Aged2M_AbslFlatHashMap_100_Miss(benchmark::State& state) {
 }
 BENCHMARK(BM_Battle1_Aged2M_AbslFlatHashMap_100_Miss);
 
+/**
+ * @brief Battle 1 (Aged 2M): 24B `SessionState` lookup on `std::unordered_map`.
+ * @param state Google Benchmark runner state.
+ */
 void BM_Battle1_Aged2M_StdUnorderedMap_Session24B(benchmark::State& state) {
   const auto& ds = GetAgedDataset();
   const auto& map = GetAgedStdSession();
@@ -172,6 +201,11 @@ void BM_Battle1_Aged2M_StdUnorderedMap_Session24B(benchmark::State& state) {
 }
 BENCHMARK(BM_Battle1_Aged2M_StdUnorderedMap_Session24B);
 
+/**
+ * @brief Battle 1 (Aged 2M): 24B `SessionState` lookup on
+ * `absl::flat_hash_map`.
+ * @param state Google Benchmark runner state.
+ */
 void BM_Battle1_Aged2M_AbslFlatHashMap_Session24B(benchmark::State& state) {
   const auto& ds = GetAgedDataset();
   const auto& map = GetAgedAbslSession();
@@ -185,6 +219,10 @@ void BM_Battle1_Aged2M_AbslFlatHashMap_Session24B(benchmark::State& state) {
 }
 BENCHMARK(BM_Battle1_Aged2M_AbslFlatHashMap_Session24B);
 
+/**
+ * @brief Battle 1B: Full 2M-entry iteration sweep over `std::unordered_map`.
+ * @param state Google Benchmark runner state.
+ */
 void BM_Battle1B_IterFull2M_StdUnorderedMap(benchmark::State& state) {
   const auto& map = GetAgedStdPacked();
   for (auto _ : state) {
@@ -197,6 +235,10 @@ void BM_Battle1B_IterFull2M_StdUnorderedMap(benchmark::State& state) {
 BENCHMARK(BM_Battle1B_IterFull2M_StdUnorderedMap)
     ->Unit(benchmark::kMillisecond);
 
+/**
+ * @brief Battle 1B: Full 2M-entry iteration sweep over `absl::flat_hash_map`.
+ * @param state Google Benchmark runner state.
+ */
 void BM_Battle1B_IterFull2M_AbslFlatHashMap(benchmark::State& state) {
   const auto& map = GetAgedAbslPacked();
   for (auto _ : state) {
@@ -209,6 +251,11 @@ void BM_Battle1B_IterFull2M_AbslFlatHashMap(benchmark::State& state) {
 BENCHMARK(BM_Battle1B_IterFull2M_AbslFlatHashMap)
     ->Unit(benchmark::kMillisecond);
 
+/**
+ * @brief Battle 1B: Post-90%-eviction 200K sparse sweep over
+ *        `std::unordered_map`.
+ * @param state Google Benchmark runner state.
+ */
 void BM_Battle1B_IterSparse200K_StdUnorderedMap(benchmark::State& state) {
   const auto& map = GetAgedStdSparse();
   for (auto _ : state) {
@@ -221,6 +268,11 @@ void BM_Battle1B_IterSparse200K_StdUnorderedMap(benchmark::State& state) {
 BENCHMARK(BM_Battle1B_IterSparse200K_StdUnorderedMap)
     ->Unit(benchmark::kMillisecond);
 
+/**
+ * @brief Battle 1B: Post-90%-eviction 200K sparse sweep over
+ *        `absl::flat_hash_map`.
+ * @param state Google Benchmark runner state.
+ */
 void BM_Battle1B_IterSparse200K_AbslFlatHashMap(benchmark::State& state) {
   const auto& map = GetAgedAbslSparse();
   for (auto _ : state) {
@@ -233,6 +285,10 @@ void BM_Battle1B_IterSparse200K_AbslFlatHashMap(benchmark::State& state) {
 BENCHMARK(BM_Battle1B_IterSparse200K_AbslFlatHashMap)
     ->Unit(benchmark::kMillisecond);
 
+/**
+ * @brief Battle 2: Unreserved 0 -> 2M insertions into `std::unordered_map`.
+ * @param state Google Benchmark runner state.
+ */
 void BM_Battle2_Insert2M_StdUnorderedMap_Unreserved(benchmark::State& state) {
   const auto& ds = GetAgedDataset();
   for (auto _ : state) {
@@ -248,6 +304,10 @@ void BM_Battle2_Insert2M_StdUnorderedMap_Unreserved(benchmark::State& state) {
 BENCHMARK(BM_Battle2_Insert2M_StdUnorderedMap_Unreserved)
     ->Unit(benchmark::kMillisecond);
 
+/**
+ * @brief Battle 2: Pre-reserved 0 -> 2M insertions into `std::unordered_map`.
+ * @param state Google Benchmark runner state.
+ */
 void BM_Battle2_Insert2M_StdUnorderedMap_Reserved(benchmark::State& state) {
   const auto& ds = GetAgedDataset();
   for (auto _ : state) {
@@ -264,6 +324,10 @@ void BM_Battle2_Insert2M_StdUnorderedMap_Reserved(benchmark::State& state) {
 BENCHMARK(BM_Battle2_Insert2M_StdUnorderedMap_Reserved)
     ->Unit(benchmark::kMillisecond);
 
+/**
+ * @brief Battle 2: Unreserved 0 -> 2M insertions into `absl::flat_hash_map`.
+ * @param state Google Benchmark runner state.
+ */
 void BM_Battle2_Insert2M_AbslFlatHashMap_Unreserved(benchmark::State& state) {
   const auto& ds = GetAgedDataset();
   for (auto _ : state) {
@@ -279,6 +343,10 @@ void BM_Battle2_Insert2M_AbslFlatHashMap_Unreserved(benchmark::State& state) {
 BENCHMARK(BM_Battle2_Insert2M_AbslFlatHashMap_Unreserved)
     ->Unit(benchmark::kMillisecond);
 
+/**
+ * @brief Battle 2: Pre-reserved 0 -> 2M insertions into `absl::flat_hash_map`.
+ * @param state Google Benchmark runner state.
+ */
 void BM_Battle2_Insert2M_AbslFlatHashMap_Reserved(benchmark::State& state) {
   const auto& ds = GetAgedDataset();
   for (auto _ : state) {
@@ -295,6 +363,11 @@ void BM_Battle2_Insert2M_AbslFlatHashMap_Reserved(benchmark::State& state) {
 BENCHMARK(BM_Battle2_Insert2M_AbslFlatHashMap_Reserved)
     ->Unit(benchmark::kMillisecond);
 
+/**
+ * @brief Battle 3: Adversarial 40K prime-multiple HashDoS on
+ *        `std::unordered_map`.
+ * @param state Google Benchmark runner state.
+ */
 void BM_Battle3_HashDos40K_StdUnorderedMap(benchmark::State& state) {
   std::uint64_t prime = 0;
   const std::vector<std::uint64_t> dos_keys =
@@ -312,6 +385,11 @@ void BM_Battle3_HashDos40K_StdUnorderedMap(benchmark::State& state) {
 }
 BENCHMARK(BM_Battle3_HashDos40K_StdUnorderedMap)->Unit(benchmark::kMillisecond);
 
+/**
+ * @brief Battle 3: Adversarial 40K prime-multiple HashDoS on salted
+ *        `absl::flat_hash_map`.
+ * @param state Google Benchmark runner state.
+ */
 void BM_Battle3_HashDos40K_AbslFlatHashMap(benchmark::State& state) {
   std::uint64_t prime = 0;
   const std::vector<std::uint64_t> dos_keys =

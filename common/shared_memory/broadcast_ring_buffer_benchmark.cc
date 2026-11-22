@@ -12,6 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+/**
+ * @file broadcast_ring_buffer_benchmark.cc
+ * @brief Google Benchmark suite for the Magic-Mirror zero-copy SPMC
+ *        `BroadcastRingBuffer`.
+ */
+
 #include <unistd.h>
 
 #include <cstring>
@@ -25,9 +31,20 @@
 
 namespace cognitas::trading {
 
+/**
+ * @class BroadcastRingBufferBenchmark
+ * @brief Google Benchmark fixture provisioning paired producer and consumer
+ *        `BroadcastRingBuffer` instances backed by POSIX shared memory.
+ */
 class BroadcastRingBufferBenchmark : public benchmark::Fixture {
  public:
-  void SetUp(const ::benchmark::State&) override {
+  /**
+   * @brief Creates a fresh 16 MiB page-aligned shared memory ring buffer and
+   *        attaches a read-only consumer instance.
+   * @param state Google Benchmark runner state (unused).
+   */
+  void SetUp(const ::benchmark::State& state) override {
+    (void)state;
     shm_name_ = "/bench_shm_" + std::to_string(getpid());
     BroadcastRingBuffer::Unlink(shm_name_).IgnoreError();
     // 16MB buffer (Page aligned)
@@ -47,7 +64,12 @@ class BroadcastRingBufferBenchmark : public benchmark::Fixture {
     consumer_ = std::move(*consumer_res);
   }
 
-  void TearDown(const ::benchmark::State&) override {
+  /**
+   * @brief Tears down producer/consumer mappings and unlinks shared memory.
+   * @param state Google Benchmark runner state (unused).
+   */
+  void TearDown(const ::benchmark::State& state) override {
+    (void)state;
     producer_.reset();
     consumer_.reset();
     BroadcastRingBuffer::Unlink(shm_name_).IgnoreError();
@@ -58,6 +80,10 @@ class BroadcastRingBufferBenchmark : public benchmark::Fixture {
   std::unique_ptr<BroadcastRingBuffer> consumer_;
 };
 
+/**
+ * @brief Benchmarks isolated producer `Reserve` + `memcpy` + `Commit` latency.
+ * @param state Google Benchmark state carrying payload byte size in `range(0)`.
+ */
 BENCHMARK_DEFINE_F(BroadcastRingBufferBenchmark, Produce)
 (benchmark::State& state) {
   std::string payload(state.range(0), 'X');
@@ -85,6 +111,11 @@ BENCHMARK_DEFINE_F(BroadcastRingBufferBenchmark, Produce)
 }
 BENCHMARK_REGISTER_F(BroadcastRingBufferBenchmark, Produce)->Range(8, 8 << 10);
 
+/**
+ * @brief Benchmarks single-message zero-copy produce + `PollZeroCopy` +
+ *        `Advance` round-trip latency across the Magic Mirror mapping.
+ * @param state Google Benchmark state carrying payload byte size in `range(0)`.
+ */
 BENCHMARK_DEFINE_F(BroadcastRingBufferBenchmark, RoundTripZeroCopy)
 (benchmark::State& state) {
   std::string payload(state.range(0), 'X');
@@ -122,6 +153,10 @@ BENCHMARK_DEFINE_F(BroadcastRingBufferBenchmark, RoundTripZeroCopy)
 BENCHMARK_REGISTER_F(BroadcastRingBufferBenchmark, RoundTripZeroCopy)
     ->Range(8, 8 << 10);
 
+/**
+ * @brief Benchmarks batched zero-copy consumption of 100 pre-published frames.
+ * @param state Google Benchmark state carrying payload byte size in `range(0)`.
+ */
 BENCHMARK_DEFINE_F(BroadcastRingBufferBenchmark, PollZeroCopyBatch)
 (benchmark::State& state) {
   std::string payload(state.range(0), 'X');
@@ -163,6 +198,10 @@ BENCHMARK_DEFINE_F(BroadcastRingBufferBenchmark, PollZeroCopyBatch)
 BENCHMARK_REGISTER_F(BroadcastRingBufferBenchmark, PollZeroCopyBatch)
     ->Range(8, 8 << 10);
 
+/**
+ * @brief Benchmarks single-message produce + safe `PollCopy` round-trip.
+ * @param state Google Benchmark state carrying payload byte size in `range(0)`.
+ */
 BENCHMARK_DEFINE_F(BroadcastRingBufferBenchmark, RoundTripCopy)
 (benchmark::State& state) {
   std::string payload(state.range(0), 'X');
@@ -202,6 +241,10 @@ BENCHMARK_DEFINE_F(BroadcastRingBufferBenchmark, RoundTripCopy)
 BENCHMARK_REGISTER_F(BroadcastRingBufferBenchmark, RoundTripCopy)
     ->Range(8, 8 << 10);
 
+/**
+ * @brief Benchmarks batched safe copy consumption of 100 pre-published frames.
+ * @param state Google Benchmark state carrying payload byte size in `range(0)`.
+ */
 BENCHMARK_DEFINE_F(BroadcastRingBufferBenchmark, PollCopyBatch)
 (benchmark::State& state) {
   std::string payload(state.range(0), 'X');

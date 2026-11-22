@@ -32,12 +32,15 @@
 #include "absl/container/flat_hash_map.h"
 #include "common/hash_maps/hash_maps_across_languages.h"
 
-int main() {
+namespace hotpath::episode15 {
+
+/**
+ * @brief Executes the live HashDoS collision comparison between
+ *        `std::unordered_map` and `absl::flat_hash_map`.
+ * @return Process exit code (0 on success).
+ */
+int RunHashDosRepro() {
   using Clock = std::chrono::steady_clock;
-  using hotpath::episode15::BuildDataset;
-  using hotpath::episode15::BuildLibstdcxxHashDosKeys;
-  using hotpath::episode15::GatewayDataset;
-  using hotpath::episode15::kNumHashDosKeys;
 
   std::uint64_t prime = 0;
   const std::vector<std::uint64_t> crafted =
@@ -90,3 +93,7 @@ int main() {
             << " ms (salted SwissTable shrugs off attack)\n";
   return 0;
 }
+
+}  // namespace hotpath::episode15
+
+int main() { return hotpath::episode15::RunHashDosRepro(); }

@@ -280,10 +280,16 @@ class OrderSlabPool {
     return slots_[index].order;
   }
 
-  /** @brief Returns total slot capacity of the pool. */
+  /**
+   * @brief Returns total slot capacity of the pool.
+   * @return Maximum number of concurrent slots.
+   */
   [[nodiscard]] std::size_t Capacity() const noexcept { return slots_.size(); }
 
-  /** @brief Returns current number of occupied order slots. */
+  /**
+   * @brief Returns current number of occupied order slots.
+   * @return Count of live allocated slots.
+   */
   [[nodiscard]] std::size_t ActiveCount() const noexcept {
     return active_count_;
   }

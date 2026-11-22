@@ -191,6 +191,7 @@ class RcuHashMap {
 
   /**
    * @brief Returns current element count.
+   * @return Approximate number of key-value entries currently stored.
    */
   size_t Size() const noexcept {
     return count_.load(std::memory_order_relaxed);

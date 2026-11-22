@@ -28,6 +28,11 @@ namespace cognitas::trading {
  */
 struct EbrNode {
   EbrNode* next_retired = nullptr;
+
+  /**
+   * @brief Virtual destructor ensuring derived nodes clean up properly upon
+   *        deferred EBR reclamation.
+   */
   virtual ~EbrNode() = default;
 };
 
@@ -89,7 +94,14 @@ class EpochBasedReclamation {
  */
 class EbrGuard {
  public:
+  /**
+   * @brief Enters an EBR read-side critical section for the guard lifetime.
+   */
   EbrGuard() noexcept { EpochBasedReclamation::EnterCritical(); }
+
+  /**
+   * @brief Exits the EBR read-side critical section upon scope exit.
+   */
   ~EbrGuard() noexcept { EpochBasedReclamation::ExitCritical(); }
 
   EbrGuard(const EbrGuard&) = delete;

@@ -116,6 +116,9 @@ struct Event {
         std::uint8_t t) noexcept
       : price(p), qty(q), symbol_id(s), type_tag(t) {}
 
+  /**
+   * @brief Virtual destructor for safe polymorphic event deletion.
+   */
   virtual ~Event() = default;
 
   /**

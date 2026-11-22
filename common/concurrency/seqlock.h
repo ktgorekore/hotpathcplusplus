@@ -63,6 +63,9 @@ class alignas(64) SeqLock {
    */
   explicit SeqLock(uint64_t initial_seq = 0) : sequence_(initial_seq) {}
 
+  /**
+   * @brief Default destructor.
+   */
   ~SeqLock() = default;
 
   // Non-copyable, non-movable to protect atomic state
@@ -124,6 +127,7 @@ class alignas(64) SeqLock {
   /**
    * @brief Returns the raw current sequence value without ordering fences.
    * Useful for diagnostics and telemetry.
+   * @return Unsynchronized snapshot of the underlying 64-bit sequence counter.
    */
   [[nodiscard]] inline uint64_t RawSequence() const noexcept {
     return sequence_.load(std::memory_order_relaxed);

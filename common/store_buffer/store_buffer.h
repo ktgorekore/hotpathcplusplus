@@ -59,6 +59,7 @@ class SpscRingBuffer {
                 "Capacity must be a power of two.");
 
  public:
+  /** @brief Constructs an empty SPSC ring buffer. */
   SpscRingBuffer() = default;
 
   /**

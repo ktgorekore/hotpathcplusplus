@@ -12,6 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+/**
+ * @file godbolt_source.cc
+ * @brief Self-contained Compiler Explorer (Godbolt) comparison contrasting
+ *        x86-64 disassembly for naive TAS spinlocks, TTAS + PAUSE spinlocks,
+ *        and the 3-state Linux futex fast/slow path.
+ */
+
 #include <immintrin.h>
 #include <linux/futex.h>
 #include <sys/syscall.h>
@@ -20,13 +27,20 @@
 #include <atomic>
 #include <cstdint>
 
-// 1. Naive 3-Line TAS Spinlock -> Emits locked `xchg` on EVERY failed spin!
+/**
+ * @brief Naive 3-line TAS spinlock emitting locked `xchg` on every failed spin.
+ * @param flag Shared atomic lock flag.
+ */
 void LockNaiveTAS(std::atomic_flag& flag) noexcept {
   while (flag.test_and_set(std::memory_order_acquire)) {
   }
 }
 
-// 2. Hardware-Sympathetic TTAS Spinlock -> Spins in Shared (S) + x86 PAUSE!
+/**
+ * @brief Hardware-sympathetic TTAS spinlock polling in MESI Shared (S) state
+ *        with x86 `PAUSE` backoff.
+ * @param locked Shared atomic lock boolean.
+ */
 void LockTTASPause(std::atomic<bool>& locked) noexcept {
   for (;;) {
     if (!locked.exchange(true, std::memory_order_acquire)) return;
@@ -36,7 +50,11 @@ void LockTTASPause(std::atomic<bool>& locked) noexcept {
   }
 }
 
-// 3. 3-State Linux futex Fast/Slow Path (Inside std::mutex / pthread_mutex)
+/**
+ * @brief Acquires a 3-state Linux futex via Ring-3 CAS fast path or Ring-0
+ *        `FUTEX_WAIT_PRIVATE` slow path.
+ * @param state Shared 3-state futex word (0=unlocked, 1=locked, 2=contended).
+ */
 void LockRawFutex(std::atomic<uint32_t>& state) noexcept {
   uint32_t expected = 0;
   // Stage 1: Ring 3 Userspace Fast Path (lock cmpxchg 0 -> 1, 0 Syscalls!)
@@ -55,6 +73,11 @@ void LockRawFutex(std::atomic<uint32_t>& state) noexcept {
   }
 }
 
+/**
+ * @brief Releases a 3-state Linux futex, invoking `FUTEX_WAKE_PRIVATE` only
+ *        when waiters are parked (prior state == 2).
+ * @param state Shared 3-state futex word.
+ */
 void UnlockRawFutex(std::atomic<uint32_t>& state) noexcept {
   // Fast Path: If old state was 1 (no sleepers), skip sys_futex completely!
   if (state.exchange(0, std::memory_order_release) == 2) {

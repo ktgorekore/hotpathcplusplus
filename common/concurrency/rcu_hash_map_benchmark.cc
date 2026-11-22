@@ -52,6 +52,11 @@ static LockedStdMap& GetLockedStdMap() {
   return instance;
 }
 
+/**
+ * @brief Benchmarks concurrent read lookups on `std::unordered_map` protected
+ *        by `std::shared_mutex`.
+ * @param state Google Benchmark runner state.
+ */
 void BM_StdUnorderedMap_SharedMutex_Reads(benchmark::State& state) {
   auto& fixture = GetLockedStdMap();
   std::mt19937 rng(1337 + state.thread_index());
@@ -89,6 +94,11 @@ static LockedAbslMap& GetLockedAbslMap() {
   return instance;
 }
 
+/**
+ * @brief Benchmarks concurrent read lookups on `absl::flat_hash_map` protected
+ *        by `absl::Mutex` reader locks.
+ * @param state Google Benchmark runner state.
+ */
 void BM_AbslFlatHashMap_AbslMutex_Reads(benchmark::State& state) {
   auto& fixture = GetLockedAbslMap();
   std::mt19937 rng(1337 + state.thread_index());
@@ -124,6 +134,11 @@ static RcuMapFixture& GetRcuMapFixture() {
   return instance;
 }
 
+/**
+ * @brief Benchmarks wait-free multi-threaded read lookups on `RcuHashMap`
+ *        backed by Epoch-Based Reclamation (EBR).
+ * @param state Google Benchmark runner state.
+ */
 void BM_RcuHashMap_WaitFree_Reads(benchmark::State& state) {
   auto& fixture = GetRcuMapFixture();
   EpochBasedReclamation::RegisterThread();

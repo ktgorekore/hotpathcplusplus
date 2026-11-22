@@ -278,6 +278,9 @@ class BroadcastRingBuffer {
    */
   static absl::Status Unlink(const std::string& name);
 
+  /**
+   * @brief Default destructor releasing owned shared memory mappings.
+   */
   ~BroadcastRingBuffer() = default;
 
   // --- PRODUCER API ---
@@ -337,7 +340,8 @@ class BroadcastRingBuffer {
    *
    * @param reader The consumer's reader state.
    * @param header_out Reference to store the parsed FrameHeader.
-   * @return A StatusOr containing a SafeMessage with the copied payload.
+   * @param msg_out Destination SafeMessage populated with the copied payload.
+   * @return absl::Status Ok on success, or an error/unavailable status.
    */
   absl::Status PollCopy(BroadcastReader& reader, FrameHeader& header_out,
                         SafeMessage& msg_out);

@@ -72,6 +72,8 @@ BENCHMARK(BM_DeadCode_Eliminated);
  *
  * Informs the compiler that `sum` must be preserved in a register or memory,
  * reflecting true computation latency.
+ *
+ * @param state Google Benchmark runner state.
  */
 static void BM_DeadCode_DoNotOptimize(benchmark::State& state) {
   for (auto _ : state) {
@@ -87,6 +89,8 @@ BENCHMARK(BM_DeadCode_DoNotOptimize);
 /**
  * @brief Forcing value materialization with ForceOptimizationBarrier inline
  * assembly.
+ *
+ * @param state Google Benchmark runner state.
  */
 static void BM_DeadCode_ForceBarrier(benchmark::State& state) {
   for (auto _ : state) {
@@ -190,6 +194,8 @@ BENCHMARK(BM_Branch_BranchlessCmov);
 
 /**
  * @brief Pointer chasing through a random cyclic ring of arbitrary memory size.
+ * @param state Google Benchmark runner state.
+ * @param buffer_bytes Working-set size of the cyclic index ring in bytes.
  */
 static void RunPointerChase(benchmark::State& state, size_t buffer_bytes) {
   const auto ring =
@@ -205,25 +211,37 @@ static void RunPointerChase(benchmark::State& state, size_t buffer_bytes) {
   state.SetItemsProcessed(state.iterations() * 100);
 }
 
-// 16 KiB fits inside L1 Data Cache (typically 32-48 KiB)
+/**
+ * @brief Benchmarks L1 data cache latency using a 16 KiB pointer-chase ring.
+ * @param state Google Benchmark runner state.
+ */
 static void BM_Cache_L1Resident(benchmark::State& state) {
   RunPointerChase(state, 16 * 1024);
 }
 BENCHMARK(BM_Cache_L1Resident);
 
-// 256 KiB fits inside L2 Cache (typically 512-1024 KiB)
+/**
+ * @brief Benchmarks L2 cache latency using a 256 KiB pointer-chase ring.
+ * @param state Google Benchmark runner state.
+ */
 static void BM_Cache_L2Resident(benchmark::State& state) {
   RunPointerChase(state, 256 * 1024);
 }
 BENCHMARK(BM_Cache_L2Resident);
 
-// 8 MiB fits inside L3 Cache (typically 16-64 MiB)
+/**
+ * @brief Benchmarks L3 cache latency using an 8 MiB pointer-chase ring.
+ * @param state Google Benchmark runner state.
+ */
 static void BM_Cache_L3Resident(benchmark::State& state) {
   RunPointerChase(state, 8 * 1024 * 1024);
 }
 BENCHMARK(BM_Cache_L3Resident);
 
-// 64 MiB spills to DRAM (Main Memory Wall)
+/**
+ * @brief Benchmarks main DRAM latency using a 64 MiB pointer-chase ring.
+ * @param state Google Benchmark runner state.
+ */
 static void BM_Cache_DRAM(benchmark::State& state) {
   RunPointerChase(state, 64 * 1024 * 1024);
 }
@@ -235,6 +253,7 @@ BENCHMARK(BM_Cache_DRAM);
 
 /**
  * @brief Measures overhead of std::chrono::high_resolution_clock query.
+ * @param state Google Benchmark runner state.
  */
 static void BM_TimerOverhead_StdChrono(benchmark::State& state) {
   for (auto _ : state) {
@@ -246,6 +265,7 @@ BENCHMARK(BM_TimerOverhead_StdChrono);
 
 /**
  * @brief Measures overhead of serialized RDTSCP instruction query.
+ * @param state Google Benchmark runner state.
  */
 static void BM_TimerOverhead_RDTSCP(benchmark::State& state) {
   for (auto _ : state) {
@@ -261,6 +281,7 @@ BENCHMARK(BM_TimerOverhead_RDTSCP);
 
 /**
  * @brief Setup Overhead Trap: Dynamic memory allocation inside the hot loop.
+ * @param state Google Benchmark runner state.
  */
 static void BM_Trap_SetupAllocationPollution(benchmark::State& state) {
   for (auto _ : state) {
@@ -276,6 +297,7 @@ BENCHMARK(BM_Trap_SetupAllocationPollution);
 
 /**
  * @brief Setup Overhead Fix: Buffer allocated and pre-warmed outside the loop.
+ * @param state Google Benchmark runner state.
  */
 static void BM_Trap_SetupPreAllocated(benchmark::State& state) {
   std::vector<int64_t> buffer(1024);

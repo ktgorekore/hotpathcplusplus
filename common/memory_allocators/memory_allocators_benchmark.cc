@@ -56,7 +56,10 @@ const HeapAgingScenario& SharedAgingScenario() {
 // BATTLE 1: malloc / new Mechanics, tcache Spillover & Cross-Thread Contention
 // ============================================================================
 
-/** @brief Battle 1A: Single `new OrderNode` + `delete` (`tcache` hot hit). */
+/**
+ * @brief Battle 1A: Single `new OrderNode` + `delete` (`tcache` hot hit).
+ * @param state Google Benchmark runner state.
+ */
 void BM_Battle1A_SinglePair_StdNewDelete(benchmark::State& state) {
   PinThreadToCore(0);
   std::uint64_t seq = 1;
@@ -69,7 +72,10 @@ void BM_Battle1A_SinglePair_StdNewDelete(benchmark::State& state) {
 }
 BENCHMARK(BM_Battle1A_SinglePair_StdNewDelete);
 
-/** @brief Battle 1A: Single `FixedSlabPool::Allocate` + `Deallocate`. */
+/**
+ * @brief Battle 1A: Single `FixedSlabPool::Allocate` + `Deallocate`.
+ * @param state Google Benchmark runner state.
+ */
 void BM_Battle1A_SinglePair_FixedSlabPool(benchmark::State& state) {
   PinThreadToCore(0);
   FixedSlabPool<OrderNode> pool(1024);
@@ -83,8 +89,11 @@ void BM_Battle1A_SinglePair_FixedSlabPool(benchmark::State& state) {
 }
 BENCHMARK(BM_Battle1A_SinglePair_FixedSlabPool);
 
-/** @brief Battle 1A: Single 2-instruction `BumpArena::Create` (`Reset` outside
- * tight cap). */
+/**
+ * @brief Battle 1A: Single 2-instruction `BumpArena::Create` (`Reset` outside
+ *        tight cap).
+ * @param state Google Benchmark runner state.
+ */
 void BM_Battle1A_SingleAlloc_BumpArena(benchmark::State& state) {
   PinThreadToCore(0);
   BumpArena arena(kHugePageBytes);
@@ -105,7 +114,9 @@ BENCHMARK(BM_Battle1A_SingleAlloc_BumpArena);
 
 /**
  * @brief Battle 1B: Burst batch `new`/`delete` inside `glibc` `7`-chunk
- * `tcache` bin (`Arg(7)`) vs. spilling into `fastbins`/bins (`Arg(1024)`).
+ *        `tcache` bin (`Arg(7)`) vs. spilling into `fastbins`/bins
+ *        (`Arg(1024)`).
+ * @param state Google Benchmark runner state.
  */
 void BM_Battle1B_BatchBurst_StdNewDelete(benchmark::State& state) {
   PinThreadToCore(0);
@@ -126,7 +137,10 @@ void BM_Battle1B_BatchBurst_StdNewDelete(benchmark::State& state) {
 }
 BENCHMARK(BM_Battle1B_BatchBurst_StdNewDelete)->Arg(7)->Arg(64)->Arg(1024);
 
-/** @brief Battle 1B: Burst batch inside `FixedSlabPool<OrderNode>`. */
+/**
+ * @brief Battle 1B: Burst batch inside `FixedSlabPool<OrderNode>`.
+ * @param state Google Benchmark runner state.
+ */
 void BM_Battle1B_BatchBurst_FixedSlabPool(benchmark::State& state) {
   PinThreadToCore(0);
   const std::size_t batch = static_cast<std::size_t>(state.range(0));
@@ -147,7 +161,10 @@ void BM_Battle1B_BatchBurst_FixedSlabPool(benchmark::State& state) {
 }
 BENCHMARK(BM_Battle1B_BatchBurst_FixedSlabPool)->Arg(7)->Arg(64)->Arg(1024);
 
-/** @brief Battle 1B: Burst batch using `BumpArena` + `O(1)` `Reset()`. */
+/**
+ * @brief Battle 1B: Burst batch using `BumpArena` + `O(1)` `Reset()`.
+ * @param state Google Benchmark runner state.
+ */
 void BM_Battle1B_BatchBurst_BumpArenaReset(benchmark::State& state) {
   PinThreadToCore(0);
   const std::size_t batch = static_cast<std::size_t>(state.range(0));
@@ -168,7 +185,9 @@ BENCHMARK(BM_Battle1B_BatchBurst_BumpArenaReset)->Arg(7)->Arg(64)->Arg(1024);
 
 /**
  * @brief Battle 1C: Asymmetric 4-Producer / 4-Consumer cross-thread handoff via
- * standard `new` (Thread A) and `delete` (Thread B) over lock-free SPSC rings.
+ *        standard `new` (Thread A) and `delete` (Thread B) over lock-free SPSC
+ *        rings.
+ * @param state Google Benchmark runner state.
  */
 void BM_Battle1C_CrossThread_AsymmetricStdNewDelete(benchmark::State& state) {
   constexpr std::size_t kPairs = 4;
@@ -223,7 +242,9 @@ void BM_Battle1C_CrossThread_AsymmetricStdNewDelete(benchmark::State& state) {
 }
 BENCHMARK(BM_Battle1C_CrossThread_AsymmetricStdNewDelete)->UseManualTime();
 
-/** @brief Battle 1C: Asymmetric 4P/4C handoff using `ThreadMagazinePool<32>`.
+/**
+ * @brief Battle 1C: Asymmetric 4P/4C handoff using `ThreadMagazinePool<32>`.
+ * @param state Google Benchmark runner state.
  */
 void BM_Battle1C_CrossThread_ThreadMagazinePool(benchmark::State& state) {
   constexpr std::size_t kPairs = 4;
@@ -285,8 +306,9 @@ BENCHMARK(BM_Battle1C_CrossThread_ThreadMagazinePool)->UseManualTime();
 // BATTLE 2: Spatial Locality, Heap Aging & Node-Container Teardown Physics
 // ============================================================================
 
-/** @brief Battle 2A: Fresh startup heap scan (sequential `48B` stride
- * illusion).
+/**
+ * @brief Battle 2A: Fresh startup heap scan (sequential `48B` stride illusion).
+ * @param state Google Benchmark runner state.
  */
 void BM_Battle2A_OrderChainScan_FreshHeapIllusion(benchmark::State& state) {
   PinThreadToCore(0);
@@ -300,7 +322,10 @@ void BM_Battle2A_OrderChainScan_FreshHeapIllusion(benchmark::State& state) {
 }
 BENCHMARK(BM_Battle2A_OrderChainScan_FreshHeapIllusion);
 
-/** @brief Battle 2B: Aged fragmented heap scan (post mixed-size churn). */
+/**
+ * @brief Battle 2B: Aged fragmented heap scan (post mixed-size churn).
+ * @param state Google Benchmark runner state.
+ */
 void BM_Battle2B_OrderChainScan_AgedFragmentedHeap(benchmark::State& state) {
   PinThreadToCore(0);
   const auto& scenario = SharedAgingScenario();
@@ -313,7 +338,10 @@ void BM_Battle2B_OrderChainScan_AgedFragmentedHeap(benchmark::State& state) {
 }
 BENCHMARK(BM_Battle2B_OrderChainScan_AgedFragmentedHeap);
 
-/** @brief Battle 2C: Isolated `FixedSlabPool<OrderNode>` scan after churn. */
+/**
+ * @brief Battle 2C: Isolated `FixedSlabPool<OrderNode>` scan after churn.
+ * @param state Google Benchmark runner state.
+ */
 void BM_Battle2C_OrderChainScan_FixedSlabPool(benchmark::State& state) {
   PinThreadToCore(0);
   const auto& scenario = SharedAgingScenario();
@@ -326,7 +354,10 @@ void BM_Battle2C_OrderChainScan_FixedSlabPool(benchmark::State& state) {
 }
 BENCHMARK(BM_Battle2C_OrderChainScan_FixedSlabPool);
 
-/** @brief Battle 2D: Chained `std::pmr::unsynchronized_pool_resource` scan. */
+/**
+ * @brief Battle 2D: Chained `std::pmr::unsynchronized_pool_resource` scan.
+ * @param state Google Benchmark runner state.
+ */
 void BM_Battle2D_OrderChainScan_ChainedPmrPool(benchmark::State& state) {
   PinThreadToCore(0);
   const auto& scenario = SharedAgingScenario();
@@ -339,7 +370,10 @@ void BM_Battle2D_OrderChainScan_ChainedPmrPool(benchmark::State& state) {
 }
 BENCHMARK(BM_Battle2D_OrderChainScan_ChainedPmrPool);
 
-/** @brief Battle 2E: Compacted `BumpArena` scan (`32B` contiguous packing). */
+/**
+ * @brief Battle 2E: Compacted `BumpArena` scan (`32B` contiguous packing).
+ * @param state Google Benchmark runner state.
+ */
 void BM_Battle2E_OrderChainScan_BumpArenaCompacted(benchmark::State& state) {
   PinThreadToCore(0);
   const auto& scenario = SharedAgingScenario();
@@ -354,7 +388,9 @@ BENCHMARK(BM_Battle2E_OrderChainScan_BumpArenaCompacted);
 
 /**
  * @brief Battle 2F: Building, probing, and destroying `std::unordered_map` of
- * `4,096` orders using default global `std::allocator` (node-by-node `free`).
+ *        `4,096` orders using default global `std::allocator` (node-by-node
+ *        `free`).
+ * @param state Google Benchmark runner state.
  */
 void BM_Battle2F_UnorderedMap_StdAllocatorLifecycle(benchmark::State& state) {
   PinThreadToCore(0);
@@ -378,7 +414,9 @@ BENCHMARK(BM_Battle2F_UnorderedMap_StdAllocatorLifecycle);
 
 /**
  * @brief Battle 2G: Identical `4,096`-order `std::pmr::unordered_map` backed by
- * `unsynchronized_pool_resource` over a reused pre-faulted monotonic buffer.
+ *        `unsynchronized_pool_resource` over a reused pre-faulted monotonic
+ *        buffer.
+ * @param state Google Benchmark runner state.
  */
 void BM_Battle2G_UnorderedMap_PmrPoolOnArenaLifecycle(benchmark::State& state) {
   PinThreadToCore(0);
@@ -407,7 +445,8 @@ BENCHMARK(BM_Battle2G_UnorderedMap_PmrPoolOnArenaLifecycle);
 
 /**
  * @brief Battle 2H: Short-lived request-scoped `std::pmr::unordered_map` backed
- * directly by `monotonic_buffer_resource` (`O(1)` no-op deallocation).
+ *        directly by `monotonic_buffer_resource` (`O(1)` no-op deallocation).
+ * @param state Google Benchmark runner state.
  */
 void BM_Battle2H_UnorderedMap_PmrMonotonicWinkOut(benchmark::State& state) {
   PinThreadToCore(0);
@@ -437,7 +476,9 @@ BENCHMARK(BM_Battle2H_UnorderedMap_PmrMonotonicWinkOut);
 // BATTLE 3: Modern C++17 std::pmr Stack Buffers, Traps & Virtual Calibration
 // ============================================================================
 
-/** @brief Battle 3A: Standard `std::vector<StdVenueFill>` (`25` heap allocs).
+/**
+ * @brief Battle 3A: Standard `std::vector<StdVenueFill>` (`25` heap allocs).
+ * @param state Google Benchmark runner state.
  */
 void BM_Battle3A_SnapshotParser_StdVectorStdString(benchmark::State& state) {
   PinThreadToCore(0);
@@ -454,8 +495,10 @@ void BM_Battle3A_SnapshotParser_StdVectorStdString(benchmark::State& state) {
 }
 BENCHMARK(BM_Battle3A_SnapshotParser_StdVectorStdString);
 
-/** @brief Battle 3B: Broken `std::pmr` fill missing `allocator_type` (`24`
- * leaks).
+/**
+ * @brief Battle 3B: Broken `std::pmr` fill missing `allocator_type` (`24`
+ *        leaks).
+ * @param state Google Benchmark runner state.
  */
 void BM_Battle3B_SnapshotParser_PmrBrokenStringTrap(benchmark::State& state) {
   PinThreadToCore(0);
@@ -474,8 +517,11 @@ void BM_Battle3B_SnapshotParser_PmrBrokenStringTrap(benchmark::State& state) {
 }
 BENCHMARK(BM_Battle3B_SnapshotParser_PmrBrokenStringTrap);
 
-/** @brief Battle 3C: Allocator-aware `PmrVenueFill` on `4 KiB` stack buffer
- * (`0` heap allocs). */
+/**
+ * @brief Battle 3C: Allocator-aware `PmrVenueFill` on `4 KiB` stack buffer
+ *        (`0` heap allocs).
+ * @param state Google Benchmark runner state.
+ */
 void BM_Battle3C_SnapshotParser_PmrStackMonotonicZeroHeap(
     benchmark::State& state) {
   PinThreadToCore(0);
@@ -494,7 +540,9 @@ void BM_Battle3C_SnapshotParser_PmrStackMonotonicZeroHeap(
 }
 BENCHMARK(BM_Battle3C_SnapshotParser_PmrStackMonotonicZeroHeap);
 
-/** @brief Battle 3D: Raw inlined `BumpArena::AllocateBytes` (no virtual call).
+/**
+ * @brief Battle 3D: Raw inlined `BumpArena::AllocateBytes` (no virtual call).
+ * @param state Google Benchmark runner state.
  */
 void BM_Battle3D_DispatchCalibration_RawInlinedBumpArena(
     benchmark::State& state) {
@@ -511,7 +559,10 @@ void BM_Battle3D_DispatchCalibration_RawInlinedBumpArena(
 }
 BENCHMARK(BM_Battle3D_DispatchCalibration_RawInlinedBumpArena);
 
-/** @brief Battle 3E: `std::pmr::monotonic_buffer_resource` virtual dispatch. */
+/**
+ * @brief Battle 3E: `std::pmr::monotonic_buffer_resource` virtual dispatch.
+ * @param state Google Benchmark runner state.
+ */
 void BM_Battle3E_DispatchCalibration_PmrVirtualMonotonic(
     benchmark::State& state) {
   PinThreadToCore(0);

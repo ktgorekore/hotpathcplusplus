@@ -448,6 +448,12 @@ SharedMutexRouteCache g_shared_mutex_route_cache;
 MutexRouteCache g_mutex_route_cache;
 SeqlockRouteCache<RouteEntry> g_seqlock_route_cache;
 
+/**
+ * @brief Executes Workload A (99% read / 1% write routing cache) on `cache`.
+ * @tparam CacheType Routing cache implementation under test.
+ * @param state Google Benchmark runner state.
+ * @param cache Shared routing cache instance.
+ */
 template <typename CacheType>
 void BM_WorkloadA_RouteCache_99R1W(benchmark::State& state, CacheType& cache) {
   EnsureMultiThreadedRuntime();
@@ -472,6 +478,10 @@ void BM_WorkloadA_RouteCache_99R1W(benchmark::State& state, CacheType& cache) {
   state.SetItemsProcessed(state.iterations());
 }
 
+/**
+ * @brief Benchmarks 16-thread 99R/1W routing cache using `std::shared_mutex`.
+ * @param state Google Benchmark runner state.
+ */
 void BM_RouteCache_SharedMutex_16T(benchmark::State& state) {
   BM_WorkloadA_RouteCache_99R1W(state, g_shared_mutex_route_cache);
 }
@@ -480,6 +490,11 @@ BENCHMARK(BM_RouteCache_SharedMutex_16T)
     ->Threads(16)
     ->UseRealTime();
 
+/**
+ * @brief Benchmarks 16-thread 99R/1W routing cache using exclusive
+ * `std::mutex`.
+ * @param state Google Benchmark runner state.
+ */
 void BM_RouteCache_ExclusiveMutex_16T(benchmark::State& state) {
   BM_WorkloadA_RouteCache_99R1W(state, g_mutex_route_cache);
 }
@@ -488,6 +503,10 @@ BENCHMARK(BM_RouteCache_ExclusiveMutex_16T)
     ->Threads(16)
     ->UseRealTime();
 
+/**
+ * @brief Benchmarks 16-thread 99R/1W routing cache using wait-free `Seqlock`.
+ * @param state Google Benchmark runner state.
+ */
 void BM_RouteCache_Seqlock_16T(benchmark::State& state) {
   BM_WorkloadA_RouteCache_99R1W(state, g_seqlock_route_cache);
 }
@@ -496,6 +515,11 @@ BENCHMARK(BM_RouteCache_Seqlock_16T)
     ->Threads(16)
     ->UseRealTime();
 
+/**
+ * @brief Benchmarks single-threaded uncontended lock/unlock round-trip latency.
+ * @tparam LockType Lock implementation satisfying BasicLockable.
+ * @param state Google Benchmark runner state.
+ */
 template <typename LockType>
 void BM_Lock_Uncontended(benchmark::State& state) {
   EnsureMultiThreadedRuntime();
@@ -525,6 +549,10 @@ BENCHMARK_TEMPLATE(BM_Lock_Uncontended, Cpp20AtomicWaitLock)
     ->Name("BM_Lock_Uncontended/Cpp20AtomicWaitLock")
     ->UseRealTime();
 
+/**
+ * @brief Measures baseline latency of a raw `SYS_futex` Ring-0 kernel syscall.
+ * @param state Google Benchmark runner state.
+ */
 void BM_RawSyscall_Futex(benchmark::State& state) {
   EnsureMultiThreadedRuntime();
   PinThreadToCore(0);
@@ -547,6 +575,11 @@ struct alignas(256) ContendedArena {
 template <typename LockType>
 ContendedArena<LockType> g_arena;
 
+/**
+ * @brief Benchmarks 16-thread contended critical sections under `LockType`.
+ * @tparam LockType Lock implementation satisfying BasicLockable.
+ * @param state Google Benchmark runner state.
+ */
 template <typename LockType>
 void BM_Lock_Contended(benchmark::State& state) {
   EnsureMultiThreadedRuntime();
@@ -589,6 +622,10 @@ BENCHMARK_TEMPLATE(BM_Lock_Contended, Cpp20AtomicWaitLock)
 
 ShardedHashMap<64> g_sharded_map_64;
 
+/**
+ * @brief Benchmarks 16-thread mutations against a 64-shard cache-aligned map.
+ * @param state Google Benchmark runner state.
+ */
 void BM_ShardedHashMap64_16T(benchmark::State& state) {
   EnsureMultiThreadedRuntime();
   PinThreadToCore(state.thread_index());
@@ -607,6 +644,11 @@ BENCHMARK(BM_ShardedHashMap64_16T)
     ->Threads(16)
     ->UseRealTime();
 
+/**
+ * @brief Benchmarks 32-thread oversubscription preemption behavior on 16 cores.
+ * @tparam LockType Lock implementation satisfying BasicLockable.
+ * @param state Google Benchmark runner state.
+ */
 template <typename LockType>
 void BM_Spinlock_OversubscriptionCliff(benchmark::State& state) {
   EnsureMultiThreadedRuntime();
@@ -639,6 +681,10 @@ BENCHMARK_TEMPLATE(BM_Spinlock_OversubscriptionCliff, AdaptiveFutexMutex)
     ->Threads(32)
     ->UseRealTime();
 
+/**
+ * @brief Benchmarks 32-thread oversubscribed mutations on a 64-shard map.
+ * @param state Google Benchmark runner state.
+ */
 void BM_ShardedHashMap64_Oversubscribed_32T(benchmark::State& state) {
   EnsureMultiThreadedRuntime();
   PinThreadToCore(state.thread_index() % 16);

@@ -75,6 +75,15 @@ inline void ForceOptimizationBarrier(T& val) {
   asm volatile("" : "+m"(val) : : "memory");
 }
 
+/**
+ * @brief Explicit compiler optimization barrier for read-only values.
+ *
+ * Forces the compiler to materialize the const value in memory without adding
+ * synthetic CPU instructions.
+ *
+ * @tparam T Type of the value to protect.
+ * @param val Const reference to the value.
+ */
 template <typename T>
 inline void ForceOptimizationBarrier(const T& val) {
   asm volatile("" : : "m"(val) : "memory");

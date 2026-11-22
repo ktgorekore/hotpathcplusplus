@@ -31,7 +31,12 @@
 
 namespace hotpath::godbolt_ep15 {
 
-// 1. Standard C++20 node-chaining lookup (GCC libstdc++ uses identity hash).
+/**
+ * @brief Standard C++20 node-chaining lookup (libstdc++ identity hash).
+ * @param table Hash table to probe.
+ * @param key 64-bit lookup key.
+ * @return Associated value if found, or 0 otherwise.
+ */
 std::uint64_t FindStdUnorderedMap(
     const std::unordered_map<std::uint64_t, std::uint64_t>& table,
     std::uint64_t key) noexcept {
@@ -39,13 +44,21 @@ std::uint64_t FindStdUnorderedMap(
   return (it != table.end()) ? it->second : 0ULL;
 }
 
-// 2. SwissTable / hashbrown 16-slot SSE2 control-byte probe:
-//    Checks 16 H2 tags in parallel and tests for EMPTY (0x80) early exit.
+/**
+ * @struct ProbeResult
+ * @brief Result of a 16-slot SSE2 SwissTable control-byte probe.
+ */
 struct ProbeResult {
   std::uint32_t match_mask;
   bool has_empty;
 };
 
+/**
+ * @brief Probes 16 SwissTable H2 control bytes in parallel using SSE2 SIMD.
+ * @param ctrl_group Pointer to 16-byte control group.
+ * @param h2_tag 7-bit H2 fingerprint tag.
+ * @return Bitmask of matching slots and empty-slot termination indicator.
+ */
 [[nodiscard]] ProbeResult ProbeSwissGroup16(const std::int8_t* ctrl_group,
                                             std::int8_t h2_tag) noexcept {
   const __m128i ctrl =
@@ -58,17 +71,34 @@ struct ProbeResult {
   };
 }
 
+/**
+ * @brief Extracts and clears the lowest set bit from a SwissTable match mask.
+ * @param mask Non-zero bitmask updated in-place to clear the lowest set bit.
+ * @return Zero-based candidate slot index (`0..15`).
+ */
 [[nodiscard]] int NextCandidateSlot(std::uint32_t& mask) noexcept {
   const int bit = std::countr_zero(mask);
   mask &= (mask - 1U);
   return bit;
 }
 
-// 3. Hashing trade-off: 1-cycle FxHash multiply vs. SipHash-1-3 ARX round.
+/**
+ * @brief Computes a 1-cycle multiplicative FxHash digest for a 64-bit key.
+ * @param key 64-bit integer key.
+ * @return Mixed 64-bit FxHash value.
+ */
 [[nodiscard]] std::uint64_t HashFxU64(std::uint64_t key) noexcept {
   return key * 0x517cc1b727220a95ULL;
 }
 
+/**
+ * @brief Executes one SipHash-1-3 Add-Rotate-XOR (ARX) compression round.
+ * @param v0 Internal SipHash state word 0.
+ * @param v1 Internal SipHash state word 1.
+ * @param v2 Internal SipHash state word 2.
+ * @param v3 Internal SipHash state word 3.
+ * @return XOR fold of the four mixed state words.
+ */
 [[nodiscard]] std::uint64_t SipRoundMix(std::uint64_t v0, std::uint64_t v1,
                                         std::uint64_t v2,
                                         std::uint64_t v3) noexcept {
