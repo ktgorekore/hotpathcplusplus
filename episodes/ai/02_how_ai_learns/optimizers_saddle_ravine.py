@@ -13,39 +13,51 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Episode 02 Verification: Learning Rate Overflow (NaN) & Momentum Ravine Physics.
+"""Episode 02 Verification: Learning Rate Overflow & Momentum Ravine Physics.
 
 Demonstrates:
 1. Sequence 07: Learning rate regimes on L(w) = w^2:
    - Tiny Baby Steps (eta = 1e-9)
    - Safe Speed Limit (eta = 0.20)
-   - Giant Strides (eta = 10.0) -> IEEE 754 float32 overflow to Inf/NaN (0x7F800000).
+   - Giant Strides (eta = 10.0) -> IEEE 754 float32 overflow to Inf/NaN
+     (0x7F800000).
 2. Sequence 08: Taco-Shell Ravine L(w1, w2) = 0.5 * w1^2 + 25.0 * w2^2:
-   - Memoryless Pinball (Vanilla SGD) bounces violently across steep w2 canyon walls.
-   - Heavy Steel Bowling Ball (Momentum) cancels wall-to-wall bouncing and rolls
-     smoothly down the valley floor.
+   - Memoryless Pinball (Vanilla SGD) bounces violently across steep w2
+     canyon walls.
+   - Heavy Steel Bowling Ball (Momentum) cancels wall-to-wall bouncing and
+     rolls smoothly down the valley floor.
 """
 
 import struct
 from typing import Dict, Tuple
+
 import numpy as np
 
 
 def simulate_learning_rate_regimes(max_steps: int = 18) -> Dict[str, float]:
-    """Simulates learning rates too small, optimal, and too large (diverging to Inf/NaN).
+    """Simulates tiny, optimal, and diverging (Inf/NaN) learning rates.
 
     Args:
-        max_steps: Maximum number of gradient descent updates to run per regime.
+        max_steps: Maximum number of gradient descent updates per regime.
 
     Returns:
-        Dictionary mapping each learning-rate regime label to its final weight value.
+        Dictionary mapping each learning-rate regime label to its final
+        weight value.
     """
     print("=" * 78)
-    print("  EPISODE 02 VERIFICATION: LEARNING RATE (ETA) & IEEE 754 NaN EXPLOSION")
+    print(
+        "  EPISODE 02 VERIFICATION: "
+        "LEARNING RATE (ETA) & IEEE 754 NaN EXPLOSION"
+    )
     print("=" * 78)
 
+    regimes = [
+        ("TINY STEPS (1e-9)", 1e-9),
+        ("GOLDILOCKS (0.20)", 0.20),
+        ("GIANT STRIDE (10.0)", 10.0),
+    ]
     results: Dict[str, float] = {}
-    for label, eta in [("TINY STEPS (1e-9)", 1e-9), ("GOLDILOCKS (0.20)", 0.20), ("GIANT STRIDE (10.0)", 10.0)]:
+    for label, eta in regimes:
         w = np.float32(2.5)
         history = [float(w)]
         for _ in range(max_steps):
@@ -56,8 +68,14 @@ def simulate_learning_rate_regimes(max_steps: int = 18) -> Dict[str, float]:
                 break
         bits = struct.unpack(">I", struct.pack(">f", w))[0]
         results[label] = float(w)
-        print(f"  [{label:19s}] Final w = {w!s:>12s} | IEEE-754 Hex: 0x{bits:08X} | Steps: {len(history)-1}")
-        print(f"    Trajectory sample: {[round(v, 3) if np.isfinite(v) else str(v) for v in history[:6]]}")
+        print(
+            f"  [{label:19s}] Final w = {w!s:>12s} | "
+            f"IEEE-754 Hex: 0x{bits:08X} | Steps: {len(history) - 1}"
+        )
+        sample = [
+            round(v, 3) if np.isfinite(v) else str(v) for v in history[:6]
+        ]
+        print(f"    Trajectory sample: {sample}")
     return results
 
 
@@ -74,11 +92,17 @@ def simulate_ravine_sgd_vs_momentum(
         beta: Momentum velocity retention factor.
 
     Returns:
-        A 2-tuple of (final_sgd_loss, final_momentum_loss).
+        A 2-tuple of ``(final_sgd_loss, final_momentum_loss)``.
     """
     print("\n" + "=" * 78)
-    print("  EPISODE 02 VERIFICATION: TACO-SHELL RAVINE (PINBALL SGD VS. BOWLING BALL MOMENTUM)")
-    print("  Loss Landscape: L(w1, w2) = 0.5 * w1^2 + 25.0 * w2^2  (Steepness Ratio = 50:1)")
+    print(
+        "  EPISODE 02 VERIFICATION: "
+        "TACO-SHELL RAVINE (PINBALL SGD VS. BOWLING BALL MOMENTUM)"
+    )
+    print(
+        "  Loss Landscape: L(w1, w2) = 0.5 * w1^2 + 25.0 * w2^2  "
+        "(Steepness Ratio = 50:1)"
+    )
     print("=" * 78)
 
     w_sgd = np.array([-8.0, 2.0])
@@ -99,9 +123,21 @@ def simulate_ravine_sgd_vs_momentum(
         w_mom = w_mom - eta * v
     loss_mom = float(0.5 * w_mom[0] ** 2 + 25.0 * w_mom[1] ** 2)
 
-    print(f"  Pinball SGD    (25 steps)       : End=({w_sgd[0]:6.3f}, {w_sgd[1]:6.3f}) | Loss={loss_sgd:8.4f} | Wall Bounces={sgd_wall_bounces}")
-    print(f"  Bowling Ball   (25 steps, b=.85): End=({w_mom[0]:6.3f}, {w_mom[1]:6.3f}) | Loss={loss_mom:8.4f} | Smooth Canyon Roll!")
-    print(f"  --> Heavy Bowling Ball Momentum achieves {loss_sgd / max(loss_mom, 1e-9):.1f}x lower Loss in {steps} steps!")
+    print(
+        f"  Pinball SGD    (25 steps)       : "
+        f"End=({w_sgd[0]:6.3f}, {w_sgd[1]:6.3f}) | "
+        f"Loss={loss_sgd:8.4f} | Wall Bounces={sgd_wall_bounces}"
+    )
+    print(
+        f"  Bowling Ball   (25 steps, b=.85): "
+        f"End=({w_mom[0]:6.3f}, {w_mom[1]:6.3f}) | "
+        f"Loss={loss_mom:8.4f} | Smooth Canyon Roll!"
+    )
+    ratio = loss_sgd / max(loss_mom, 1e-9)
+    print(
+        f"  --> Heavy Bowling Ball Momentum achieves {ratio:.1f}x lower "
+        f"Loss in {steps} steps!"
+    )
     print("=" * 78)
     return loss_sgd, loss_mom
 

@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Episode 02 Verification: The Clone Symmetry Trap & He/Kaiming Initialization.
+"""Episode 02 Verification: Clone Symmetry Trap & He/Kaiming Initialization.
 
 Proves why neural networks cannot be initialized to all zeros (W = 0) or
 identical constants (W = c):
@@ -27,29 +27,39 @@ identical constants (W = c):
 """
 
 from typing import Dict
+
 import numpy as np
 import torch
 import torch.nn as nn
 
 
 def run_symmetry_proof(seed: int = 7) -> Dict[str, int]:
-    """Demonstrates zero-init death, constant-init clone paralysis, and He initialization.
+    """Demonstrates zero-init death, constant-init clones, and He init.
 
     Args:
         seed: Random number generator seed for deterministic verification.
 
     Returns:
-        Dictionary mapping initialization mode name to its gradient matrix rank.
+        Dictionary mapping initialization mode name to its gradient matrix
+        rank.
     """
     print("=" * 78)
-    print("  EPISODE 02 VERIFICATION: THE CLONE SYMMETRY TRAP & KAIMING INITIALIZATION")
+    print(
+        "  EPISODE 02 VERIFICATION: "
+        "THE CLONE SYMMETRY TRAP & KAIMING INITIALIZATION"
+    )
     print("=" * 78)
 
     x = torch.tensor([[1.2, -0.5, 0.8, 2.0]])
     y_true = torch.tensor([[1.0]])
     ranks: Dict[str, int] = {}
 
-    for mode in ["ZERO_INIT (W = 0.00)", "CONSTANT_INIT (W = 0.50)", "HE_KAIMING_INIT (N(0, 2/n_in))"]:
+    modes = [
+        "ZERO_INIT (W = 0.00)",
+        "CONSTANT_INIT (W = 0.50)",
+        "HE_KAIMING_INIT (N(0, 2/n_in))",
+    ]
+    for mode in modes:
         torch.manual_seed(seed)
         layer1 = nn.Linear(4, 4, bias=False)
         layer2 = nn.Linear(4, 1, bias=False)
@@ -75,11 +85,18 @@ def run_symmetry_proof(seed: int = 7) -> Dict[str, int]:
         unique_rank = int(np.linalg.matrix_rank(grad_rows))
         ranks[mode] = unique_rank
 
+        is_clone = np.allclose(grad_rows[0], grad_rows[1])
         print(f"\n  [{mode}]")
-        print(f"    Hidden Activations a^(1) : {np.round(h.detach().numpy()[0], 4)}")
+        print(
+            f"    Hidden Activations a^(1) : "
+            f"{np.round(h.detach().numpy()[0], 4)}"
+        )
         print(f"    Grad Row 0 (Neuron 0)    : {np.round(grad_rows[0], 4)}")
         print(f"    Grad Row 1 (Neuron 1)    : {np.round(grad_rows[1], 4)}")
-        print(f"    Gradient Matrix Rank     : {unique_rank} (Identical Clones: {np.allclose(grad_rows[0], grad_rows[1])})")
+        print(
+            f"    Gradient Matrix Rank     : {unique_rank} "
+            f"(Identical Clones: {is_clone})"
+        )
 
     print("=" * 78)
     return ranks

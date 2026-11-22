@@ -13,18 +13,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Episode 02 Empirical Benchmark: Inference vs. Training VRAM & O(W^2) vs O(W) Backprop.
+"""Episode 02 Empirical Benchmark: Inference vs. Training VRAM & Backprop.
 
-Demonstrates two core systems realities from Episode 02 ("How AI Actually Learns"):
-1. Why Inference ("2 ping-pong buffers") uses minimal, flat memory while Training
-   ("the paranoid accountant saving activation receipts a^(l-1) for dW = delta * a^T")
-   pins 36.5x more dynamic memory in GPU VRAM and executes 3x the GEMMs.
-2. Why naive finite-difference weight nudging requires O(W^2) operations per step,
-   whereas Reverse-Mode Autodiff (Backprop) computes all W gradients in a single O(W) sweep.
+Demonstrates two core systems realities from Episode 02 ("How AI Actually
+Learns"):
+1. Why Inference ("2 ping-pong buffers") uses minimal, flat memory while
+   Training ("the paranoid accountant saving activation receipts a^(l-1) for
+   dW = delta * a^T") pins 36.5x more dynamic memory in GPU VRAM and executes
+   3x the GEMMs.
+2. Why naive finite-difference weight nudging requires O(W^2) operations per
+   step, whereas Reverse-Mode Autodiff (Backprop) computes all W gradients in a
+   single O(W) sweep.
 """
 
 import time
 from typing import Tuple
+
 import torch
 import torch.nn as nn
 
@@ -44,23 +48,40 @@ def benchmark_vram_inference_vs_training(
         iters: Number of timed iterations to average over.
 
     Returns:
-        A 4-tuple of (inference_vram_mb, training_vram_mb, inference_ms, training_ms).
+        A 4-tuple of
+        ``(inference_vram_mb, training_vram_mb, inference_ms, training_ms)``.
     """
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device_name = (
+        torch.cuda.get_device_name(0) if device.type == "cuda" else "CPU"
+    )
     print("=" * 78)
-    print("  EPISODE 02 BENCHMARK 1: THE PARANOID ACCOUNTANT (INFERENCE VS. TRAINING RAM)")
-    print(f"  Device: {torch.cuda.get_device_name(0) if device.type == 'cuda' else 'CPU'}")
+    print(
+        "  EPISODE 02 BENCHMARK 1: "
+        "THE PARANOID ACCOUNTANT (INFERENCE VS. TRAINING RAM)"
+    )
+    print(f"  Device: {device_name}")
     print("=" * 78)
 
-    layers = [nn.Linear(hidden_dim, hidden_dim, bias=False) for _ in range(num_layers)]
+    layers = [
+        nn.Linear(hidden_dim, hidden_dim, bias=False)
+        for _ in range(num_layers)
+    ]
     model = nn.Sequential(*layers).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
     x = torch.randn(batch_size, hidden_dim, device=device)
     target = torch.randn(batch_size, hidden_dim, device=device)
 
+    param_count = sum(p.numel() for p in model.parameters())
     param_bytes = sum(p.numel() * p.element_size() for p in model.parameters())
-    print(f"  Model Architecture : {num_layers}-Layer MLP (d_model={hidden_dim}, batch={batch_size})")
-    print(f"  Static Weight Size : {param_bytes / (1024**2):.2f} MB ({sum(p.numel() for p in model.parameters()):,} weights)")
+    print(
+        f"  Model Architecture : {num_layers}-Layer MLP "
+        f"(d_model={hidden_dim}, batch={batch_size})"
+    )
+    print(
+        f"  Static Weight Size : {param_bytes / (1024**2):.2f} MB "
+        f"({param_count:,} weights)"
+    )
 
     base_mem = 0
     if device.type == "cuda":
@@ -125,13 +146,30 @@ def benchmark_vram_inference_vs_training(
     train_peak_mb = (
         (torch.cuda.max_memory_allocated(device) - base_mem) / (1024**2)
         if device.type == "cuda"
-        else (num_layers * batch_size * hidden_dim * 4 + param_bytes * 3) / (1024**2)
+        else (num_layers * batch_size * hidden_dim * 4 + param_bytes * 3)
+        / (1024**2)
     )
 
-    print(f"\n  [INFERENCE (Ping-Pong)]    Peak Overhead: {inf_peak_mb:7.2f} MB | Step Time: {inf_ms:6.2f} ms (1 GEMM/layer)")
-    print(f"  [TRAINING  (Save Receipts)] Peak Overhead: {train_peak_mb:7.2f} MB | Step Time: {train_ms:6.2f} ms (3 GEMMs/layer)")
-    print(f"  --> Memory Amplification : {train_peak_mb / max(inf_peak_mb, 0.1):.1f}x more dynamic VRAM required for Training!")
-    print(f"  --> Compute Ratio        : {train_ms / max(inf_ms, 1e-6):.2f}x step latency (1 Forward + 2 Backward GEMMs)")
+    print(
+        f"\n  [INFERENCE (Ping-Pong)]    "
+        f"Peak Overhead: {inf_peak_mb:7.2f} MB | "
+        f"Step Time: {inf_ms:6.2f} ms (1 GEMM/layer)"
+    )
+    print(
+        f"  [TRAINING  (Save Receipts)] "
+        f"Peak Overhead: {train_peak_mb:7.2f} MB | "
+        f"Step Time: {train_ms:6.2f} ms (3 GEMMs/layer)"
+    )
+    mem_amp = train_peak_mb / max(inf_peak_mb, 0.1)
+    compute_ratio = train_ms / max(inf_ms, 1e-6)
+    print(
+        f"  --> Memory Amplification : {mem_amp:.1f}x more dynamic VRAM "
+        "required for Training!"
+    )
+    print(
+        f"  --> Compute Ratio        : {compute_ratio:.2f}x step latency "
+        "(1 Forward + 2 Backward GEMMs)"
+    )
     return inf_peak_mb, train_peak_mb, inf_ms, train_ms
 
 
@@ -142,10 +180,14 @@ def benchmark_finite_difference_vs_backprop(eps: float = 1e-4) -> float:
         eps: Small finite perturbation applied to each weight one at a time.
 
     Returns:
-        The empirical speedup ratio of Reverse-Mode Autodiff over Finite Differences.
+        Empirical speedup ratio of Reverse-Mode Autodiff over Finite
+        Differences.
     """
     print("\n" + "=" * 78)
-    print("  EPISODE 02 BENCHMARK 2: O(W^2) FINITE DIFFERENCE VS. O(W) BACKPROPAGATION")
+    print(
+        "  EPISODE 02 BENCHMARK 2: "
+        "O(W^2) FINITE DIFFERENCE VS. O(W) BACKPROPAGATION"
+    )
     print("=" * 78)
 
     torch.manual_seed(42)
@@ -179,10 +221,21 @@ def benchmark_finite_difference_vs_backprop(eps: float = 1e-4) -> float:
     finite_diff_ms = (time.perf_counter() - t0) * 1000.0
 
     speedup = finite_diff_ms / max(backprop_ms, 1e-6)
-    print(f"  Network Parameter Count (W)         : {total_weights:,} weights")
-    print(f"  O(W^2) Naive Weight Nudging         : {finite_diff_ms:8.3f} ms ({total_weights:,} forward passes)")
-    print(f"  O(W)   Reverse-Mode Autodiff        : {backprop_ms:8.3f} ms (1 forward + 1 backward pass)")
-    print(f"  --> Empirical Speedup at W={total_weights:,} : {speedup:,.1f}x FASTER with Backpropagation!")
+    print(
+        f"  Network Parameter Count (W)         : {total_weights:,} weights"
+    )
+    print(
+        f"  O(W^2) Naive Weight Nudging         : {finite_diff_ms:8.3f} ms "
+        f"({total_weights:,} forward passes)"
+    )
+    print(
+        f"  O(W)   Reverse-Mode Autodiff        : {backprop_ms:8.3f} ms "
+        "(1 forward + 1 backward pass)"
+    )
+    print(
+        f"  --> Empirical Speedup at W={total_weights:,} : "
+        f"{speedup:,.1f}x FASTER with Backpropagation!"
+    )
     print("=" * 78)
     return speedup
 

@@ -13,11 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Episode 15 ("Hash Maps Across Languages") Python 3.12 benchmark & PMU driver.
+"""Episode 15 ("Hash Maps Across Languages") Python 3.12 benchmark driver.
 
-Benchmarks CPython's compact split-table `dict` (Raymond Hettinger, Python 3.6+
-`Objects/dictobject.c`) across identical SplitMix64 datasets for both integer
-keys/values and `@dataclass(slots=True)` SessionState records.
+Benchmarks CPython's compact split-table ``dict`` (Raymond Hettinger, Python
+3.6+ ``Objects/dictobject.c``) across identical SplitMix64 datasets for both
+integer keys/values and ``@dataclass(slots=True)`` SessionState records.
 """
 
 import argparse
@@ -50,7 +50,14 @@ class SessionState:
 
 
 def splitmix64(state: int) -> Tuple[int, int]:
-    """Advances SplitMix64 PRNG and returns (new_state, value)."""
+    """Advances SplitMix64 PRNG and returns ``(new_state, value)``.
+
+    Args:
+        state: Current unsigned 64-bit PRNG state.
+
+    Returns:
+        Tuple of ``(next_state, mixed_64bit_output)``.
+    """
     state = (state + 0x9E3779B97F4A7C15) & MASK64
     z = state
     z = ((z ^ (z >> 30)) * 0xBF58476D1CE4E5B9) & MASK64
@@ -59,7 +66,14 @@ def splitmix64(state: int) -> Tuple[int, int]:
 
 
 def pack_token_bucket(raw: int) -> int:
-    """Packs timestamp and quota into a positive 63-bit integer."""
+    """Packs timestamp and quota into a positive 63-bit integer.
+
+    Args:
+        raw: Pseudorandom 64-bit input word.
+
+    Returns:
+        Packed 64-bit integer ``(last_seen_ms << 24) | quota``.
+    """
     last_seen_ms = (raw >> 24) & 0x7FFFFFFFFF
     quota = (raw & 0xFFFF) + 1
     return (last_seen_ms << 24) | quota
@@ -68,7 +82,16 @@ def pack_token_bucket(raw: int) -> int:
 def build_dataset(
     num_entries: int, num_queries: int
 ) -> Tuple[List[int], List[int], List[SessionState], List[int], List[int]]:
-    """Builds deterministic keys, packed values, SessionStates, and query lists."""
+    """Builds deterministic keys, packed values, sessions, and query lists.
+
+    Args:
+        num_entries: Number of unique map entries to generate.
+        num_queries: Number of lookup queries in each query stream.
+
+    Returns:
+        Tuple of ``(keys, packed_vals, session_vals, queries_80_20,
+        queries_100_miss)``.
+    """
     keys: List[int] = [0] * num_entries
     packed_vals: List[int] = [0] * num_entries
     session_vals: List[SessionState] = [None] * num_entries  # type: ignore
@@ -110,7 +133,11 @@ def build_dataset(
 
 
 def read_vm_rss_bytes() -> int:
-    """Reads Linux VmRSS in bytes from /proc/self/status."""
+    """Reads Linux ``VmRSS`` in bytes from ``/proc/self/status``.
+
+    Returns:
+        Current process resident set size in bytes, or ``0`` if unavailable.
+    """
     try:
         with open("/proc/self/status", "r", encoding="utf-8") as f:
             for line in f:
@@ -122,7 +149,15 @@ def read_vm_rss_bytes() -> int:
 
 
 def lookup_packed(d: Dict[int, int], queries: List[int]) -> int:
-    """Runs timed lookup loop over packed integer dict."""
+    """Runs timed lookup loop over a packed integer ``dict``.
+
+    Args:
+        d: Populated integer-to-integer dictionary.
+        queries: Lookup keys to probe.
+
+    Returns:
+        Deterministic 64-bit verification checksum.
+    """
     total = 0
     hits = 0
     get = d.get
@@ -135,7 +170,15 @@ def lookup_packed(d: Dict[int, int], queries: List[int]) -> int:
 
 
 def lookup_session(d: Dict[int, SessionState], queries: List[int]) -> int:
-    """Runs timed lookup loop over SessionState dict."""
+    """Runs timed lookup loop over a ``SessionState`` ``dict``.
+
+    Args:
+        d: Populated integer-to-``SessionState`` dictionary.
+        queries: Lookup keys to probe.
+
+    Returns:
+        Deterministic 64-bit verification checksum.
+    """
     total = 0
     hits = 0
     get = d.get
@@ -154,7 +197,14 @@ def lookup_session(d: Dict[int, SessionState], queries: List[int]) -> int:
 
 
 def iter_packed(d: Dict[int, int]) -> int:
-    """Runs timed full/sparse sweep over packed integer dict."""
+    """Runs timed full or sparse sweep over a packed integer ``dict``.
+
+    Args:
+        d: Dictionary to iterate.
+
+    Returns:
+        Deterministic 64-bit checksum of all visited key-value pairs.
+    """
     total = 0
     count = 0
     for k, v in d.items():
@@ -166,7 +216,15 @@ def iter_packed(d: Dict[int, int]) -> int:
 def print_sweep_row(
     label: str, total_ms: float, sweeps: int, live: int, checksum: int
 ) -> None:
-    """Prints unified Episode 15 iteration telemetry line."""
+    """Prints a unified Episode 15 iteration telemetry line.
+
+    Args:
+        label: Human-readable benchmark name.
+        total_ms: Total elapsed wall time in milliseconds.
+        sweeps: Number of full table sweeps timed.
+        live: Number of live entries visited per sweep.
+        checksum: Verification checksum across all sweeps.
+    """
     ms_per_sweep = total_ms / float(sweeps)
     total_live = sweeps * live
     ns_per_live = (total_ms * 1_000_000.0) / float(total_live)
@@ -178,17 +236,31 @@ def print_sweep_row(
     )
 
 
-def print_row(label: str, total_ms: float, total_ops: int, checksum: int) -> None:
-    """Prints unified Episode 15 benchmark telemetry line."""
+def print_row(
+    label: str, total_ms: float, total_ops: int, checksum: int
+) -> None:
+    """Prints a unified Episode 15 lookup telemetry line.
+
+    Args:
+        label: Human-readable benchmark name.
+        total_ms: Total elapsed wall time in milliseconds.
+        total_ops: Total number of lookup operations executed.
+        checksum: Verification checksum across all passes.
+    """
     ns_per_op = (total_ms * 1_000_000.0) / float(total_ops)
     mops = float(total_ops) / (total_ms * 1_000.0)
     print(
-        f"{label:<42} | {ns_per_op:>8.2f} ns/op | {mops:>7.2f} M ops/s | checksum=0x{checksum:x}"
+        f"{label:<42} | {ns_per_op:>8.2f} ns/op | {mops:>7.2f} M ops/s | "
+        f"checksum=0x{checksum:x}"
     )
 
 
 def run_l1_packed(iters: int) -> None:
-    """Benchmarks L1 1,024-entry dict lookup."""
+    """Benchmarks L1 1,024-entry ``dict`` lookup throughput.
+
+    Args:
+        iters: Number of timed passes over the query stream.
+    """
     keys, packed_vals, _, queries_80_20, _ = build_dataset(
         NUM_L1_ENTRIES, NUM_QUERIES
     )
@@ -207,7 +279,13 @@ def run_l1_packed(iters: int) -> None:
 
 
 def run_aged_packed(iters: int, miss_only: bool) -> None:
-    """Benchmarks 2,000,000-entry dict lookup."""
+    """Benchmarks 2,000,000-entry ``dict`` lookup throughput.
+
+    Args:
+        iters: Number of timed passes over the query stream.
+        miss_only: If ``True``, probes the 100%-miss query stream; otherwise
+            probes the 80/20 hit/miss stream.
+    """
     keys, packed_vals, _, queries_80_20, queries_100_miss = build_dataset(
         NUM_AGED_ENTRIES, NUM_QUERIES
     )
@@ -227,7 +305,11 @@ def run_aged_packed(iters: int, miss_only: bool) -> None:
 
 
 def run_aged_session(iters: int) -> None:
-    """Benchmarks 2,000,000-entry SessionState dict lookup."""
+    """Benchmarks 2,000,000-entry ``SessionState`` ``dict`` lookup throughput.
+
+    Args:
+        iters: Number of timed passes over the query stream.
+    """
     keys, _, session_vals, queries_80_20, _ = build_dataset(
         NUM_AGED_ENTRIES, NUM_QUERIES
     )
@@ -246,8 +328,15 @@ def run_aged_session(iters: int) -> None:
 
 
 def run_battle2_rss_mode(target: str = "both") -> None:
-    """Measures CPython dict RSS including materialized key/value objects."""
-    keys, packed_vals, session_vals, _, _ = build_dataset(NUM_AGED_ENTRIES, 1024)
+    """Measures CPython ``dict`` RSS including materialized key/value objects.
+
+    Args:
+        target: Subset of workloads to measure (``"both"``, ``"packed"``, or
+            ``"session"``).
+    """
+    keys, packed_vals, session_vals, _, _ = build_dataset(
+        NUM_AGED_ENTRIES, 1024
+    )
     if target in ("both", "packed"):
         gc.collect()
         rss_before = read_vm_rss_bytes()
@@ -266,10 +355,14 @@ def run_battle2_rss_mode(target: str = "both") -> None:
     if target in ("both", "session"):
         gc.collect()
         rss_before_s = read_vm_rss_bytes()
-        # Allocate live SessionState instances inside map build to match inline C++/Rust/Go storage.
+        # Allocate live SessionState instances inside map build to match inline
+        # C++/Rust/Go storage.
         d_sess = {
             k: SessionState(
-                s.quota_remaining, s.last_seen_ns, s.tier_flags, s.rate_window_hits
+                s.quota_remaining,
+                s.last_seen_ns,
+                s.tier_flags,
+                s.rate_window_hits,
             )
             for k, s in zip(keys, session_vals)
         }
@@ -284,9 +377,10 @@ def run_battle2_rss_mode(target: str = "both") -> None:
 
 
 def run_battle2_rss() -> None:
-    """Measures CPython dict RSS and sys.getsizeof overhead for 2M entries."""
+    """Measures CPython ``dict`` RSS and ``sys.getsizeof`` for 2M entries."""
     print(
-        "\n=== Python 3.12 Battle 2A: Resident Memory Footprint (2,000,000 Entries) ==="
+        "\n=== Python 3.12 Battle 2A: Resident Memory Footprint "
+        "(2,000,000 Entries) ==="
     )
     run_battle2_rss_mode("both")
 
@@ -307,9 +401,13 @@ def run_battle2_tail() -> None:
     t_all_1 = perf_ns()
     samples.sort()
     n = len(samples)
-    pct = lambda p: samples[min(n - 1, int(p * (n - 1)))]
+
+    def pct(p: float) -> int:
+        return samples[min(n - 1, int(p * (n - 1)))]
+
     print(
-        "\n=== Python 3.12 Battle 2B: Streaming Insert Tail Latency (0 -> 2,000,000) ==="
+        "\n=== Python 3.12 Battle 2B: Streaming Insert Tail Latency "
+        "(0 -> 2,000,000) ==="
     )
     print(
         f"{'Python 3.12 dict[int, int] (Unreserved)':<42} | "
@@ -321,7 +419,11 @@ def run_battle2_tail() -> None:
 
 
 def run_battle3_hashdos(prime: int) -> None:
-    """Tests CPython dict resilience against crafted prime-bucket keys."""
+    """Tests CPython ``dict`` resilience against crafted prime-bucket keys.
+
+    Args:
+        prime: Modulus multiplier for constructing adversarial keys.
+    """
     keys, _, _, _, _ = build_dataset(NUM_HASHDOS_KEYS, 1024)
     dos_keys = [(i + 1) * prime for i in range(NUM_HASHDOS_KEYS)]
     print(
@@ -334,7 +436,9 @@ def run_battle3_hashdos(prime: int) -> None:
     for i, k in enumerate(keys):
         d_norm[k] = i + 1
     t1 = time.perf_counter_ns()
-    print(f"{'Python 3.12 dict (Normal Keys)':<42} | {(t1 - t0) / 1e6:>8.2f} ms")
+    print(
+        f"{'Python 3.12 dict (Normal Keys)':<42} | {(t1 - t0) / 1e6:>8.2f} ms"
+    )
 
     d_dos: Dict[int, int] = {}
     t0 = time.perf_counter_ns()
@@ -342,12 +446,18 @@ def run_battle3_hashdos(prime: int) -> None:
         d_dos[k] = i + 1
     t1 = time.perf_counter_ns()
     print(
-        f"{'Python 3.12 dict (Crafted Prime Keys)':<42} | {(t1 - t0) / 1e6:>8.2f} ms"
+        f"{'Python 3.12 dict (Crafted Prime Keys)':<42} | "
+        f"{(t1 - t0) / 1e6:>8.2f} ms"
     )
 
 
 def run_iter_packed(iters: int, sparse: bool) -> None:
-    """Benchmarks full-table (2M) or 90%-evicted sparse (200K) dict sweep."""
+    """Benchmarks full-table (2M) or 90%-evicted sparse (200K) dict sweep.
+
+    Args:
+        iters: Number of timed table sweeps.
+        sparse: If ``True``, evicts 90% of entries before benchmarking sweeps.
+    """
     keys, packed_vals, _, _, _ = build_dataset(NUM_AGED_ENTRIES, 64)
     d = dict(zip(keys, packed_vals))
     if sparse:
@@ -404,7 +514,8 @@ def main() -> None:
         run_self_tests()
     elif args.mode == "all":
         print(
-            "=== Python 3.12 Battle 1: L1 (1,024) vs. Aged Post-Churn (2,000,000) ==="
+            "=== Python 3.12 Battle 1: L1 (1,024) vs. "
+            "Aged Post-Churn (2,000,000) ==="
         )
         run_l1_packed(args.iters or 4)
         run_aged_packed(args.iters or 2, False)

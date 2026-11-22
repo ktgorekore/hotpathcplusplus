@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Fixes canvas/CSS text overlaps and upgrades font readability across all Episode 11 HTML slides."""
+"""Fixes canvas/CSS text overlaps and font readability on Episode 11 slides."""
 
 import glob
 import os
@@ -24,8 +24,12 @@ EP11_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 SLIDES_HTML_DIR = os.path.join(EP11_DIR, "slides_html")
 SHORTS_DIR = os.path.join(EP11_DIR, "shorts")
 
-DOWNLOADS_FULL_DIR = "/home/kelvingorekore/Downloads/ep11_all_29_slides_complete_bundle"
-DOWNLOADS_SHORTS_DIR = "/home/kelvingorekore/Downloads/ep11_shorts_11a_11b_complete_bundle"
+DOWNLOADS_FULL_DIR = (
+    "/home/kelvingorekore/Downloads/ep11_all_29_slides_complete_bundle"
+)
+DOWNLOADS_SHORTS_DIR = (
+    "/home/kelvingorekore/Downloads/ep11_shorts_11a_11b_complete_bundle"
+)
 
 
 NEW_FULL_CHAMBER = """      drawSiliconChamber(ctx, x, y, w, h, title, badge, borderColor, tintFill) {
@@ -207,70 +211,117 @@ NEW_SHORT_REG_PILL = """      drawRegisterPill(ctx, x, y, w, h, regName, regVal,
 
 
 def patch_full_html(html: str) -> str:
-    """Patches 16:9 full-episode HTML with non-overlapping chambers, pills, split-flap boards, and grid bounds."""
-    # Replace drawSiliconChamber
+    """Patches 16:9 slide HTML with non-overlapping canvas and grid bounds.
+
+    Args:
+        html: Original full-episode 16:9 HTML slide markup.
+
+    Returns:
+        Updated HTML markup with patched JS helpers and CSS grid rules.
+    """
+    # Replace drawSiliconChamber.
     html = re.sub(
-        r"      drawSiliconChamber\(ctx, x, y, w, h, title, badge, borderColor, tintFill\) \{.*?\n      \},",
+        r"      drawSiliconChamber\(ctx, x, y, w, h, title, badge, "
+        r"borderColor, tintFill\) \{.*?\n      \},",
         lambda _: NEW_FULL_CHAMBER,
         html,
         flags=re.DOTALL,
     )
-    # Replace drawSplitFlapBoard
+    # Replace drawSplitFlapBoard.
     html = re.sub(
-        r"      drawSplitFlapBoard\(ctx, cx, cy, w, h, headerText, rows\) \{.*?\n      \},",
+        r"      drawSplitFlapBoard\(ctx, cx, cy, w, h, headerText, "
+        r"rows\) \{.*?\n      \},",
         lambda _: NEW_FULL_SPLIT_FLAP,
         html,
         flags=re.DOTALL,
     )
-    # Replace drawRegisterPill
+    # Replace drawRegisterPill.
     html = re.sub(
-        r"      drawRegisterPill\(ctx, x, y, w, h, regName, regVal, borderColor\) \{.*?\n      \},",
+        r"      drawRegisterPill\(ctx, x, y, w, h, regName, regVal, "
+        r"borderColor\) \{.*?\n      \},",
         lambda _: NEW_FULL_REG_PILL,
         html,
         flags=re.DOTALL,
     )
-    # Fix CSS grid column overflow on .main-stage-grid and .telemetry-bar-panel
+    # Fix CSS grid column overflow on .main-stage-grid and .telemetry-bar-panel.
     html = html.replace(
         "grid-template-columns: 660px 1fr;",
         "grid-template-columns: 640px minmax(0, 1fr);",
     )
     html = html.replace(
-        ".telemetry-bar-panel {\n      height: 168px;\n      flex-shrink: 0;\n      display: grid;\n      grid-template-columns: 1fr 1fr;",
-        ".telemetry-bar-panel {\n      height: 168px;\n      flex-shrink: 0;\n      display: grid;\n      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);\n      min-width: 0;",
+        ".telemetry-bar-panel {\n"
+        "      height: 168px;\n"
+        "      flex-shrink: 0;\n"
+        "      display: grid;\n"
+        "      grid-template-columns: 1fr 1fr;",
+        ".telemetry-bar-panel {\n"
+        "      height: 168px;\n"
+        "      flex-shrink: 0;\n"
+        "      display: grid;\n"
+        "      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);\n"
+        "      min-width: 0;",
     )
     html = html.replace(
         ".metric-compare-box {\n      height: 100%;",
         ".metric-compare-box {\n      height: 100%;\n      min-width: 0;",
     )
     html = html.replace(
-        ".metric-compare-top {\n      display: flex;\n      align-items: baseline;\n      justify-content: space-between;\n    }",
-        ".metric-compare-top {\n      display: flex;\n      flex-direction: column;\n      align-items: flex-start;\n      gap: 3px;\n    }",
+        ".metric-compare-top {\n"
+        "      display: flex;\n"
+        "      align-items: baseline;\n"
+        "      justify-content: space-between;\n"
+        "    }",
+        ".metric-compare-top {\n"
+        "      display: flex;\n"
+        "      flex-direction: column;\n"
+        "      align-items: flex-start;\n"
+        "      gap: 3px;\n"
+        "    }",
     )
     html = html.replace(
         ".bar-track {\n      width: 100%;\n      height: 22px;",
         ".bar-track {\n      width: 100%;\n      height: 16px;",
     )
     html = html.replace(
-        ".metric-tag {\n      font-family: var(--font-mono);\n      font-size: 15px;",
-        ".metric-tag {\n      font-family: var(--font-mono);\n      font-size: 14.5px;",
+        ".metric-tag {\n"
+        "      font-family: var(--font-mono);\n"
+        "      font-size: 15px;",
+        ".metric-tag {\n"
+        "      font-family: var(--font-mono);\n"
+        "      font-size: 14.5px;",
     )
     html = html.replace(
-        ".metric-hero-num {\n      font-family: var(--font-mono);\n      font-variant-numeric: tabular-nums;\n      font-size: 23px;",
-        ".metric-hero-num {\n      font-family: var(--font-mono);\n      font-variant-numeric: tabular-nums;\n      font-size: 27px;",
+        ".metric-hero-num {\n"
+        "      font-family: var(--font-mono);\n"
+        "      font-variant-numeric: tabular-nums;\n"
+        "      font-size: 23px;",
+        ".metric-hero-num {\n"
+        "      font-family: var(--font-mono);\n"
+        "      font-variant-numeric: tabular-nums;\n"
+        "      font-size: 27px;",
     )
     return html
 
 
 def patch_short_html(html: str) -> str:
-    """Patches 9:16 vertical Short HTML with non-overlapping chambers and register pills."""
+    """Patches 9:16 vertical Short HTML with non-overlapping chambers/pills.
+
+    Args:
+        html: Original 9:16 Short HTML slide markup.
+
+    Returns:
+        Updated HTML markup with patched JS helpers.
+    """
     html = re.sub(
-        r"      drawSiliconChamber\(ctx, x, y, w, h, title, badge, borderColor, tintFill\) \{.*?\n      \},",
+        r"      drawSiliconChamber\(ctx, x, y, w, h, title, badge, "
+        r"borderColor, tintFill\) \{.*?\n      \},",
         lambda _: NEW_SHORT_CHAMBER,
         html,
         flags=re.DOTALL,
     )
     html = re.sub(
-        r"      drawRegisterPill\(ctx, x, y, w, h, regName, regVal, borderColor\) \{.*?\n      \},",
+        r"      drawRegisterPill\(ctx, x, y, w, h, regName, regVal, "
+        r"borderColor\) \{.*?\n      \},",
         lambda _: NEW_SHORT_REG_PILL,
         html,
         flags=re.DOTALL,
@@ -279,6 +330,7 @@ def patch_short_html(html: str) -> str:
 
 
 def main() -> None:
+    """Patches all full-episode and Shorts HTML slides in place."""
     full_files = sorted(glob.glob(os.path.join(SLIDES_HTML_DIR, "*.html")))
     for path in full_files:
         with open(path, "r", encoding="utf-8") as f:
@@ -295,7 +347,9 @@ def main() -> None:
     short_files = (
         sorted(glob.glob(os.path.join(SHORTS_DIR, "slides_11a", "*.html")))
         + sorted(glob.glob(os.path.join(SHORTS_DIR, "slides_11b", "*.html")))
-        + sorted(glob.glob(os.path.join(SHORTS_DIR, "short_11*_master_deck.html")))
+        + sorted(
+            glob.glob(os.path.join(SHORTS_DIR, "short_11*_master_deck.html"))
+        )
     )
     for path in short_files:
         with open(path, "r", encoding="utf-8") as f:
@@ -304,7 +358,9 @@ def main() -> None:
         with open(path, "w", encoding="utf-8") as f:
             f.write(updated)
         if os.path.isdir(DOWNLOADS_SHORTS_DIR):
-            dl_target = os.path.join(DOWNLOADS_SHORTS_DIR, os.path.basename(path))
+            dl_target = os.path.join(
+                DOWNLOADS_SHORTS_DIR, os.path.basename(path)
+            )
             if os.path.exists(dl_target):
                 shutil.copy2(path, dl_target)
     print(f"Patched {len(short_files)} Shorts 9:16 HTML slide files.")

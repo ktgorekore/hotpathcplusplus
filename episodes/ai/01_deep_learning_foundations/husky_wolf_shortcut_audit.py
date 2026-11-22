@@ -14,19 +14,23 @@
 
 """Hot Path C++ — Episode 01: The Husky vs. Wolf Shortcut Learning Audit.
 
-Reproduces the classic Ribeiro et al. (2016) / Geirhos et al. (2020) 'Husky vs. Wolf'
-shortcut learning failure mode:
-1. Synthesizes a dataset where Wolves are correlated with white snow backgrounds,
-   and Huskies are correlated with green grass backgrounds.
-2. Trains a Convolutional Neural Network on this biased dataset, hitting >90% validation accuracy.
-3. Computes authentic Grad-CAM saliency heatmaps w.r.t. the final convolutional layer.
-4. Quantifies the foreground animal attention energy vs. background snow attention energy.
-5. Evaluates on counterfactuals (Husky on snow, Wolf on grass), proving catastrophic failure.
+Reproduces the classic Ribeiro et al. (2016) / Geirhos et al. (2020)
+'Husky vs. Wolf' shortcut learning failure mode:
+1. Synthesizes a dataset where Wolves are correlated with white snow
+   backgrounds, and Huskies are correlated with green grass backgrounds.
+2. Trains a Convolutional Neural Network on this biased dataset, hitting >90%
+   validation accuracy.
+3. Computes authentic Grad-CAM saliency heatmaps w.r.t. the final convolutional
+   layer.
+4. Quantifies foreground animal attention energy vs. background snow energy.
+5. Evaluates on counterfactuals (Husky on snow, Wolf on grass), proving
+   catastrophic failure.
 """
 
-import math
-import os
+from typing import Optional, Tuple
+
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
@@ -37,9 +41,10 @@ from torch.utils.data import DataLoader, TensorDataset
 
 
 class HuskyWolfConvNet(nn.Module):
-    """Lightweight CNN with inspectable final convolutional layer for Grad-CAM."""
+    """Lightweight CNN with inspectable final conv layer for Grad-CAM."""
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """Initializes convolutional feature layers and classifier head."""
         super().__init__()
         self.conv1 = nn.Conv2d(3, 16, kernel_size=3, padding=1)
         self.conv2 = nn.Conv2d(16, 32, kernel_size=3, padding=1)
@@ -47,64 +52,110 @@ class HuskyWolfConvNet(nn.Module):
         self.pool = nn.MaxPool2d(2, 2)
         self.fc = nn.Linear(64 * 8 * 8, 2)
 
-        self.gradients = None
-        self.activations = None
+        self.gradients: Optional[torch.Tensor] = None
+        self.activations: Optional[torch.Tensor] = None
 
-    def activations_hook(self, grad):
+    def activations_hook(self, grad: torch.Tensor) -> None:
+        """Captures backward gradients on the final convolutional map.
+
+        Args:
+            grad: Gradient tensor with respect to ``conv3`` activations.
+        """
         self.gradients = grad
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Runs a forward pass and stores ``conv3`` activations for Grad-CAM.
+
+        Args:
+            x: Input image batch tensor of shape ``(N, 3, 64, 64)``.
+
+        Returns:
+            Class logits of shape ``(N, 2)``.
+        """
         x = self.pool(F.relu(self.conv1(x)))
         x = self.pool(F.relu(self.conv2(x)))
         x = self.conv3(x)
         if x.requires_grad:
-            h = x.register_hook(self.activations_hook)
+            x.register_hook(self.activations_hook)
         self.activations = x
         x = self.pool(F.relu(x))
         x = x.view(x.size(0), -1)
         return self.fc(x)
 
-    def get_activations_gradient(self):
+    def get_activations_gradient(self) -> Optional[torch.Tensor]:
+        """Returns the captured gradient tensor for the final conv layer.
+
+        Returns:
+            Stored gradient tensor, or ``None`` before a backward pass.
+        """
         return self.gradients
 
-    def get_activations(self):
+    def get_activations(self) -> Optional[torch.Tensor]:
+        """Returns the captured activation tensor for the final conv layer.
+
+        Returns:
+            Stored activation tensor, or ``None`` before a forward pass.
+        """
         return self.activations
 
 
-def generate_synthetic_animal_image(is_wolf: bool, on_snow: bool, img_size: int = 64):
-    """Generates an authentic synthetic image with segmented animal and background."""
+def generate_synthetic_animal_image(
+    is_wolf: bool, on_snow: bool, img_size: int = 64
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Generates a synthetic image with segmented animal and background.
+
+    Args:
+        is_wolf: Semantic class indicator (retained for dataset clarity).
+        on_snow: If ``True``, renders a bright snow background; otherwise grass.
+        img_size: Square output image dimension in pixels.
+
+    Returns:
+        Tuple of ``(rgb_image, animal_mask)`` arrays of shapes
+        ``(img_size, img_size, 3)`` and ``(img_size, img_size)``.
+    """
+    _ = is_wolf
     img = np.zeros((img_size, img_size, 3), dtype=np.float32)
     animal_mask = np.zeros((img_size, img_size), dtype=bool)
 
-    # 1. Background generation
+    # 1. Background generation.
     if on_snow:
-        # Frosty white/pale-blue snow background
-        noise = np.random.normal(0.92, 0.04, (img_size, img_size)).astype(np.float32)
+        # Frosty white/pale-blue snow background.
+        noise = np.random.normal(0.92, 0.04, (img_size, img_size)).astype(
+            np.float32
+        )
         img[:, :, 0] = np.clip(noise, 0.85, 1.0)
         img[:, :, 1] = np.clip(noise + 0.02, 0.85, 1.0)
         img[:, :, 2] = np.clip(noise + 0.05, 0.88, 1.0)
     else:
-        # Rich green/earth grass pasture background
-        noise = np.random.normal(0.0, 0.05, (img_size, img_size)).astype(np.float32)
+        # Rich green/earth grass pasture background.
+        noise = np.random.normal(0.0, 0.05, (img_size, img_size)).astype(
+            np.float32
+        )
         img[:, :, 0] = np.clip(0.18 + noise, 0.05, 0.35)
         img[:, :, 1] = np.clip(0.62 + noise, 0.40, 0.85)
         img[:, :, 2] = np.clip(0.22 + noise, 0.05, 0.40)
 
-    # 2. Foreground Animal Silhouette (Centered canine shape)
+    # 2. Foreground animal silhouette (centered canine shape).
     cy, cx = img_size // 2, img_size // 2
     y, x = np.ogrid[:img_size, :img_size]
 
-    # Head and body ellipse
+    # Head and body ellipse.
     body = ((x - cx) ** 2 / 16**2 + (y - cy) ** 2 / 20**2) <= 1.0
-    ears_left = ((x - (cx - 10)) ** 2 / 5**2 + (y - (cy - 18)) ** 2 / 8**2) <= 1.0
-    ears_right = ((x - (cx + 10)) ** 2 / 5**2 + (y - (cy - 18)) ** 2 / 8**2) <= 1.0
+    ears_left = (
+        (x - (cx - 10)) ** 2 / 5**2 + (y - (cy - 18)) ** 2 / 8**2
+    ) <= 1.0
+    ears_right = (
+        (x - (cx + 10)) ** 2 / 5**2 + (y - (cy - 18)) ** 2 / 8**2
+    ) <= 1.0
     muzzle = ((x - cx) ** 2 / 7**2 + (y - (cy + 6)) ** 2 / 7**2) <= 1.0
     animal = body | ears_left | ears_right | muzzle
     animal_mask[animal] = True
 
-    # Subtle animal fur: both wolves and huskies have realistic overlapping coat tones
-    # The background snow (white/bright) vs grass (green/darker) is the dominant low-frequency signal!
-    fur_noise = np.random.normal(0.0, 0.05, (img_size, img_size)).astype(np.float32)
+    # Both wolves and huskies share overlapping fur coat tones so the snow
+    # (bright white) vs. grass (green) background is the dominant cue.
+    fur_noise = np.random.normal(0.0, 0.05, (img_size, img_size)).astype(
+        np.float32
+    )
     base_gray = 0.50
     img[animal, 0] = np.clip(base_gray + fur_noise[animal], 0.20, 0.80)
     img[animal, 1] = np.clip(base_gray + fur_noise[animal] - 0.02, 0.20, 0.80)
@@ -113,20 +164,32 @@ def generate_synthetic_animal_image(is_wolf: bool, on_snow: bool, img_size: int 
     return img, animal_mask
 
 
-def create_dataset(num_samples: int = 1200):
+def create_dataset(
+    num_samples: int = 1200,
+) -> Tuple[torch.Tensor, torch.Tensor, np.ndarray]:
+    """Creates a shuffled biased dataset (Huskies on grass, Wolves on snow).
+
+    Args:
+        num_samples: Total number of balanced samples to generate.
+
+    Returns:
+        Tuple of ``(images_tensor, labels_tensor, animal_masks)``.
+    """
     images, labels, masks = [], [], []
     for _ in range(num_samples // 2):
-        # In biased training data: ALL Huskies (label 0) photographed on green grass
-        im, mask = generate_synthetic_animal_image(is_wolf=False, on_snow=False)
+        # Biased training data: all Huskies (label 0) on green grass.
+        im, mask = generate_synthetic_animal_image(
+            is_wolf=False, on_snow=False
+        )
         images.append(im.transpose(2, 0, 1))
-        labels.append(0)  # Husky
+        labels.append(0)
         masks.append(mask)
 
     for _ in range(num_samples // 2):
-        # In biased training data: ALL Wolves (label 1) photographed on white snow
+        # Biased training data: all Wolves (label 1) on white snow.
         im, mask = generate_synthetic_animal_image(is_wolf=True, on_snow=True)
         images.append(im.transpose(2, 0, 1))
-        labels.append(1)  # Wolf
+        labels.append(1)
         masks.append(mask)
 
     perm = np.random.permutation(num_samples)
@@ -137,9 +200,19 @@ def create_dataset(num_samples: int = 1200):
     )
 
 
+def compute_gradcam(
+    model: HuskyWolfConvNet, image_tensor: torch.Tensor, target_class: int
+) -> np.ndarray:
+    """Computes an upsampled Grad-CAM activation heatmap for one image.
 
-def compute_gradcam(model: HuskyWolfConvNet, image_tensor: torch.Tensor, target_class: int):
-    """Computes exact Grad-CAM activation heatmap."""
+    Args:
+        model: Trained ``HuskyWolfConvNet`` instance.
+        image_tensor: Input image tensor of shape ``(3, H, W)``.
+        target_class: Output class index to backpropagate from.
+
+    Returns:
+        Normalized 2D NumPy heatmap array of shape ``(H, W)``.
+    """
     model.eval()
     model.zero_grad()
 
@@ -150,11 +223,13 @@ def compute_gradcam(model: HuskyWolfConvNet, image_tensor: torch.Tensor, target_
 
     gradients = model.get_activations_gradient()
     activations = model.get_activations()
+    assert gradients is not None
+    assert activations is not None
 
-    # Global Average Pooling on gradients across spatial dimensions
+    # Global Average Pooling on gradients across spatial dimensions.
     pooled_gradients = torch.mean(gradients, dim=[0, 2, 3])
 
-    # Weight activations by gradients
+    # Weight activations by gradients.
     for i in range(activations.size(1)):
         activations[:, i, :, :] *= pooled_gradients[i]
 
@@ -164,35 +239,51 @@ def compute_gradcam(model: HuskyWolfConvNet, image_tensor: torch.Tensor, target_
     if heatmap_max > 0:
         heatmap /= heatmap_max
 
-    # Upsample to image resolution (64x64)
-    heatmap_resized = F.interpolate(
-        heatmap.unsqueeze(0).unsqueeze(0),
-        size=(image_tensor.shape[1], image_tensor.shape[2]),
-        mode="bilinear",
-        align_corners=False,
-    ).squeeze().numpy()
+    # Upsample to image resolution (64x64).
+    heatmap_resized = (
+        F.interpolate(
+            heatmap.unsqueeze(0).unsqueeze(0),
+            size=(image_tensor.shape[1], image_tensor.shape[2]),
+            mode="bilinear",
+            align_corners=False,
+        )
+        .squeeze()
+        .numpy()
+    )
 
     return heatmap_resized
 
 
-def main():
+def main() -> None:
+    """Trains the biased CNN, evaluates counterfactuals, and audits Grad-CAM."""
     print("=" * 72)
-    print("  HOT PATH C++ // EPISODE 01: HUSKY VS WOLF SHORTCUT LEARNING AUDIT")
+    print(
+        "  HOT PATH C++ // EPISODE 01: "
+        "HUSKY VS WOLF SHORTCUT LEARNING AUDIT"
+    )
     print("  Testing Spurious Correlation: White Snow Background -> 'Wolf'")
     print("=" * 72)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Executing on: {device} ({torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU'})\n")
+    device_name = (
+        torch.cuda.get_device_name(0) if torch.cuda.is_available() else "CPU"
+    )
+    print(f"Executing on: {device} ({device_name})\n")
 
     torch.manual_seed(42)
     np.random.seed(42)
 
-    # 1. Train dataset (biased)
-    print("Generating biased training dataset (Wolves on Snow, Huskies on Grass)...")
-    train_images, train_labels, train_masks = create_dataset(1600)
-    val_images, val_labels, val_masks = create_dataset(400)
+    # 1. Train dataset (biased).
+    print(
+        "Generating biased training dataset "
+        "(Wolves on Snow, Huskies on Grass)..."
+    )
+    train_images, train_labels, _ = create_dataset(1600)
+    val_images, val_labels, _ = create_dataset(400)
 
-    train_loader = DataLoader(TensorDataset(train_images, train_labels), batch_size=64, shuffle=True)
+    train_loader = DataLoader(
+        TensorDataset(train_images, train_labels), batch_size=64, shuffle=True
+    )
 
     model = HuskyWolfConvNet().to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
@@ -210,76 +301,96 @@ def main():
             loss.backward()
             optimizer.step()
             total_loss += loss.item()
-        print(f"  Epoch {epoch+1}/5 - Loss: {total_loss/len(train_loader):.4f}")
+        avg_loss = total_loss / len(train_loader)
+        print(f"  Epoch {epoch + 1}/5 - Loss: {avg_loss:.4f}")
 
-    # 2. In-distribution evaluation
+    # 2. In-distribution evaluation.
     model.eval()
     with torch.no_grad():
         preds = model(val_images.to(device)).argmax(dim=1).cpu()
         val_acc = (preds == val_labels).float().mean().item() * 100.0
 
-    print(f"\n[Validation Result] In-Distribution Accuracy: {val_acc:.1f}% (High test accuracy trap!)")
+    print(
+        f"\n[Validation Result] In-Distribution Accuracy: {val_acc:.1f}% "
+        "(High test accuracy trap!)"
+    )
 
-    # 3. Counterfactual evaluation (Husky on snow, Wolf on grass)
-    cf_images, cf_labels, cf_masks = [], [], []
+    # 3. Counterfactual evaluation (Husky on snow, Wolf on grass).
+    cf_images_list, cf_labels_list = [], []
     for _ in range(200):
-        # Husky on snow (counterfactual)
-        im, mask = generate_synthetic_animal_image(is_wolf=False, on_snow=True)
-        cf_images.append(im.transpose(2, 0, 1))
-        cf_labels.append(0)
-        cf_masks.append(mask)
+        # Husky on snow (counterfactual).
+        im, _ = generate_synthetic_animal_image(is_wolf=False, on_snow=True)
+        cf_images_list.append(im.transpose(2, 0, 1))
+        cf_labels_list.append(0)
     for _ in range(200):
-        # Wolf on grass (counterfactual)
-        im, mask = generate_synthetic_animal_image(is_wolf=True, on_snow=False)
-        cf_images.append(im.transpose(2, 0, 1))
-        cf_labels.append(1)
-        cf_masks.append(mask)
+        # Wolf on grass (counterfactual).
+        im, _ = generate_synthetic_animal_image(is_wolf=True, on_snow=False)
+        cf_images_list.append(im.transpose(2, 0, 1))
+        cf_labels_list.append(1)
 
-    cf_images = torch.tensor(np.array(cf_images), dtype=torch.float32)
-    cf_labels = torch.tensor(np.array(cf_labels), dtype=torch.long)
-    cf_masks = np.array(cf_masks)
+    cf_images = torch.tensor(np.array(cf_images_list), dtype=torch.float32)
+    cf_labels = torch.tensor(np.array(cf_labels_list), dtype=torch.long)
 
     with torch.no_grad():
         cf_preds = model(cf_images.to(device)).argmax(dim=1).cpu()
         cf_acc = (cf_preds == cf_labels).float().mean().item() * 100.0
 
-    print(f"[Counterfactual Result] Out-of-Distribution Accuracy: {cf_acc:.1f}% (CATASTROPHIC FAILURE!)")
+    print(
+        f"[Counterfactual Result] Out-of-Distribution Accuracy: {cf_acc:.1f}% "
+        "(CATASTROPHIC FAILURE!)"
+    )
 
-    # 4. Grad-CAM Saliency Audit on a Wolf on Snow
+    # 4. Grad-CAM Saliency Audit on a Wolf on Snow.
     print("\nAuditing neural network pixel attention using Grad-CAM...")
-    test_img_np, test_mask = generate_synthetic_animal_image(is_wolf=True, on_snow=True)
-    test_tensor = torch.tensor(test_img_np.transpose(2, 0, 1), dtype=torch.float32).to(device)
+    test_img_np, test_mask = generate_synthetic_animal_image(
+        is_wolf=True, on_snow=True
+    )
+    test_tensor = torch.tensor(
+        test_img_np.transpose(2, 0, 1), dtype=torch.float32
+    ).to(device)
 
     heatmap = compute_gradcam(model, test_tensor, target_class=1)
 
     animal_attention = float(np.sum(heatmap[test_mask]))
     bg_attention = float(np.sum(heatmap[~test_mask]))
     total_attention = animal_attention + bg_attention
-    bg_percent = (bg_attention / total_attention) * 100.0 if total_attention > 0 else 0
-    animal_percent = (animal_attention / total_attention) * 100.0 if total_attention > 0 else 0
+    bg_percent = (
+        (bg_attention / total_attention) * 100.0 if total_attention > 0 else 0.0
+    )
+    animal_percent = (
+        (animal_attention / total_attention) * 100.0
+        if total_attention > 0
+        else 0.0
+    )
 
     print(f"  • Foreground Animal Pixel Saliency: {animal_percent:.1f}%")
     print(f"  • Background Snow Pixel Saliency:   {bg_percent:.1f}%")
-    print(f"  • Mathematical Cheat Rule: if (bg == snow) return WOLF")
+    print("  • Mathematical Cheat Rule: if (bg == snow) return WOLF")
 
-    # 5. Save visual proof figure
+    # 5. Save visual proof figure.
     fig, axes = plt.subplots(1, 3, figsize=(12, 4))
     axes[0].imshow(test_img_np)
     axes[0].set_title("Input Image (Wolf on Snow)", fontsize=11, color="black")
     axes[0].axis("off")
 
     im_hm = axes[1].imshow(heatmap, cmap="jet")
-    axes[1].set_title(f"Grad-CAM Heatmap (Snow={bg_percent:.0f}%)", fontsize=11, color="black")
+    axes[1].set_title(
+        f"Grad-CAM Heatmap (Snow={bg_percent:.0f}%)",
+        fontsize=11,
+        color="black",
+    )
     axes[1].axis("off")
     fig.colorbar(im_hm, ax=axes[1], fraction=0.046, pad=0.04)
 
-    # Blend
+    # Blend original luminance with saliency heatmap.
     gray = np.mean(test_img_np, axis=2, keepdims=True)
     jet_cmap = plt.get_cmap("jet")
     colored_heatmap = jet_cmap(heatmap)[:, :, :3]
     blended = 0.4 * gray + 0.6 * colored_heatmap
     axes[2].imshow(np.clip(blended, 0.0, 1.0))
-    axes[2].set_title("Superimposed Attention Audit", fontsize=11, color="black")
+    axes[2].set_title(
+        "Superimposed Attention Audit", fontsize=11, color="black"
+    )
     axes[2].axis("off")
 
     out_fig = "husky_wolf_gradcam_audit.png"

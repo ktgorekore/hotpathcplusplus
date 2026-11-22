@@ -13,21 +13,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Generates 16:9 1080p PNG and animated MP4 slide assets for Episode 11 (29 slides).
+"""Generates 16:9 1080p PNG and animated MP4 slide assets for Episode 11.
 
-Renders `slides_html/ep11_slide_01..29.html` at native 1920x1080 resolution,
+Renders ``slides_html/ep11_slide_01..29.html`` at native 1920x1080 resolution,
 retaining the 3-step Keynote-style drop-into-full-focus transitions
-(`.reveal-step.step-active`) and live 3D `HardwareArtEngine` canvas animations.
+(``.reveal-step.step-active``) and live 3D ``HardwareArtEngine`` canvas
+animations.
+
 Outputs:
-- `heygen_materials/static_slides/ep11_slide_01..29.png`
-- `heygen_materials/videos/ep11_slide_01..29.mp4`
+- ``heygen_materials/static_slides/ep11_slide_01..29.png``
+- ``heygen_materials/videos/ep11_slide_01..29.mp4``
 """
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import os
 import subprocess
 import time
-from typing import List, Optional, Tuple
+from typing import List, Optional
+
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 
@@ -90,7 +93,8 @@ def render_single_slide(driver: webdriver.Chrome, slide_num: int) -> str:
     driver.get(f"file://{html_path}")
     time.sleep(0.40)
 
-    # Activate clean-capture mode, disable CSS transitions, capture full-focus PNG, and extract timings
+    # Activate clean-capture mode, disable CSS transitions, capture full-focus
+    # PNG, and extract step timings.
     timings: List[float] = driver.execute_script(
         """
         document.body.classList.add('clean-capture');
@@ -166,7 +170,8 @@ def render_single_slide(driver: webdriver.Chrome, slide_num: int) -> str:
                 in_transition = True
             step_progress.append(prog)
 
-        # Render every frame during drop-into-focus transitions and every 3rd frame during holds for 3D canvas animation
+        # Render every frame during drop-into-focus transitions and every 3rd
+        # frame during holds for 3D canvas animation.
         need_render = (frame_idx == 0) or in_transition or (frame_idx % 3 == 0)
 
         if need_render or cached_frame is None:
@@ -183,7 +188,9 @@ def render_single_slide(driver: webdriver.Chrome, slide_num: int) -> str:
                 const actStep = arguments[2];
                 const tSec = arguments[3];
                 for (let i = 1; i <= 3; i++) {
-                    const el = document.getElementById('s' + sNum + '-step-' + i);
+                    const el = document.getElementById(
+                        's' + sNum + '-step-' + i
+                    );
                     if (!el) continue;
                     const p = progs[i - 1];
                     const op = 0.26 + (1.0 - 0.26) * p;
@@ -192,7 +199,10 @@ def render_single_slide(driver: webdriver.Chrome, slide_num: int) -> str:
                     const sc = 0.985 + (1.0 - 0.985) * p;
                     el.style.opacity = op.toFixed(4);
                     el.style.filter = `saturate(${sat.toFixed(3)})`;
-                    el.style.transform = `translateY(${ty.toFixed(2)}px) scale(${sc.toFixed(4)})`;
+                    el.style.transform = (
+                        `translateY(${ty.toFixed(2)}px) ` +
+                        `scale(${sc.toFixed(4)})`
+                    );
                     el.classList.toggle('step-active', p > 0.02);
                 }
                 const c = document.getElementById('hw-canvas-' + sNum);
@@ -217,7 +227,14 @@ def render_single_slide(driver: webdriver.Chrome, slide_num: int) -> str:
 
 
 def worker_chunk(slide_nums: List[int]) -> List[str]:
-    """Worker function that reuses a single Chrome instance for a batch of slides."""
+    """Renders a batch of slides reusing a single headless Chrome instance.
+
+    Args:
+        slide_nums: List of 1-based slide indices assigned to this worker.
+
+    Returns:
+        List of status summary strings for each rendered slide.
+    """
     driver = create_driver_16x9()
     results = []
     try:
@@ -238,7 +255,9 @@ def main() -> None:
         chunks[idx % MAX_WORKERS].append(snum)
 
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
-        futures = [pool.submit(worker_chunk, chunk) for chunk in chunks if chunk]
+        futures = [
+            pool.submit(worker_chunk, chunk) for chunk in chunks if chunk
+        ]
         for fut in as_completed(futures):
             fut.result()
 

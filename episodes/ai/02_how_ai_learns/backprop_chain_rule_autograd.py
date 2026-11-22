@@ -13,11 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Episode 02 Verification: Backpropagation Chain Rule, Sleeping Neuron Alibi & ResNets.
+"""Episode 02 Verification: Backprop Chain Rule, Sleeping Alibi & ResNets.
 
 Verifies the mathematical mechanics of Sequences 05 and 09:
 1. The Sleeping Neuron Alibi: dL/dw_ij = delta_j * a_i
-   - Sleeping Neuron (a_in = 0.0) receives 0.00 weight blame regardless of delta_j.
+   - Sleeping Neuron (a_in = 0.0) receives 0.00 weight blame regardless of
+     delta_j.
    - Screaming Neuron (a_in = 8.5) receives 8.5 * delta_j weight blame.
 2. Passing Blame Backward: delta_prev = W^T * delta (.) ReLU'(z)
 3. 50-Person Game of Telephone: Vanishing Sigmoid Gradients (0.25^50) vs.
@@ -25,20 +26,28 @@ Verifies the mathematical mechanics of Sequences 05 and 09:
 """
 
 from typing import Tuple
+
 import torch
 
 
-def verify_chain_rule_and_resnet(depth: int = 50) -> Tuple[float, float, float]:
-    """Verifies exact numerical alignment between manual Chain Rule and PyTorch Autograd.
+def verify_chain_rule_and_resnet(
+    depth: int = 50,
+) -> Tuple[float, float, float]:
+    """Verifies alignment between manual Chain Rule and PyTorch Autograd.
 
     Args:
-        depth: Number of sequential layers in the telephone-chain gradient test.
+        depth: Number of sequential layers in the telephone-chain gradient
+            test.
 
     Returns:
-        A 3-tuple of (sleeping_neuron_grad, screaming_neuron_grad, resnet_input_grad).
+        A 3-tuple of
+        ``(sleeping_neuron_grad, screaming_neuron_grad, resnet_input_grad)``.
     """
     print("=" * 78)
-    print("  EPISODE 02 VERIFICATION: SLEEPING NEURON ALIBI & RESNET EXPRESS BRIDGE")
+    print(
+        "  EPISODE 02 VERIFICATION: "
+        "SLEEPING NEURON ALIBI & RESNET EXPRESS BRIDGE"
+    )
     print("=" * 78)
 
     a_neurons = torch.tensor([0.0, 8.5], requires_grad=True)
@@ -57,14 +66,31 @@ def verify_chain_rule_and_resnet(depth: int = 50) -> Tuple[float, float, float]:
     grad_sleeping = float(w_out.grad[0].item())
     grad_screaming = float(w_out.grad[1].item())
 
-    print(f"  Output Prediction (y_hat)     : {y_hat.item():.4f} (Target: {y_target.item():.4f}, Loss: {loss.item():.4f})")
+    print(
+        f"  Output Prediction (y_hat)     : {y_hat.item():.4f} "
+        f"(Target: {y_target.item():.4f}, Loss: {loss.item():.4f})"
+    )
     print(f"  Output Error Signal (delta)   : {delta_out:.4f}")
-    print(f"  Sleeping Neuron (a=0.0) dL/dw : Manual={manual_dw_sleeping:8.4f} | PyTorch={grad_sleeping:8.4f} (Rock-Solid Alibi!)")
-    print(f"  Screaming Neuron(a=8.5) dL/dw : Manual={manual_dw_screaming:8.4f} | PyTorch={grad_screaming:8.4f} (Takes Full Blame!)")
+    print(
+        f"  Sleeping Neuron (a=0.0) dL/dw : "
+        f"Manual={manual_dw_sleeping:8.4f} | PyTorch={grad_sleeping:8.4f} "
+        "(Rock-Solid Alibi!)"
+    )
+    print(
+        f"  Screaming Neuron(a=8.5) dL/dw : "
+        f"Manual={manual_dw_screaming:8.4f} | PyTorch={grad_screaming:8.4f} "
+        "(Takes Full Blame!)"
+    )
 
-    sigmoid_max_deriv = 0.25 ** depth
-    print(f"\n  [{depth}-Person Game of Telephone: Sigmoid vs ResNet Express Bridge]")
-    print(f"  {depth}-Layer Sigmoid Max Gradient Bound (0.25^{depth}) : {sigmoid_max_deriv:.3e} (Vanished to Zero!)")
+    sigmoid_max_deriv = 0.25**depth
+    print(
+        f"\n  [{depth}-Person Game of Telephone: "
+        "Sigmoid vs ResNet Express Bridge]"
+    )
+    print(
+        f"  {depth}-Layer Sigmoid Max Gradient Bound (0.25^{depth}) : "
+        f"{sigmoid_max_deriv:.3e} (Vanished to Zero!)"
+    )
 
     x_in = torch.tensor(1.0, requires_grad=True)
     h = x_in
@@ -74,7 +100,10 @@ def verify_chain_rule_and_resnet(depth: int = 50) -> Tuple[float, float, float]:
 
     assert x_in.grad is not None
     resnet_grad = float(x_in.grad.item())
-    print(f"  {depth}-Layer ResNet Gradient (dy/dx = prod(F'+1)) : {resnet_grad:.3e} (Unbroken +1 Superhighway!)")
+    print(
+        f"  {depth}-Layer ResNet Gradient (dy/dx = prod(F'+1)) : "
+        f"{resnet_grad:.3e} (Unbroken +1 Superhighway!)"
+    )
     print("=" * 78)
     return grad_sleeping, grad_screaming, resnet_grad
 
