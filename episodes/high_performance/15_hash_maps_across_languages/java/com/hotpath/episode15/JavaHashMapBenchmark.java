@@ -31,9 +31,7 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 
-/**
- * OpenJDK JMH microbenchmark suite for Episode 15 ("Hash Maps Across Languages").
- */
+/** OpenJDK JMH microbenchmark suite for Episode 15 ("Hash Maps Across Languages"). */
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @State(Scope.Thread)
@@ -61,6 +59,7 @@ public class JavaHashMapBenchmark {
   private long[] normalDosKeys;
   private long[] bucketZeroDosKeys;
 
+  /** Initializes L1, aged DRAM, sparse, and HashDoS datasets once per JMH trial. */
   @Setup(Level.Trial)
   public void setUp() {
     l1Dataset =
@@ -85,36 +84,66 @@ public class JavaHashMapBenchmark {
             HashMapForensicEngine.NUM_HASHDOS_KEYS);
   }
 
+  /**
+   * Benchmarks 80/20 lookup throughput in an L1-resident boxed {@link HashMap}.
+   *
+   * @return verification checksum
+   */
   @Benchmark
   @OperationsPerInvocation(L1_JMH_QUERIES)
   public long BM_Battle1_L1_JavaHashMap_80_20() {
     return HashMapForensicEngine.lookupJdkPacked(l1JdkPacked, l1Dataset.queries8020);
   }
 
+  /**
+   * Benchmarks 80/20 lookup throughput in an L1-resident unboxed {@link Long2LongOpenHashMap}.
+   *
+   * @return verification checksum
+   */
   @Benchmark
   @OperationsPerInvocation(L1_JMH_QUERIES)
   public long BM_Battle1_L1_FastutilLong2Long_80_20() {
     return HashMapForensicEngine.lookupFastutilPacked(l1FastutilPacked, l1Dataset.queries8020);
   }
 
+  /**
+   * Benchmarks 80/20 lookup throughput in an aged 2M-entry boxed {@link HashMap}.
+   *
+   * @return verification checksum
+   */
   @Benchmark
   @OperationsPerInvocation(AGED_JMH_QUERIES)
   public long BM_Battle1_Aged2M_JavaHashMap_80_20() {
     return HashMapForensicEngine.lookupJdkPacked(agedJdkPacked, agedDataset.queries8020);
   }
 
+  /**
+   * Benchmarks 80/20 lookup throughput in an aged 2M-entry unboxed {@link Long2LongOpenHashMap}.
+   *
+   * @return verification checksum
+   */
   @Benchmark
   @OperationsPerInvocation(AGED_JMH_QUERIES)
   public long BM_Battle1_Aged2M_FastutilLong2Long_80_20() {
     return HashMapForensicEngine.lookupFastutilPacked(agedFastutilPacked, agedDataset.queries8020);
   }
 
+  /**
+   * Benchmarks 100% miss lookup latency in an aged 2M-entry boxed {@link HashMap}.
+   *
+   * @return verification checksum
+   */
   @Benchmark
   @OperationsPerInvocation(AGED_JMH_QUERIES)
   public long BM_Battle1_Aged2M_JavaHashMap_100_Miss() {
     return HashMapForensicEngine.lookupJdkPacked(agedJdkPacked, agedDataset.queries100Miss);
   }
 
+  /**
+   * Benchmarks 100% miss lookup latency in an aged 2M-entry {@link Long2LongOpenHashMap}.
+   *
+   * @return verification checksum
+   */
   @Benchmark
   @OperationsPerInvocation(AGED_JMH_QUERIES)
   public long BM_Battle1_Aged2M_FastutilLong2Long_100_Miss() {
@@ -122,12 +151,24 @@ public class JavaHashMapBenchmark {
         agedFastutilPacked, agedDataset.queries100Miss);
   }
 
+  /**
+   * Benchmarks 80/20 lookup latency in an aged 2M-entry {@link HashMap} storing {@link
+   * SessionState} records.
+   *
+   * @return verification checksum
+   */
   @Benchmark
   @OperationsPerInvocation(AGED_JMH_QUERIES)
   public long BM_Battle1_Aged2M_JavaHashMap_Session24B() {
     return HashMapForensicEngine.lookupJdkSession(agedJdkSession, agedDataset.queries8020);
   }
 
+  /**
+   * Benchmarks 80/20 lookup latency in an aged 2M-entry {@link Long2ObjectOpenHashMap} storing
+   * {@link SessionState} records.
+   *
+   * @return verification checksum
+   */
   @Benchmark
   @OperationsPerInvocation(AGED_JMH_QUERIES)
   public long BM_Battle1_Aged2M_FastutilLong2Object_Session24B() {
@@ -135,30 +176,56 @@ public class JavaHashMapBenchmark {
         agedFastutilSession, agedDataset.queries8020);
   }
 
+  /**
+   * Benchmarks full 2M-entry iteration throughput over a boxed {@link HashMap}.
+   *
+   * @return verification checksum
+   */
   @Benchmark
   @OperationsPerInvocation(HashMapForensicEngine.NUM_AGED_ENTRIES)
   public long BM_Battle1B_IterFull2M_JavaHashMap() {
     return HashMapForensicEngine.iterJdkPacked(agedJdkPacked);
   }
 
+  /**
+   * Benchmarks full 2M-entry iteration throughput over a {@link Long2LongOpenHashMap}.
+   *
+   * @return verification checksum
+   */
   @Benchmark
   @OperationsPerInvocation(HashMapForensicEngine.NUM_AGED_ENTRIES)
   public long BM_Battle1B_IterFull2M_FastutilLong2Long() {
     return HashMapForensicEngine.iterFastutilPacked(agedFastutilPacked);
   }
 
+  /**
+   * Benchmarks sparse 10%-occupancy iteration over a boxed {@link HashMap} after 90% deletions.
+   *
+   * @return verification checksum
+   */
   @Benchmark
   @OperationsPerInvocation(200_000)
   public long BM_Battle1B_IterSparse200K_JavaHashMap() {
     return HashMapForensicEngine.iterJdkPacked(sparseJdkPacked);
   }
 
+  /**
+   * Benchmarks sparse 10%-occupancy iteration over a {@link Long2LongOpenHashMap} after 90%
+   * deletions.
+   *
+   * @return verification checksum
+   */
   @Benchmark
   @OperationsPerInvocation(200_000)
   public long BM_Battle1B_IterSparse200K_FastutilLong2Long() {
     return HashMapForensicEngine.iterFastutilPacked(sparseFastutilPacked);
   }
 
+  /**
+   * Benchmarks inserting 40K uniformly distributed keys into a pre-sized {@link HashMap}.
+   *
+   * @return final map entry count
+   */
   @Benchmark
   @OutputTimeUnit(TimeUnit.MILLISECONDS)
   public int BM_Battle3_HashDos40K_JavaHashMap_Normal() {
@@ -169,6 +236,12 @@ public class JavaHashMapBenchmark {
     return m.size();
   }
 
+  /**
+   * Benchmarks inserting 40K bucket-0 colliding keys into {@link HashMap} to exercise OpenJDK JEP
+   * 180 red-black tree conversion.
+   *
+   * @return final map entry count
+   */
   @Benchmark
   @OutputTimeUnit(TimeUnit.MILLISECONDS)
   public int BM_Battle3_HashDos40K_JavaHashMap_Bucket0_JEP180() {

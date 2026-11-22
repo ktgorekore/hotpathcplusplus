@@ -25,10 +25,19 @@ package com.hotpath.episode14;
  * slabs.
  */
 public final class OrderObj {
+  /** Monotonic order identifier. */
   public final long orderId;
+
+  /** Limit price in ticks. */
   public final long priceTicks;
+
+  /** Order quantity in lots. */
   public final int quantity;
+
+  /** Numeric symbol identifier. */
   public final int symbolId;
+
+  /** Status bitmask ({@code 1} = active). */
   public int flags;
 
   /**

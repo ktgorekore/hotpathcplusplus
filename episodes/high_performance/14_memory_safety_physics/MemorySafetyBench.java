@@ -27,18 +27,38 @@ public final class MemorySafetyBench {
   private static final int BOOK_MASK = BOOK_CAPACITY - 1;
   private static final int FLAG_ACTIVE = 1;
   private static final int FLAG_CANCELED = 0xDEAD_0000;
+  private static final String SEPARATOR = "=".repeat(88);
 
   private static volatile long blackhole = 0L;
 
   private MemorySafetyBench() {}
 
+  /** Managed heap order record used to contrast pointer chasing against flat primitive slabs. */
   public static final class OrderObj {
+    /** Monotonic order identifier. */
     public final long orderId;
+
+    /** Limit price in ticks. */
     public final long priceTicks;
+
+    /** Order quantity in lots. */
     public final int quantity;
+
+    /** Numeric symbol identifier. */
     public final int symbolId;
+
+    /** Lifecycle status bitmask ({@code 1} = active). */
     public int flags;
 
+    /**
+     * Constructs a managed heap {@code OrderObj}.
+     *
+     * @param orderId monotonic order identifier
+     * @param priceTicks limit price in ticks
+     * @param quantity order quantity in lots
+     * @param symbolId numeric symbol identifier
+     * @param flags status bitmask
+     */
     public OrderObj(long orderId, long priceTicks, int quantity, int symbolId, int flags) {
       this.orderId = orderId;
       this.priceTicks = priceTicks;
@@ -48,13 +68,27 @@ public final class MemorySafetyBench {
     }
   }
 
+  /** Zero-GC primitive generational slab packing {@code (state << 32) | index} into a long. */
   public static final class PrimitiveGenerationalSlab {
+    /** Contiguous array of order prices in ticks. */
     public final long[] prices;
+
+    /** Contiguous array of order quantities in lots. */
     public final int[] quantities;
+
+    /** Per-slot generational state packed as {@code (generation << 1) | occupiedBit}. */
     public final int[] slotState;
+
+    /** Intrusive free-list links between unoccupied slab slots. */
     public final int[] nextFree;
+
     private int freeHead;
 
+    /**
+     * Pre-allocates a primitive generational slab with the requested capacity.
+     *
+     * @param capacity maximum number of simultaneous slots
+     */
     public PrimitiveGenerationalSlab(int capacity) {
       this.prices = new long[capacity];
       this.quantities = new int[capacity];
@@ -67,6 +101,13 @@ public final class MemorySafetyBench {
       }
     }
 
+    /**
+     * Allocates a slot from the free list and returns its packed 64-bit generational handle.
+     *
+     * @param priceTicks limit price in ticks
+     * @param quantity order quantity in lots
+     * @return packed 64-bit handle, or {@code -1L} if the slab is full
+     */
     public long allocate(long priceTicks, int quantity) {
       int idx = this.freeHead;
       if (idx < 0) {
@@ -81,6 +122,11 @@ public final class MemorySafetyBench {
       return (Integer.toUnsignedLong(activeState) << 32) | Integer.toUnsignedLong(idx);
     }
 
+    /**
+     * Releases a slot and advances its generation counter if the handle matches the live slot.
+     *
+     * @param handle packed 64-bit generational handle
+     */
     public void release(long handle) {
       int idx = (int) handle;
       int expectedState = (int) (handle >>> 32);
@@ -99,6 +145,12 @@ public final class MemorySafetyBench {
       this.freeHead = idx;
     }
 
+    /**
+     * Returns {@code price * quantity} if the handle's generation matches the slot's live state.
+     *
+     * @param handle packed 64-bit generational handle
+     * @return order notional value, or {@code 0L} if stale
+     */
     public long notionalIfValid(long handle) {
       int idx = (int) handle;
       int expectedState = (int) (handle >>> 32);
@@ -109,6 +161,13 @@ public final class MemorySafetyBench {
     }
   }
 
+  /**
+   * Scans primitive price and quantity arrays sequentially with C2 range-check elimination.
+   *
+   * @param prices contiguous price array
+   * @param quantities contiguous quantity array
+   * @return accumulated total notional value
+   */
   public static long scanSequentialPrimitive(long[] prices, int[] quantities) {
     long total = 0L;
     int n = prices.length;
@@ -118,6 +177,12 @@ public final class MemorySafetyBench {
     return total;
   }
 
+  /**
+   * Scans an array of heap-allocated {@link OrderObj} references sequentially.
+   *
+   * @param orders managed order object array
+   * @return accumulated total notional value
+   */
   public static long scanSequentialObjects(OrderObj[] orders) {
     long total = 0L;
     int n = orders.length;
@@ -128,6 +193,14 @@ public final class MemorySafetyBench {
     return total;
   }
 
+  /**
+   * Performs a random batch gather over primitive arrays with mandatory per-element bounds checks.
+   *
+   * @param prices contiguous price array
+   * @param quantities contiguous quantity array
+   * @param indices permuted lookup indices
+   * @return accumulated total notional value
+   */
   public static long gatherBatchPrimitiveChecked(long[] prices, int[] quantities, int[] indices) {
     long total = 0L;
     int n = indices.length;
@@ -138,6 +211,14 @@ public final class MemorySafetyBench {
     return total;
   }
 
+  /**
+   * Performs a random batch gather over primitive arrays using a power-of-two index bitmask.
+   *
+   * @param prices contiguous price array
+   * @param quantities contiguous quantity array
+   * @param indices permuted lookup indices
+   * @return accumulated total notional value
+   */
   public static long gatherBatchPrimitiveBitmask(long[] prices, int[] quantities, int[] indices) {
     long total = 0L;
     int n = indices.length;
@@ -148,6 +229,13 @@ public final class MemorySafetyBench {
     return total;
   }
 
+  /**
+   * Performs a random batch gather over an {@link OrderObj} reference array.
+   *
+   * @param orders managed order object array
+   * @param indices permuted lookup indices
+   * @return accumulated total notional value
+   */
   public static long gatherBatchObjects(OrderObj[] orders, int[] indices) {
     long total = 0L;
     int n = indices.length;
@@ -158,6 +246,14 @@ public final class MemorySafetyBench {
     return total;
   }
 
+  /**
+   * Executes a serial data-dependent probe chain over primitive arrays.
+   *
+   * @param prices contiguous price array
+   * @param quantities contiguous quantity array
+   * @param indices base probe indices
+   * @return accumulated total notional value
+   */
   public static long probeDependentPrimitive(long[] prices, int[] quantities, int[] indices) {
     long total = 0L;
     int prevMix = 0;
@@ -171,6 +267,14 @@ public final class MemorySafetyBench {
     return total;
   }
 
+  /**
+   * Evaluates temporal safety lookups against a zero-GC {@link PrimitiveGenerationalSlab}.
+   *
+   * @param slab primitive generational slab pool
+   * @param handles original 64-bit packed handles
+   * @param lookupOrder permuted lookup order
+   * @return accumulated notional of surviving orders
+   */
   public static long runTemporalPrimitiveSlab(
       PrimitiveGenerationalSlab slab, long[] handles, int[] lookupOrder) {
     long total = 0L;
@@ -181,6 +285,16 @@ public final class MemorySafetyBench {
     return total;
   }
 
+  /**
+   * Evaluates temporal safety lookups on managed heap {@link OrderObj} references under active
+   * allocation churn.
+   *
+   * @param originalRefs original order references held by the gateway
+   * @param liveBook live order book array receiving replacement allocations
+   * @param lookupOrder permuted lookup order
+   * @param pass current pass index for churn slot rotation
+   * @return accumulated notional of surviving orders
+   */
   public static long runTemporalManagedHeapWithChurn(
       OrderObj[] originalRefs, OrderObj[] liveBook, int[] lookupOrder, int pass) {
     long total = 0L;
@@ -208,6 +322,11 @@ public final class MemorySafetyBench {
         label, usPerPass, nsPerOrder, checksum);
   }
 
+  /**
+   * Entry point for the standalone Episode 14 Java memory safety benchmark runner.
+   *
+   * @param args CLI flags ({@code --mode=...}, {@code --iters=...})
+   */
   public static void main(String[] args) {
     String mode = "all";
     int iters = 2000;
@@ -242,12 +361,10 @@ public final class MemorySafetyBench {
     }
 
     if ("all".equals(mode) || "spatial_seq".equals(mode)) {
-      System.out.println(
-          "========================================================================================");
+      System.out.println(SEPARATOR);
       System.out.printf(
           "JAVA 21 BATTLE 1A: SEQUENTIAL SCAN (%d Orders, GC=[%s])%n", BOOK_CAPACITY, gcNames);
-      System.out.println(
-          "========================================================================================");
+      System.out.println(SEPARATOR);
 
       for (int w = 0; w < 200; w++) {
         blackhole ^= scanSequentialPrimitive(prices, quantities);
@@ -283,13 +400,11 @@ public final class MemorySafetyBench {
     }
 
     if ("all".equals(mode) || "spatial_rand".equals(mode)) {
-      System.out.println(
-          "========================================================================================");
+      System.out.println(SEPARATOR);
       System.out.printf(
           "JAVA 21 BATTLE 1B: INDEPENDENT RANDOM BATCH GATHER (%d Lookups, GC=[%s])%n",
           BOOK_CAPACITY, gcNames);
-      System.out.println(
-          "========================================================================================");
+      System.out.println(SEPARATOR);
 
       for (int w = 0; w < 200; w++) {
         blackhole ^= gatherBatchPrimitiveChecked(prices, quantities, randomIdx);
@@ -340,11 +455,9 @@ public final class MemorySafetyBench {
     }
 
     if ("all".equals(mode) || "spatial_dep".equals(mode)) {
-      System.out.println(
-          "========================================================================================");
+      System.out.println(SEPARATOR);
       System.out.printf("JAVA 21 BATTLE 1C: DEPENDENT PROBE CHAIN (%d Probes)%n", BOOK_CAPACITY);
-      System.out.println(
-          "========================================================================================");
+      System.out.println(SEPARATOR);
       for (int w = 0; w < 200; w++) {
         blackhole ^= probeDependentPrimitive(prices, quantities, randomIdx);
       }
@@ -364,13 +477,11 @@ public final class MemorySafetyBench {
     }
 
     if ("all".equals(mode) || "temporal".equals(mode)) {
-      System.out.println(
-          "========================================================================================");
+      System.out.println(SEPARATOR);
       System.out.printf(
           "JAVA 21 BATTLE 3: TEMPORAL SAFETY & GC CHURN (%d Orders, GC=[%s])%n",
           BOOK_CAPACITY, gcNames);
-      System.out.println(
-          "========================================================================================");
+      System.out.println(SEPARATOR);
 
       PrimitiveGenerationalSlab slab = new PrimitiveGenerationalSlab(BOOK_CAPACITY);
       long[] handles = new long[BOOK_CAPACITY];

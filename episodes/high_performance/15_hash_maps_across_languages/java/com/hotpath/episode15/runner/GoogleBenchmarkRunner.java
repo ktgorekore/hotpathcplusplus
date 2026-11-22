@@ -29,9 +29,7 @@ import org.openjdk.jmh.runner.options.Options;
 import org.openjdk.jmh.runner.options.OptionsBuilder;
 import org.openjdk.jmh.runner.options.VerboseMode;
 
-/**
- * Custom JMH runner formatting Episode 15 Java benchmarks as a Google Benchmark table.
- */
+/** Custom JMH runner formatting Episode 15 Java benchmarks as a Google Benchmark table. */
 public final class GoogleBenchmarkRunner {
 
   private static final Logger logger = LogManager.getLogger(GoogleBenchmarkRunner.class);
@@ -40,6 +38,11 @@ public final class GoogleBenchmarkRunner {
 
   private GoogleBenchmarkRunner() {}
 
+  /**
+   * Entry point executing Episode 15 JMH benchmarks and rendering the results table.
+   *
+   * @param args standard JMH arguments plus optional {@code --no-color} and {@code --raw-jmh}
+   */
   public static void main(String[] args) {
     boolean enableColor = true;
     boolean rawJmh = false;

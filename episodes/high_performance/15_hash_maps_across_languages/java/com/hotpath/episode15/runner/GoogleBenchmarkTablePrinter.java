@@ -44,10 +44,20 @@ public final class GoogleBenchmarkTablePrinter {
 
   private final boolean enableColors;
 
+  /**
+   * Creates a table printer with optional ANSI terminal color formatting.
+   *
+   * @param enableColors {@code true} to emit ANSI color escape codes
+   */
   public GoogleBenchmarkTablePrinter(boolean enableColors) {
     this.enableColors = enableColors;
   }
 
+  /**
+   * Logs JVM/hardware system context followed by a formatted table of JMH run results.
+   *
+   * @param results collection of completed JMH {@link RunResult} entries
+   */
   public void printReport(Collection<RunResult> results) {
     if (results == null || results.isEmpty()) {
       tableLogger.info("No benchmark results to display.");

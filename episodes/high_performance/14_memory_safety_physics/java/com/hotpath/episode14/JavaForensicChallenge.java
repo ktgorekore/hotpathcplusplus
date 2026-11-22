@@ -31,6 +31,7 @@ import org.apache.logging.log4j.Logger;
 public final class JavaForensicChallenge {
 
   private static final Logger tableLogger = LogManager.getLogger("com.hotpath.episode14.table");
+  private static final String SEPARATOR = "=".repeat(88);
   private static volatile long blackhole = 0L;
 
   private JavaForensicChallenge() {}
@@ -71,12 +72,10 @@ public final class JavaForensicChallenge {
         new JavaMemorySafetyEngine.SpatialDataset(count);
 
     if ("all".equals(mode) || "spatial_seq".equals(mode)) {
-      tableLogger.info(
-          "========================================================================================");
+      tableLogger.info(SEPARATOR);
       tableLogger.info(
           String.format("JAVA 21 BATTLE 1A: SEQUENTIAL SCAN (%d Orders, GC=[%s])", count, gcNames));
-      tableLogger.info(
-          "========================================================================================");
+      tableLogger.info(SEPARATOR);
 
       for (int w = 0; w < 200; w++) {
         blackhole ^=
@@ -111,14 +110,12 @@ public final class JavaForensicChallenge {
     }
 
     if ("all".equals(mode) || "spatial_rand".equals(mode)) {
-      tableLogger.info(
-          "========================================================================================");
+      tableLogger.info(SEPARATOR);
       tableLogger.info(
           String.format(
               "JAVA 21 BATTLE 1B: INDEPENDENT RANDOM BATCH GATHER (%d Lookups, GC=[%s])",
               count, gcNames));
-      tableLogger.info(
-          "========================================================================================");
+      tableLogger.info(SEPARATOR);
 
       for (int w = 0; w < 200; w++) {
         blackhole ^=
@@ -180,12 +177,10 @@ public final class JavaForensicChallenge {
     }
 
     if ("all".equals(mode) || "spatial_dep".equals(mode)) {
-      tableLogger.info(
-          "========================================================================================");
+      tableLogger.info(SEPARATOR);
       tableLogger.info(
           String.format("JAVA 21 BATTLE 1C: DEPENDENT PROBE CHAIN (%d Probes)", count));
-      tableLogger.info(
-          "========================================================================================");
+      tableLogger.info(SEPARATOR);
 
       for (int w = 0; w < 200; w++) {
         blackhole ^=
@@ -212,13 +207,11 @@ public final class JavaForensicChallenge {
     }
 
     if ("all".equals(mode) || "temporal".equals(mode)) {
-      tableLogger.info(
-          "========================================================================================");
+      tableLogger.info(SEPARATOR);
       tableLogger.info(
           String.format(
               "JAVA 21 BATTLE 3: TEMPORAL SAFETY & GC CHURN (%d Orders, GC=[%s])", count, gcNames));
-      tableLogger.info(
-          "========================================================================================");
+      tableLogger.info(SEPARATOR);
 
       JavaMemorySafetyEngine.TemporalDataset temporal =
           new JavaMemorySafetyEngine.TemporalDataset(count);

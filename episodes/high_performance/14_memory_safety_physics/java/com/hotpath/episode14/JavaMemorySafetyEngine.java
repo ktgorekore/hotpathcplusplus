@@ -36,18 +36,32 @@ package com.hotpath.episode14;
  */
 public final class JavaMemorySafetyEngine {
 
+  /** Default power-of-two order-book capacity ({@code 65,536} slots). */
   public static final int DEFAULT_BOOK_CAPACITY = 65_536;
+
+  /** Bitmask wrapping indices into {@link #DEFAULT_BOOK_CAPACITY}. */
   public static final int DEFAULT_BOOK_MASK = DEFAULT_BOOK_CAPACITY - 1;
+
+  /** Status flag bit indicating an active order. */
   public static final int ORDER_FLAG_ACTIVE = 1;
+
+  /** Sentinel status flag marking a canceled order. */
   public static final int ORDER_FLAG_CANCELED = 0xDEAD_0000;
 
   private JavaMemorySafetyEngine() {}
 
   /** Pre-initialized spatial dataset matching C++20 {@code SpatialDataset}. */
   public static final class SpatialDataset {
+    /** Contiguous array of order prices in ticks. */
     public final long[] prices;
+
+    /** Contiguous array of order quantities in lots. */
     public final int[] quantities;
+
+    /** Managed heap {@link OrderObj} array mirroring {@code prices} and {@code quantities}. */
     public final OrderObj[] orderObjs;
+
+    /** Deterministic xorshift64-permuted random lookup indices. */
     public final int[] randomIdx;
 
     /**
@@ -87,11 +101,21 @@ public final class JavaMemorySafetyEngine {
    * preserving 100% spatial and temporal safety.
    */
   public static final class PrimitiveGenerationalSlab {
+    /** Contiguous array of order identifiers. */
     public final long[] orderIds;
+
+    /** Contiguous array of order prices in ticks. */
     public final long[] prices;
+
+    /** Contiguous array of order quantities in lots. */
     public final int[] quantities;
-    public final int[] slotState; // (generation << 1) | occupiedBit
+
+    /** Per-slot generational state packed as {@code (generation << 1) | occupiedBit}. */
+    public final int[] slotState;
+
+    /** Intrusive free-list links between unoccupied slab slots. */
     public final int[] nextFree;
+
     private int freeHead;
 
     /**
@@ -179,10 +203,19 @@ public final class JavaMemorySafetyEngine {
 
   /** Pre-constructed temporal churn scenario matching C++20 {@code TemporalChurnScenario}. */
   public static final class TemporalDataset {
+    /** Primitive generational slab hosting active and recycled slots. */
     public final PrimitiveGenerationalSlab slab;
+
+    /** Original 64-bit packed slab handles (25% stale after churn). */
     public final long[] originalSlabHandles;
+
+    /** Original managed heap references held by the simulated gateway. */
     public final OrderObj[] originalHeapRefs;
+
+    /** Live managed heap order book receiving churned replacement allocations. */
     public final OrderObj[] liveHeapBook;
+
+    /** Deterministic permuted lookup order across all slots. */
     public final int[] lookupOrder;
 
     /**

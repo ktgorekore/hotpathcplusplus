@@ -20,9 +20,16 @@ package com.hotpath.episode15;
  */
 public final class SessionState {
 
+  /** Remaining API tokens in the active rate-limit window. */
   public final long quotaRemaining;
+
+  /** Timestamp of the most recent request in nanoseconds. */
   public final long lastSeenNs;
+
+  /** Account tier bitflags. */
   public final int tierFlags;
+
+  /** Request counter within the current rate-limit window. */
   public final int rateWindowHits;
 
   /**
@@ -33,8 +40,7 @@ public final class SessionState {
    * @param tierFlags account tier bitflags
    * @param rateWindowHits hit counter in active window
    */
-  public SessionState(
-      long quotaRemaining, long lastSeenNs, int tierFlags, int rateWindowHits) {
+  public SessionState(long quotaRemaining, long lastSeenNs, int tierFlags, int rateWindowHits) {
     this.quotaRemaining = quotaRemaining;
     this.lastSeenNs = lastSeenNs;
     this.tierFlags = tierFlags;

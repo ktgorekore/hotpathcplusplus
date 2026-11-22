@@ -19,12 +19,13 @@ import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import java.lang.ref.Reference;
 import java.util.HashMap;
 
-/**
- * Standalone Java 21 forensic runner and Linux {@code perf stat} target for Episode 15.
- */
+/** Standalone Java 21 forensic runner and Linux {@code perf stat} target for Episode 15. */
 public final class JavaForensicChallenge {
 
+  /** Volatile sink preventing C2 dead-code elimination of benchmark checksums. */
   public static volatile long globalSink;
+
+  /** Volatile query reference preventing constant folding of query array addresses. */
   public static volatile long[] volatileQueries;
 
   private JavaForensicChallenge() {}
@@ -54,10 +55,7 @@ public final class JavaForensicChallenge {
     double ms = (System.nanoTime() - t0) / 1e6;
     globalSink = sink;
     printRow(
-        "Java 21 HashMap<Long,Long> (L1 1K 80/20)",
-        ms,
-        (long) iters * ds.queries8020.length,
-        sink);
+        "Java 21 HashMap<Long,Long> (L1 1K 80/20)", ms, (long) iters * ds.queries8020.length, sink);
   }
 
   private static void runL1Fastutil(int iters) {
@@ -77,10 +75,7 @@ public final class JavaForensicChallenge {
     double ms = (System.nanoTime() - t0) / 1e6;
     globalSink = sink;
     printRow(
-        "Java 21 fastutil Long2Long (L1 1K 80/20)",
-        ms,
-        (long) iters * ds.queries8020.length,
-        sink);
+        "Java 21 fastutil Long2Long (L1 1K 80/20)", ms, (long) iters * ds.queries8020.length, sink);
   }
 
   private static void runAgedJdk(int iters, boolean missOnly) {
@@ -146,10 +141,7 @@ public final class JavaForensicChallenge {
     double ms = (System.nanoTime() - t0) / 1e6;
     globalSink = sink;
     printRow(
-        "Java 21 HashMap<Long,Session> (Aged 24B)",
-        ms,
-        (long) iters * ds.queries8020.length,
-        sink);
+        "Java 21 HashMap<Long,Session> (Aged 24B)", ms, (long) iters * ds.queries8020.length, sink);
   }
 
   private static void runAgedSessionFastutil(int iters) {
@@ -317,13 +309,17 @@ public final class JavaForensicChallenge {
     HashMapForensicEngine.measureInsertTailFastutil(
         HashMapForensicEngine.buildDataset(100_000, 64), false);
 
-    printTail("Java 21 HashMap<Long,Long> (Unreserved)",
+    printTail(
+        "Java 21 HashMap<Long,Long> (Unreserved)",
         HashMapForensicEngine.measureInsertTailJdk(ds, false));
-    printTail("Java 21 HashMap<Long,Long> (Reserved)",
+    printTail(
+        "Java 21 HashMap<Long,Long> (Reserved)",
         HashMapForensicEngine.measureInsertTailJdk(ds, true));
-    printTail("Java 21 fastutil Long2Long (Unreserved)",
+    printTail(
+        "Java 21 fastutil Long2Long (Unreserved)",
         HashMapForensicEngine.measureInsertTailFastutil(ds, false));
-    printTail("Java 21 fastutil Long2Long (Reserved)",
+    printTail(
+        "Java 21 fastutil Long2Long (Reserved)",
         HashMapForensicEngine.measureInsertTailFastutil(ds, true));
   }
 
@@ -384,6 +380,11 @@ public final class JavaForensicChallenge {
     System.out.printf("%-42s | %8.2f ms%n", "Java 21 fastutil (Bucket-0 Keys)", fuMs);
   }
 
+  /**
+   * Entry point for the Episode 15 Java 21 forensic benchmark runner.
+   *
+   * @param args CLI flags ({@code --mode=...}, {@code --iters=...})
+   */
   public static void main(String[] args) {
     String mode = "all";
     int iters = 0;
