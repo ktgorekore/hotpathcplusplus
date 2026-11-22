@@ -1,17 +1,60 @@
+# Copyright 2026 Hot Path C++ Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 # Bazel build outputs and symlinks
 bazel-*
 .bazelrc.local
 
-# Build artifacts and compiled objects
+# Build artifacts, compiled objects & perf telemetry dumps
+benchmark_gcc
+benchmark_clang
 *.o
 *.a
 *.so
 *.dylib
 *.out
+perf.data*
+*.data
+*.data.*
 
-# Editor and OS caches
+# Python cache & virtual environments
 __pycache__/
 *.pyc
+.venv/
+venv/
+
+# Audio & Video Media Files (Strictly excluded per AGENTS.md; stored on Google Drive)
+*.mp4
+*.mov
+*.mkv
+*.avi
+*.webm
+*.mp3
+*.wav
+*.aac
+*.flac
+*.m4a
+*.ogg
+*.opus
+
+# Credentials & secrets
+credentials.json
+token.json
+service_account.json
+
+# Scratch & editor caches
+scratch/
 .idea/
 .vscode/
 *.swp
