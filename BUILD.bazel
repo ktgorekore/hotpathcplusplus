@@ -293,3 +293,28 @@ alias(
     name = "ep15_java_challenge_zgc",
     actual = "//episodes/high_performance/15_hash_maps_across_languages:java_challenge_zgc",
 )
+
+alias(
+    name = "cpp_hash_maps",
+    actual = "//common/cpp_hash_maps:cpp_hash_maps",
+)
+
+alias(
+    name = "cpp_hash_maps_benchmark",
+    actual = "//episodes/high_performance/16_cpp_hash_maps_deep_dive:benchmark",
+)
+
+alias(
+    name = "cpp_hash_maps_challenge",
+    actual = "//episodes/high_performance/16_cpp_hash_maps_deep_dive:challenge",
+)
+
+alias(
+    name = "cpp_hash_maps_alloc_audit",
+    actual = "//episodes/high_performance/16_cpp_hash_maps_deep_dive:live_alloc_audit",
+)
+
+alias(
+    name = "cpp_hash_maps_uaf_repro",
+    actual = "//episodes/high_performance/16_cpp_hash_maps_deep_dive:live_uaf_migration_repro",
+)
