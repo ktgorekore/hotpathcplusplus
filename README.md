@@ -48,6 +48,8 @@ All episode companion benchmarks, challenges, and hardware verification suites a
 | **Episode 12** | **What Actually Happens When We Call `new` in C++? (`malloc`, Arenas, Slab Pools & C++17 `std::pmr`)** | [`episodes/high_performance/12_memory_allocators_and_pmr/`](episodes/high_performance/12_memory_allocators_and_pmr/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
 | **Episode 13** | **Is C++ Actually Faster Than Java? (When the JIT Wins, Why It Loses & What 'Fast' Means in Production)** | [`episodes/high_performance/13_cpp_vs_java_jit/`](episodes/high_performance/13_cpp_vs_java_jit/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
 | **Episode 14** | **The Physics of Memory Safety: C++20 vs. Rust 1.91 vs. Java 21 (Spatial Bounds, AVX-512 & Temporal Lifetimes)** | [`episodes/high_performance/14_memory_safety_physics/`](episodes/high_performance/14_memory_safety_physics/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
+| **Episode 15** | **C++ vs. Rust vs. Java Hash Maps — How Memory Layout Decides Everything** | [`episodes/high_performance/15_hash_maps_across_languages/`](episodes/high_performance/15_hash_maps_across_languages/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
+| **Episode 16** | **Production C++ Hash Maps: Abseil vs. Folly F14 vs. Boost (And What Actually Breaks)** | [`episodes/high_performance/16_cpp_hash_maps_deep_dive/`](episodes/high_performance/16_cpp_hash_maps_deep_dive/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
 
 ### 🧠 Track 2: AI & Deep Learning Systems (`episodes/ai/`)
 
@@ -790,6 +792,38 @@ bazel run -c opt //common/hash_maps:live_hashdos_repro
 bazel run -c opt //common/hash_maps:challenge
 bazel run -c opt //episodes/high_performance/15_hash_maps_across_languages:java_challenge
 bazel run -c opt //episodes/high_performance/15_hash_maps_across_languages:java_challenge_zgc
+```
+
+---
+
+## 🧩 Episode 16: Production C++ Hash Maps — Abseil vs. Folly F14 vs. Boost (And What Actually Breaks)
+
+Located under [`common/cpp_hash_maps/`](common/cpp_hash_maps/) and [`episodes/high_performance/16_cpp_hash_maps_deep_dive/`](episodes/high_performance/16_cpp_hash_maps_deep_dive/), this bare-metal benchmark, allocation audit, AddressSanitizer UAF reproducer, isolated `VmRSS`, unmultiplexed `perf stat` PMU, and Zen 4 disassembly suite steps inside an **Envoy-style Edge HTTP/RPC Gateway & Connection Router** comparing **C++20 `std::unordered_map` / `std::pmr`**, **Google Abseil (`20260526.0`)**, **Meta Folly F14 (`2026.08.31.00`)**, and **Boost.Unordered (`1.90.0.bcr.1`)** (Live Godbolt: [`https://godbolt.org/z/9zj7daGTq`](https://godbolt.org/z/9zj7daGTq)):
+
+- **Story 1 — Before Adding Dependencies (Hidden Lookup Allocs & GCC's `noexcept` Hash Trap):**
+  - Querying `100K` `36–42B` non-SSO routes via `std::string_view` triggers **`1,000,000` `operator new` calls (`42.43 MB`)** per million finds in *both* default `std::unordered_map` and default `boost::unordered_flat_map`. Zero-dependency C++20 `is_transparent` (`P0919R3`/`P1690R1`) drops allocations to **`0`**, cuts instructions **`-48%`**, and speeds up 404 misses **`2.19×`** (`13.02` $\rightarrow$ `28.54 M/s`)—unless the custom hasher is marked `noexcept`, which disables GCC `libstdc++` hash-code caching (`__cache_default`) and collapses 404 misses **`2.41×`** (`11.82 M/s`). A monotonic `std::pmr::unordered_map` cuts `dTLB` misses **`-87%`**, while SIMD flat maps (`absl`, `folly::F14FastMap`, `boost`) deliver **`38.3–49.2 M/s`** Zipfian lookups and **`116.6–185.8 M/s`** 404 misses (`9×–14×`).
+- **Story 2 — Per-Request Small Maps (`N = 4..128` HTTP/2 Headers):**
+  - At `N = 16`, `std::unordered_map` executes **`17` heap allocations per request** (`391 ns`, `2.56 M req/s`), whereas a stack-inlined `FlatInlinedSmallMap<16>` runs in **`118 ns` (`8.49 M req/s`, `0` heap allocs — `3.3×` faster)** and leads every hash map through `N = 16`, before SIMD flat maps cross over past `N ≈ 20–24`.
+- **Story 3 — Large-Value RAM Cliff & Dense Iteration (`1M × 32B / 128B / 256B`):**
+  - On `1M × 256B` `UpstreamEndpointProfile`, inline flat maps double into **`513.9 MiB`** (`absl::flat_hash_map`) and **`481.9 MiB`** (`boost::unordered_flat_map`), whereas **`folly::F14FastMap`** auto-switches to `F14VectorMap`, cutting RSS **`-51%`** (`252.2 MiB`) and sweeping 1M entries in **`5.22 ms`** (`4.63M` LLC misses, **`3.8×–12.9×` faster**)—while inline flat maps keep a `1.6×–1.8×` edge on random `80/20` hits.
+- **Story 4 — Steady-State Eviction Churn (`4,000,000` Cycles Across Dual High-Fill Bands):**
+  - Exposes the **tail-latency vs. lookup-drift triangle**: Folly F14 (`21–60 µs` max stall, zero rehashes, drifts `3.3×–3.5×` on misses if packed at `81–85%`), Boost `group15` (`211.5 -> 204.2 M/s` zero drift via `18.5–20.5 ms` anti-drift rehashes), and Abseil SwissTable (`5.3–6.2 ms` tombstone cleanups, `~2×` miss slowdown between cleanups).
+- **Story 5 — Migration UAF & SIMD Node Maps (`1M × 128B`):**
+  - Live ASan reproduction of Abseil Tip #136 (`DeallocateBackingArray` Use-After-Free) vs. **`folly::F14NodeMap` (`37.9` / `255.3 M/s`)**, **`boost::unordered_node_map` (`37.4` / `318.9 M/s`)**, and **`absl::node_hash_map` (`29.7–44.2` / `162.9 M/s`)** preserving 100% stable addresses at **`2.2×–3.2×` lookups & `5×–10×` negative misses** over `std::unordered_map`.
+
+### Running Episode 16 C++20 Tests, Benchmarks & Forensics
+
+```bash
+# Run C++20 GoogleTest cross-container parity & pointer-stability tests
+bazel test -c opt //common/cpp_hash_maps:cpp_hash_maps_test
+
+# Run Episode 16 Google Benchmarks
+bazel run -c opt //episodes/high_performance/16_cpp_hash_maps_deep_dive:benchmark
+
+# Run Allocation Audit, Pointer-Stability Audit & Forensic Challenge
+bazel run -c opt //episodes/high_performance/16_cpp_hash_maps_deep_dive:live_alloc_audit
+bazel run -c opt //episodes/high_performance/16_cpp_hash_maps_deep_dive:live_uaf_migration_repro
+bazel run -c opt //episodes/high_performance/16_cpp_hash_maps_deep_dive:challenge -- --mode=all
 ```
 
 ---
