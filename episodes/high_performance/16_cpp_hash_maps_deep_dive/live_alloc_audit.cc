@@ -17,6 +17,13 @@
  * @brief Dedicated global `operator new` allocation auditor for Episode 16
  *        Stories 1 & 2 (isolated from timed benchmark binaries so timed runs
  *        use unmodified stock glibc allocation with zero instrumentation).
+ *
+ * Demonstrates real silent lookup allocations with ZERO explicit `std::string`
+ * construction at the call site: passing a `const char*` path (e.g., from an
+ * HTTP/C parser or string literal) to `.find(path)` silently triggers implicit
+ * `std::string(const char*)` heap allocations in default `std::unordered_map`,
+ * in half-configured transparent maps missing `std::equal_to<>`, and in
+ * default `boost::unordered_flat_map`.
  */
 
 #include <cstddef>
@@ -28,6 +35,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <vector>
 
 #include "common/cpp_hash_maps/cpp_hash_maps.h"
 
@@ -99,17 +107,61 @@ void operator delete[](void* ptr, std::size_t, std::align_val_t) noexcept {
 
 namespace hotpath::episode16 {
 
+using StdRouteMapHalfTransparent =
+    std::unordered_map<std::string, RoutePolicy, TransparentStdStringHash>;
+
+/**
+ * @brief Executes exact `const char*` lookup loop across any route map with
+ *        zero explicit `std::string` construction at the call site.
+ * @tparam MapT Associative route map type keyed by `std::string`.
+ * @param routes Populated route map.
+ * @param c_paths Null-terminated C-string paths from an HTTP/C parser buffer.
+ * @return Deterministic checksum verifying bit-for-bit lookup parity.
+ */
+template <typename MapT>
+[[nodiscard]] std::uint64_t RunCstrRouteLookups(
+    const MapT& routes, const std::vector<const char*>& c_paths) {
+  std::uint64_t sum = 0;
+  std::uint64_t hits = 0;
+  for (const char* path : c_paths) {
+    // Zero std::string visible here — compiles cleanly with -Wall -Wextra!
+    const auto it = routes.find(path);
+    if (it != routes.end()) {
+      sum += DigestRoutePolicy(it->second);
+      ++hits;
+    }
+  }
+  return FinalizeChecksum(sum, hits);
+}
+
 /**
  * @brief Executes exact `operator new` allocation counts across Story 1
- *        (`1,000,000` route lookups) and Story 2 (`16`-header HTTP/2 request
- *        lifecycles).
+ *        (`1,000,000` `const char*` route lookups) and Story 2 (`16`-header
+ *        HTTP/2 request lifecycles).
  * @return Process exit code (0 on success).
  */
 int RunAllocAudit() {
   std::cout << "=== Story 1 Allocation Audit: 1,000,000 Route Lookups "
-               "(36-42B std::string_view) ===\n";
+               "(routes.find(const char*)) ===\n";
   const RouteTableDataset ds =
       BuildRouteTableDataset(kNumRoutes, kNumRouteQueries);
+
+  // Build null-terminated C-string request buffer (as in nghttp2/C parsers).
+  std::string c_backing;
+  c_backing.reserve(ds.query_backing_zipf.size() +
+                    ds.queries_zipf_70_30.size());
+  std::vector<std::size_t> offsets;
+  offsets.reserve(ds.queries_zipf_70_30.size());
+  for (std::string_view sv : ds.queries_zipf_70_30) {
+    offsets.push_back(c_backing.size());
+    c_backing.append(sv.data(), sv.size());
+    c_backing.push_back('\0');
+  }
+  std::vector<const char*> c_paths;
+  c_paths.reserve(offsets.size());
+  for (std::size_t off : offsets) {
+    c_paths.push_back(c_backing.data() + off);
+  }
 
   auto audit_route = [&](const std::string& label, auto&& fn) {
     AllocScope scope;
@@ -122,53 +174,38 @@ int RunAllocAudit() {
 
   {
     const auto m = BuildAgedRouteMap<StdRouteMapDefault>(ds);
-    audit_route("std::unordered_map (Default non-transparent)", [&] {
-      return Ep16StdDefaultFindRoute(m, ds.queries_zipf_70_30.data(),
-                                     ds.queries_zipf_70_30.size());
-    });
+    audit_route("std::unordered_map (default)",
+                [&] { return RunCstrRouteLookups(m, c_paths); });
   }
   {
-    const auto m = BuildAgedRouteMap<StdRouteMapTransparent>(ds);
-    audit_route("std::unordered_map (C++20 is_transparent)", [&] {
-      return Ep16StdTransparentFindRoute(m, ds.queries_zipf_70_30.data(),
-                                         ds.queries_zipf_70_30.size());
-    });
+    const auto m = BuildAgedRouteMap<StdRouteMapHalfTransparent>(ds);
+    audit_route("std::unordered_map (hash only, no equal_to<>)",
+                [&] { return RunCstrRouteLookups(m, c_paths); });
   }
   {
     const auto m = BuildAgedRouteMap<BoostFlatRouteMapDefault>(ds);
-    audit_route("boost::unordered_flat_map (Default non-transp!)", [&] {
-      std::uint64_t sum = 0;
-      std::uint64_t hits = 0;
-      for (std::string_view sv : ds.queries_zipf_70_30) {
-        const auto it = m.find(std::string(sv));
-        if (it != m.end()) {
-          sum += DigestRoutePolicy(it->second);
-          ++hits;
-        }
-      }
-      return FinalizeChecksum(sum, hits);
-    });
+    audit_route("boost::unordered_flat_map (default!)",
+                [&] { return RunCstrRouteLookups(m, c_paths); });
+  }
+  {
+    const auto m = BuildAgedRouteMap<StdRouteMapTransparent>(ds);
+    audit_route("std::unordered_map (is_transparent + equal_to<>)",
+                [&] { return RunCstrRouteLookups(m, c_paths); });
   }
   {
     const auto m = BuildAgedRouteMap<BoostFlatRouteMap>(ds);
-    audit_route("boost::unordered_flat_map (Transparent hash)", [&] {
-      return Ep16BoostFlatFindRoute(m, ds.queries_zipf_70_30.data(),
-                                    ds.queries_zipf_70_30.size());
-    });
+    audit_route("boost::unordered_flat_map (transparent)",
+                [&] { return RunCstrRouteLookups(m, c_paths); });
   }
   {
     const auto m = BuildAgedRouteMap<AbslFlatRouteMap>(ds);
-    audit_route("absl::flat_hash_map (Transparent by default)", [&] {
-      return Ep16AbslFlatFindRoute(m, ds.queries_zipf_70_30.data(),
-                                   ds.queries_zipf_70_30.size());
-    });
+    audit_route("absl::flat_hash_map (transparent by default)",
+                [&] { return RunCstrRouteLookups(m, c_paths); });
   }
   {
     const auto m = BuildAgedRouteMap<FollyF14FastRouteMap>(ds);
-    audit_route("folly::F14FastMap (Transparent by default)", [&] {
-      return Ep16FollyF14FastFindRoute(m, ds.queries_zipf_70_30.data(),
-                                       ds.queries_zipf_70_30.size());
-    });
+    audit_route("folly::F14FastMap (transparent by default)",
+                [&] { return RunCstrRouteLookups(m, c_paths); });
   }
 
   std::cout << "\n=== Story 2 Allocation Audit: Per-Request Small Header Map "

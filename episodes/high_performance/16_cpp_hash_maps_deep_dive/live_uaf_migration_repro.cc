@@ -14,19 +14,23 @@
 
 /**
  * @file live_uaf_migration_repro.cc
- * @brief Episode 16 Story 5 live pointer-stability & migration UAF reproducer.
+ * @brief Episode 16 Story 5 live pointer-stability & 1-line C++17 flat-map
+ *        migration UAF reproducer.
  *
  * Models a real production migration bug (Abseil Tip of the Week #136):
- * a gateway service caches a pointer/reference to an existing tenant policy
- * (or active connection) across subsequent insertions that trigger a rehash.
+ * a gateway onboards a new tenant by copying a default policy in one line:
+ *   `policies[child_id] = policies[kDefaultTenantId];`
+ * Under C++17 assignment sequencing (`[expr.ass]/1`), the right-hand side runs
+ * first and returns a reference into the current backing array. When the
+ * left-hand side inserts `child_id` and triggers a rehash:
  *   - Under `std::unordered_map`, `absl::node_hash_map`, `folly::F14NodeMap`,
  *     `boost::unordered_node_map`, and `absl::flat_hash_map<K, unique_ptr<V>>`,
- *     the value address remains 100% stable across rehashes.
+ *     element addresses stay pinned and the copy is 100% safe.
  *   - Under `absl::flat_hash_map`, `folly::F14FastMap`, and
- *     `boost::unordered_flat_map`, the backing array reallocates and moves
- *     every element—silently turning cached pointers/references into dangling
- *     Use-After-Free hazards (immediately caught when run with `--trigger-uaf`
- *     under AddressSanitizer).
+ *     `boost::unordered_flat_map`, the backing array reallocates and frees the
+ *     old slot before the copy completes—silently turning the right-hand side
+ *     into a dangling Use-After-Free (caught immediately under ASan with
+ *     `--trigger-uaf`).
  */
 
 #include <cstdint>
@@ -79,23 +83,21 @@ void AuditUniquePtrHybrid() {
 }
 
 /**
- * @brief Demonstrates the Abseil Tip #136 migration bug: taking a reference
- *        to a parent tenant policy, then inserting child tenants (triggering
- *        rehash) and reading through the invalidated reference.
- *        ONLY invoked when explicitly passed `--trigger-uaf` (e.g., under
- *        ASan).
+ * @brief Demonstrates the 1-line C++17 flat-map migration UAF (Abseil Tip
+ *        #136): `policies[child_id] = policies[1]`. Under C++17 sequencing,
+ *        RHS runs before LHS; when LHS rehashes and frees the old backing
+ *        array, the assignment copies from freed memory. ONLY invoked when
+ *        explicitly passed `--trigger-uaf` (e.g., under ASan).
  */
 void TriggerFlatMapMigrationUaf() {
-  std::cout << "\n--- Triggering Live Migration UAF (Abseil Tip #136) ---\n";
+  std::cout << "\n--- Triggering Live 1-Line C++17 UAF (Abseil Tip #136) ---\n";
   absl::flat_hash_map<std::uint64_t, RoutePolicy> policies;
   policies.emplace(1ULL, RoutePolicy{42U, 250U, 3U, 5000U, 0xCAFEBABEULL});
 
-  // Valid for 10 years in std::unordered_map; compiles with ZERO warnings!
-  const RoutePolicy& parent_policy = policies.at(1ULL);
+  // Safe for years on std::unordered_map; 0 warnings under -Wall -Wextra!
+  // C++17 evaluates RHS policies[1] BEFORE LHS policies[child_id]:
   for (std::uint64_t child_id = 2; child_id <= 64; ++child_id) {
-    // Rehash frees the old backing slot while `parent_policy` still points to
-    // it! Under ASan this traps immediately with heap-use-after-free.
-    policies.emplace(child_id, parent_policy);
+    policies[child_id] = policies[1ULL];  // LHS rehash frees RHS ref!
   }
   std::cout << "Child 64 inherited timeout_ms=" << policies.at(64ULL).timeout_ms
             << " (expected 250; UB without ASan!)\n";
@@ -105,7 +107,7 @@ void TriggerFlatMapMigrationUaf() {
 
 /**
  * @brief Runs the Story 5 address-stability audit across flat and node hash
- *        maps, and optionally executes the live migration UAF reproducer.
+ *        maps, and optionally executes the live 1-line C++17 migration UAF.
  * @param trigger_uaf True to invoke the intentional flat-map rehash UAF (for
  *        verification under `-fsanitize=address`).
  * @return Process exit code (0 on success).
