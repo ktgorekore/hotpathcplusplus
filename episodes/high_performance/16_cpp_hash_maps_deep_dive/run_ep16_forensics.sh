@@ -19,7 +19,7 @@
 set -euo pipefail
 
 EP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${EP_DIR}/../../.." REPO_ROOT="$(cd "${EP_DIR}/../.." && pwd)"REPO_ROOT="$(cd "${EP_DIR}/../.." && pwd)" pwd)"
+REPO_ROOT="$(cd "${EP_DIR}/../../.." && pwd)"
 OUT_DIR="/tmp/ep16_telemetry"
 mkdir -p "${OUT_DIR}" "${EP_DIR}/assembly"
 
