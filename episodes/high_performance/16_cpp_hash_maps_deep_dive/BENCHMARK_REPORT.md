@@ -20,7 +20,7 @@
 >
 > **Hardware Testbed:** AMD Ryzen 9 8945HX (Zen 4, 16 Cores / 32 Threads, `512 KiB` L1D, `16 MiB` L2, `64 MiB` L3) • `Linux 7.0.0-43-generic x86_64` (`kernel.perf_event_paranoid = -1`)  
 > **Toolchains & BCR Dependencies:** `GCC 13.3.0` & `Clang 18.1.3` (`-std=c++20 -O3 -march=native`), `Bazel 9.3.2` (Bzlmod), `Abseil 20260526.0`, `Meta Folly 2026.08.31.00`, `Boost.Unordered 1.90.0.bcr.1`, `Google Benchmark 1.9.5`, `GoogleTest 1.18.0`  
-> **Parity Verification:** `//common/cpp_hash_maps:cpp_hash_maps_test` passes bit-for-bit identical checksums across all 12 container variants under both `GCC 13.3.0` (`0.5s`) and `Clang 18.1.3` (`0.7s`).  
+> **Parity Verification:** `//episodes/16_cpp_hash_maps_deep_dive:cpp_hash_maps_test` passes bit-for-bit identical checksums across all 12 container variants under both `GCC 13.3.0` (`0.5s`) and `Clang 18.1.3` (`0.7s`).  
 > **Live Compiler Explorer (Godbolt):** [`https://godbolt.org/z/9zj7daGTq`](https://godbolt.org/z/9zj7daGTq)  
 > **Intel-Syntax Assembly Archive:** [`assembly/godbolt_comparison.s`](./assembly/godbolt_comparison.s) & [`assembly/godbolt_source.cc`](./assembly/godbolt_source.cc)
 
@@ -57,8 +57,20 @@ An Envoy-style HTTP/RPC gateway holds **`100,000` active routes** keyed by reali
 | **`folly::F14ValueMap` (14-way inline)** | `34.59 M/s` / **`50.42 M/s`** | `24.69 M/s` | **`158.73 M/s` (`6.3 ns`)** |
 | **`boost::unordered_flat_map` (15-way `group15` + `ofw`)** | `38.27 M/s` (`26.1 ns`) / `39.60 M/s` | `19.94–40.74 M/s` | **`116.63 M/s` (`8.6 ns`)** / **`125.54 M/s`** (**`9.0×–9.5×`**) |
 
-> **Real-World GCC `libstdc++` Discovery (Verified Directly in `/usr/include/c++/13/bits/hashtable.h:48-52` & Disassembly):**
-> GCC decides whether to cache the 64-bit hash inside each `std::unordered_map` node using `__cache_default = !(__is_fast_hash<_Hash> && __is_nothrow_invocable<...>)`. Because `std::__is_fast_hash<UserHash>` defaults to `true`, adding `noexcept` to a custom transparent string hasher **silently disables hash-code caching** (`_Hashtable_traits<false, ...>`), forcing `libstdc++` to call `_ZSt11_Hash_bytes` and **re-hash stored heap strings on every bucket collision / negative miss**—collapsing 404 miss throughput **`2.41×`** (`28.54 M/s` $\rightarrow$ `11.82 M/s`, even slower than allocating temporary `std::string`s!). Omitting `noexcept` (matching `WG21 P0919` / `cppreference`) keeps hash caching active and unlocks the full **`2.19×`** zero-dependency speedup!
+> **Real-World GCC `libstdc++` Discovery (Verified Directly in `/usr/include/c++/13/bits/hashtable.h:47-52` & Disassembly):**
+> GCC decides whether to cache the 64-bit hash inside each `std::unordered_map` node using `__cache_default = !(__is_fast_hash<_Hash> && __is_nothrow_invocable<...>)`. Because `std::__is_fast_hash<UserHash>` already defaults to `true` for all user-defined hashers (only `std::hash<std::string>` is explicitly specialized to `false`), omitting `noexcept` forces GCC to cache the 8-byte hash only because the C++ Standard forbids `erase(const_iterator)` from throwing. Adding `noexcept` drops hash-code caching (`_Hashtable_traits<false, ...>`), and because `libstdc++` chains all buckets into a single singly-linked list, detecting bucket boundaries during 404 misses forces `_ZSt11_Hash_bytes` to **re-hash stored heap strings on every traversed node**—collapsing 404 miss throughput **`2.41×`** (`28.54 M/s` $\rightarrow$ `11.82 M/s`, even slower than allocating temporary `std::string`s at `13.02 M/s`!).
+
+### 1C. Hasher Disclosure & Normalized Shared-Hasher Control (`challenge --mode=s1_shared_hash_control`)
+Table 1B intentionally benchmarks each library with its **production default string hasher** (`std::hash`, `absl::Hash`, `folly::f14::DefaultHasher`, `boost::hash` + `is_avalanching`) so headline results reflect what teams ship out of the box. To isolate **hash-table layout + SIMD probing** from hash-function speed, we also normalized all four containers onto the exact same `std::hash<std::string_view>` (`TransparentStdStringHash`, MurmurHash2):
+
+| Container (Identical `std::hash<std::string_view>`) | Zipfian `70/30` | `100%` 404 Negative Miss | Layout + SIMD Speedup vs. `std` |
+| :--- | :---: | :---: | :---: |
+| **`std::unordered_map` (`std::hash`, cached)** | `18.37 M/s` (`54.4 ns`) | `29.28 M/s` (`34.2 ns`) | `1.00×` baseline |
+| **`absl::flat_hash_map` (`std::hash`)** | **`35.86 M/s` (`27.9 ns`)** | `75.99 M/s` (`13.2 ns`) | **`1.95×` Zipf / `2.60×` 404** |
+| **`boost::unordered_flat_map` (`std::hash`)** | `35.33 M/s` (`28.3 ns`) | `86.92 M/s` (`11.5 ns`) | **`1.92×` Zipf / `2.97×` 404** |
+| **`folly::F14FastMap` (`std::hash`)** | `29.59 M/s` (`33.8 ns`) | **`92.76 M/s` (`10.8 ns`)** | **`1.61×` Zipf / `3.17×` 404** |
+
+> **Key Takeaway:** Roughly half of the headline `4×–6×` 404-miss lead over transparent `std::unordered_map` comes from faster default string hashing/mixing, while **`1.6×–2.0×` on Zipfian traffic and `2.6×–3.2×` on 404 misses** come purely from flat cache layout and SIMD tag probing.
 
 ---
 

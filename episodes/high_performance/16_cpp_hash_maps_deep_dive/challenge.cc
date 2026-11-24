@@ -162,6 +162,91 @@ void RunStory1All(std::size_t iters) {
                    ds.queries_100_miss, iters, Ep16BoostFlatFindRoute);
 }
 
+void RunNoexceptHashTrapDemo(std::size_t iters) {
+  const RouteTableDataset ds =
+      BuildRouteTableDataset(kNumRoutes, kNumRouteQueries);
+  std::cout << "=== GCC libstdc++ noexcept Hash-Caching Audit (100K Non-SSO "
+               "36-42B Routes, 404 Misses) ===\n";
+  const auto m_std_def = BuildAgedRouteMap<StdRouteMapDefault>(ds);
+  const auto m_std_tr = BuildAgedRouteMap<StdRouteMapTransparent>(ds);
+  const auto m_std_tr_noex =
+      BuildAgedRouteMap<StdRouteMapTransparentNoexcept>(ds);
+  // Warm CPU turbo P-state & steady-state cache identically across all 3 maps
+  // (matching RunStory1All's Zipf/Uniform pass before 1C 404 Misses).
+  std::uint64_t warm_sink = 0;
+  for (int w = 0; w < 2; ++w) {
+    warm_sink ^= Ep16StdDefaultFindRoute(
+        m_std_def, ds.queries_zipf_70_30.data(), ds.queries_zipf_70_30.size());
+    warm_sink ^= Ep16StdTransparentFindRoute(
+        m_std_tr, ds.queries_zipf_70_30.data(), ds.queries_zipf_70_30.size());
+    warm_sink ^= Ep16StdTransparentNoexceptFindRoute(
+        m_std_tr_noex, ds.queries_zipf_70_30.data(),
+        ds.queries_zipf_70_30.size());
+  }
+  DoNotOptimize(warm_sink);
+  TimeRouteLookups("std::unordered_map (default, heap allocs)", m_std_def,
+                   ds.queries_100_miss, iters, Ep16StdDefaultFindRoute);
+  TimeRouteLookups("std::unordered_map (transparent, cached)", m_std_tr,
+                   ds.queries_100_miss, iters, Ep16StdTransparentFindRoute);
+  TimeRouteLookups("std::unordered_map (transparent + noexcept!)",
+                   m_std_tr_noex, ds.queries_100_miss, iters,
+                   Ep16StdTransparentNoexceptFindRoute);
+}
+
+void RunSharedHasherControl(std::size_t iters) {
+  using AbslSharedHashMap =
+      absl::flat_hash_map<std::string, RoutePolicy, TransparentStdStringHash,
+                          std::equal_to<>>;
+  using FollySharedHashMap =
+      folly::F14FastMap<std::string, RoutePolicy, TransparentStdStringHash,
+                        std::equal_to<>>;
+  using BoostSharedHashMap =
+      boost::unordered_flat_map<std::string, RoutePolicy,
+                                TransparentStdStringHash, std::equal_to<>>;
+
+  const RouteTableDataset ds =
+      BuildRouteTableDataset(kNumRoutes, kNumRouteQueries);
+  const auto m_std = BuildAgedRouteMap<StdRouteMapTransparent>(ds);
+  const auto m_absl = BuildAgedRouteMap<AbslSharedHashMap>(ds);
+  const auto m_f14 = BuildAgedRouteMap<FollySharedHashMap>(ds);
+  const auto m_boost = BuildAgedRouteMap<BoostSharedHashMap>(ds);
+
+  auto find_generic = [](const auto& map, const std::string_view* q,
+                         std::size_t n) -> std::uint64_t {
+    std::uint64_t sum = 0;
+    std::uint64_t hits = 0;
+    for (std::size_t i = 0; i < n; ++i) {
+      const auto it = map.find(q[i]);
+      if (it != map.end()) {
+        sum += DigestRoutePolicy(it->second);
+        ++hits;
+      }
+    }
+    return FinalizeChecksum(sum, hits);
+  };
+
+  std::cout << "\n=== Story 1 Shared-Hasher Control (Identical "
+               "std::hash<std::string_view>) ===\n";
+  std::cout << "--- Zipfian 70/30 (Normalized std::hash) ---\n";
+  TimeRouteLookups("std::unordered_map (std::hash)", m_std,
+                   ds.queries_zipf_70_30, iters, Ep16StdTransparentFindRoute);
+  TimeRouteLookups("absl::flat_hash_map (std::hash)", m_absl,
+                   ds.queries_zipf_70_30, iters, find_generic);
+  TimeRouteLookups("folly::F14FastMap (std::hash)", m_f14,
+                   ds.queries_zipf_70_30, iters, find_generic);
+  TimeRouteLookups("boost::unordered_flat_map (std::hash)", m_boost,
+                   ds.queries_zipf_70_30, iters, find_generic);
+  std::cout << "--- 100% 404 Misses (Normalized std::hash) ---\n";
+  TimeRouteLookups("std::unordered_map (std::hash)", m_std, ds.queries_100_miss,
+                   iters, Ep16StdTransparentFindRoute);
+  TimeRouteLookups("absl::flat_hash_map (std::hash)", m_absl,
+                   ds.queries_100_miss, iters, find_generic);
+  TimeRouteLookups("folly::F14FastMap (std::hash)", m_f14, ds.queries_100_miss,
+                   iters, find_generic);
+  TimeRouteLookups("boost::unordered_flat_map (std::hash)", m_boost,
+                   ds.queries_100_miss, iters, find_generic);
+}
+
 // -----------------------------------------------------------------------------
 // Story 2: Per-Request Small Maps Crossover Sweep (N = 4, 8, 16, 32, 64, 128)
 // -----------------------------------------------------------------------------
@@ -579,6 +664,15 @@ int RunChallengeCli(int argc, char** argv) {
     RunStory2All(iters > 0 ? iters : 200'000);
     RunStory3And5Perf(iters > 0 ? iters : 8);
     RunStory4All(iters > 0 ? iters : kNumChurnOps);
+    return 0;
+  }
+
+  if (mode == "s1_noexcept_demo") {
+    RunNoexceptHashTrapDemo(iters > 0 ? iters : 4);
+    return 0;
+  }
+  if (mode == "s1_shared_hash_control") {
+    RunSharedHasherControl(iters > 0 ? iters : 6);
     return 0;
   }
 
