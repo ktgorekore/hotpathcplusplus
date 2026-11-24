@@ -15,8 +15,9 @@
 /**
  * @file benchmark.cc
  * @brief Episode 16 official Google Benchmark suite covering all 5 production
- *        stories across std::unordered_map, std::pmr, Abseil SwissTable,
- *        Meta Folly F14, Boost.Unordered, and flat InlinedVector small maps.
+ *        stories across `std::unordered_map`, `std::pmr`, Abseil SwissTable,
+ *        Meta Folly F14, Boost.Unordered, normalized shared-hasher controls,
+ *        and stack-inlined flat small maps.
  */
 
 #include <benchmark/benchmark.h>
@@ -28,6 +29,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "absl/types/span.h"
 #include "common/cpp_hash_maps/cpp_hash_maps.h"
 
 namespace hotpath::episode16 {
@@ -37,53 +39,130 @@ namespace {
 // Shared Lazy-Initialized Datasets & Aged Maps
 // -----------------------------------------------------------------------------
 
+/**
+ * @brief Returns lazily constructed deterministic Story 1 route dataset.
+ * @return Const reference to process-lifetime `RouteTableDataset`.
+ */
 const RouteTableDataset& GetRouteDataset() {
   static const RouteTableDataset ds =
       BuildRouteTableDataset(kNumRoutes, 200'000);
   return ds;
 }
 
+/**
+ * @brief Returns aged default `std::unordered_map` route table.
+ * @return Const reference to populated `StdRouteMapDefault`.
+ */
 const StdRouteMapDefault& GetStdRouteDefault() {
   static const auto map =
       BuildAgedRouteMap<StdRouteMapDefault>(GetRouteDataset());
   return map;
 }
 
+/**
+ * @brief Returns aged C++20 transparent `std::unordered_map` route table.
+ * @return Const reference to populated `StdRouteMapTransparent`.
+ */
 const StdRouteMapTransparent& GetStdRouteTransparent() {
   static const auto map =
       BuildAgedRouteMap<StdRouteMapTransparent>(GetRouteDataset());
   return map;
 }
 
+/**
+ * @brief Returns aged GCC `noexcept`-trap `std::unordered_map` route table.
+ * @return Const reference to populated `StdRouteMapTransparentNoexcept`.
+ */
+const StdRouteMapTransparentNoexcept& GetStdRouteTransparentNoexcept() {
+  static const auto map =
+      BuildAgedRouteMap<StdRouteMapTransparentNoexcept>(GetRouteDataset());
+  return map;
+}
+
+/**
+ * @brief Returns monotonic-arena `std::pmr::unordered_map` route table holder.
+ * @return Const reference to populated `PmrRouteTableHolder`.
+ */
 const PmrRouteTableHolder& GetPmrRouteHolder() {
   static const auto holder = BuildPmrRouteMap(GetRouteDataset());
   return holder;
 }
 
+/**
+ * @brief Returns aged `absl::flat_hash_map` route table.
+ * @return Const reference to populated `AbslFlatRouteMap`.
+ */
 const AbslFlatRouteMap& GetAbslFlatRoute() {
   static const auto map =
       BuildAgedRouteMap<AbslFlatRouteMap>(GetRouteDataset());
   return map;
 }
 
+/**
+ * @brief Returns aged `folly::F14FastMap` route table.
+ * @return Const reference to populated `FollyF14FastRouteMap`.
+ */
 const FollyF14FastRouteMap& GetFollyF14FastRoute() {
   static const auto map =
       BuildAgedRouteMap<FollyF14FastRouteMap>(GetRouteDataset());
   return map;
 }
 
+/**
+ * @brief Returns aged `folly::F14ValueMap` route table.
+ * @return Const reference to populated `FollyF14ValueRouteMap`.
+ */
 const FollyF14ValueRouteMap& GetFollyF14ValueRoute() {
   static const auto map =
       BuildAgedRouteMap<FollyF14ValueRouteMap>(GetRouteDataset());
   return map;
 }
 
+/**
+ * @brief Returns aged transparent `boost::unordered_flat_map` route table.
+ * @return Const reference to populated `BoostFlatRouteMap`.
+ */
 const BoostFlatRouteMap& GetBoostFlatRoute() {
   static const auto map =
       BuildAgedRouteMap<BoostFlatRouteMap>(GetRouteDataset());
   return map;
 }
 
+/**
+ * @brief Returns shared-hasher control `absl::flat_hash_map` (`std::hash`).
+ * @return Const reference to populated `AbslFlatRouteMapSharedHash`.
+ */
+const AbslFlatRouteMapSharedHash& GetAbslSharedHashRoute() {
+  static const auto map =
+      BuildAgedRouteMap<AbslFlatRouteMapSharedHash>(GetRouteDataset());
+  return map;
+}
+
+/**
+ * @brief Returns shared-hasher control `folly::F14FastMap` (`std::hash`).
+ * @return Const reference to populated `FollyF14FastRouteMapSharedHash`.
+ */
+const FollyF14FastRouteMapSharedHash& GetFollySharedHashRoute() {
+  static const auto map =
+      BuildAgedRouteMap<FollyF14FastRouteMapSharedHash>(GetRouteDataset());
+  return map;
+}
+
+/**
+ * @brief Returns shared-hasher control `boost::unordered_flat_map`
+ *        (`std::hash`).
+ * @return Const reference to populated `BoostFlatRouteMapSharedHash`.
+ */
+const BoostFlatRouteMapSharedHash& GetBoostSharedHashRoute() {
+  static const auto map =
+      BuildAgedRouteMap<BoostFlatRouteMapSharedHash>(GetRouteDataset());
+  return map;
+}
+
+/**
+ * @brief Returns lazily constructed deterministic Story 3/5 large dataset.
+ * @return Const reference to process-lifetime `LargeValueDataset`.
+ */
 const LargeValueDataset& GetLargeDataset() {
   static const LargeValueDataset ds =
       BuildLargeValueDataset(kNumLargeEntriesPostDouble, 250'000);
@@ -248,7 +327,7 @@ BENCHMARK(BM_Story1_Route100Miss_StdDefault_Alloc);
 
 /**
  * @brief Story 1 (100% 404 Miss): zero-dependency C++20 `is_transparent`
- *        `std::unordered_map` negative miss scan.
+ *        `std::unordered_map` negative miss scan (8B hash cached).
  * @param state Google Benchmark runner state.
  */
 void BM_Story1_Route100Miss_StdTransparent(benchmark::State& state) {
@@ -263,6 +342,24 @@ void BM_Story1_Route100Miss_StdTransparent(benchmark::State& state) {
                                                    ds.queries_100_miss.size()));
 }
 BENCHMARK(BM_Story1_Route100Miss_StdTransparent);
+
+/**
+ * @brief Story 1 (100% 404 Miss): GCC `libstdc++` `noexcept` trap dropping
+ *        the 8B node hash cache and re-hashing stored heap strings on misses.
+ * @param state Google Benchmark runner state.
+ */
+void BM_Story1_Route100Miss_StdNoexceptTrap(benchmark::State& state) {
+  const auto& ds = GetRouteDataset();
+  const auto& map = GetStdRouteTransparentNoexcept();
+  for (auto _ : state) {
+    std::uint64_t r = Ep16StdTransparentNoexceptFindRoute(
+        map, ds.queries_100_miss.data(), ds.queries_100_miss.size());
+    benchmark::DoNotOptimize(r);
+  }
+  state.SetItemsProcessed(state.iterations() * static_cast<std::int64_t>(
+                                                   ds.queries_100_miss.size()));
+}
+BENCHMARK(BM_Story1_Route100Miss_StdNoexceptTrap);
 
 /**
  * @brief Story 1 (100% 404 Miss): `absl::flat_hash_map` SIMD `kEmpty`
@@ -318,6 +415,59 @@ void BM_Story1_Route100Miss_BoostFlat(benchmark::State& state) {
 }
 BENCHMARK(BM_Story1_Route100Miss_BoostFlat);
 
+/**
+ * @brief Story 1 Shared-Hasher Control (100% 404 Miss): `absl::flat_hash_map`
+ *        normalized onto identical `std::hash<std::string_view>`.
+ * @param state Google Benchmark runner state.
+ */
+void BM_Story1_Route100Miss_SharedStdHash_AbslFlat(benchmark::State& state) {
+  const auto& ds = GetRouteDataset();
+  const auto& map = GetAbslSharedHashRoute();
+  for (auto _ : state) {
+    std::uint64_t r = FindTransparentRouteBatch(map, ds.queries_100_miss);
+    benchmark::DoNotOptimize(r);
+  }
+  state.SetItemsProcessed(state.iterations() * static_cast<std::int64_t>(
+                                                   ds.queries_100_miss.size()));
+}
+BENCHMARK(BM_Story1_Route100Miss_SharedStdHash_AbslFlat);
+
+/**
+ * @brief Story 1 Shared-Hasher Control (100% 404 Miss): `folly::F14FastMap`
+ *        normalized onto identical `std::hash<std::string_view>`.
+ * @param state Google Benchmark runner state.
+ */
+void BM_Story1_Route100Miss_SharedStdHash_FollyF14Fast(
+    benchmark::State& state) {
+  const auto& ds = GetRouteDataset();
+  const auto& map = GetFollySharedHashRoute();
+  for (auto _ : state) {
+    std::uint64_t r = FindTransparentRouteBatch(map, ds.queries_100_miss);
+    benchmark::DoNotOptimize(r);
+  }
+  state.SetItemsProcessed(state.iterations() * static_cast<std::int64_t>(
+                                                   ds.queries_100_miss.size()));
+}
+BENCHMARK(BM_Story1_Route100Miss_SharedStdHash_FollyF14Fast);
+
+/**
+ * @brief Story 1 Shared-Hasher Control (100% 404 Miss):
+ *        `boost::unordered_flat_map` normalized onto identical
+ *        `std::hash<std::string_view>`.
+ * @param state Google Benchmark runner state.
+ */
+void BM_Story1_Route100Miss_SharedStdHash_BoostFlat(benchmark::State& state) {
+  const auto& ds = GetRouteDataset();
+  const auto& map = GetBoostSharedHashRoute();
+  for (auto _ : state) {
+    std::uint64_t r = FindTransparentRouteBatch(map, ds.queries_100_miss);
+    benchmark::DoNotOptimize(r);
+  }
+  state.SetItemsProcessed(state.iterations() * static_cast<std::int64_t>(
+                                                   ds.queries_100_miss.size()));
+}
+BENCHMARK(BM_Story1_Route100Miss_SharedStdHash_BoostFlat);
+
 // -----------------------------------------------------------------------------
 // Story 2: Per-Request Small HTTP/2 Header Maps (N = 4, 8, 16, 32, 64, 128)
 // -----------------------------------------------------------------------------
@@ -325,7 +475,7 @@ BENCHMARK(BM_Story1_Route100Miss_BoostFlat);
 /**
  * @brief Story 2: full per-request lifecycle (build + 12 lookups + destroy)
  *        on a flat linear-scan small map (`FlatInlinedSmallMap` /
- * `std::vector`).
+ *        `StdVectorSmallMap`).
  * @tparam FlatMapT Contiguous flat small-map container type.
  * @param state Google Benchmark runner state (`state.range(0)` = header count).
  */
@@ -425,7 +575,7 @@ BENCHMARK_TEMPLATE(
 /**
  * @brief Story 3 & 5: 80/20 hit/miss lookup on 1M aged `128B`
  *        `ConnectionMetadata` entries across flat, vector, and stable node
- * maps.
+ *        maps.
  * @tparam MapT Hash map storing `ConnectionMetadata` by value.
  * @param state Google Benchmark runner state.
  */
@@ -434,8 +584,7 @@ void BM_Story3_Conn128B_Lookup80_20(benchmark::State& state) {
   const auto& ds = GetLargeDataset();
   static const auto map = BuildAgedValueMap<MapT>(ds, MakeConnectionMetadata);
   for (auto _ : state) {
-    std::uint64_t r = FindConnectionBatch(map, ds.queries_80_20.data(),
-                                          ds.queries_80_20.size());
+    std::uint64_t r = FindConnectionBatch(map, ds.queries_80_20);
     benchmark::DoNotOptimize(r);
   }
   state.SetItemsProcessed(state.iterations() *
@@ -477,8 +626,7 @@ void BM_Story5_Conn128B_80_20_AbslFlatUniquePtr(benchmark::State& state) {
   static const auto map =
       BuildAgedUniquePtrFlatMap<ConnectionMetadata>(ds, MakeConnectionMetadata);
   for (auto _ : state) {
-    std::uint64_t r = FindConnectionUniquePtrBatch(map, ds.queries_80_20.data(),
-                                                   ds.queries_80_20.size());
+    std::uint64_t r = FindConnectionUniquePtrBatch(map, ds.queries_80_20);
     benchmark::DoNotOptimize(r);
   }
   state.SetItemsProcessed(state.iterations() *

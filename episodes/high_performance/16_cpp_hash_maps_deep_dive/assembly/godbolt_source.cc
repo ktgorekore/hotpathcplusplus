@@ -16,10 +16,12 @@
  * @file godbolt_source.cc
  * @brief Self-contained Compiler Explorer (Godbolt) comparison file for
  *        Episode 16 (`-std=c++20 -O3 -march=znver4`), contrasting:
- *   1. Story 1: Default `std::unordered_map<std::string, uint64_t>::find`
- *      constructing a temporary `std::string` (`operator new` + `memcpy` +
- *      `operator delete`!) vs. C++20 `is_transparent` heterogeneous lookup
- *      (zero allocations!).
+ *   1. Story 1: Default `std::unordered_map<std::string, uint64_t>::find(const
+ *      char*)` silently allocating a temporary `std::string` (`operator new` +
+ *      `memcpy` + `operator delete`) vs. C++20 `is_transparent` heterogeneous
+ *      lookup (zero allocations, cached 8B node hash) vs. GCC `noexcept`
+ *      hash-caching trap (re-hashing stored heap strings via
+ * `_ZSt11_Hash_bytes` across single-linked-list bucket boundaries).
  *   2. Story 1 / 4 Silicon SIMD Probing Mechanics across the three industrial
  *      C++ open-addressing architectures:
  *      - Abseil SwissTable: 16-slot control strip (`vpcmpeqb` + `vpmovmskb`,
@@ -32,6 +34,7 @@
 
 #include <immintrin.h>
 
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <string>
@@ -41,11 +44,11 @@
 namespace hotpath::godbolt_ep16 {
 
 /**
- * @struct TransparentStringHash
+ * @struct TransparentStdStringHash
  * @brief C++20 transparent string hasher omitting `noexcept` so GCC libstdc++
  *        preserves `__cache_hash_code = true` on `std::unordered_map` nodes.
  */
-struct TransparentStringHash {
+struct TransparentStdStringHash {
   using is_transparent = void;
 
   /**
@@ -56,33 +59,106 @@ struct TransparentStringHash {
   [[nodiscard]] std::size_t operator()(std::string_view sv) const {
     return std::hash<std::string_view>{}(sv);
   }
+
+  /**
+   * @brief Computes standard library hash over an owning `std::string`.
+   * @param s Owning string key to hash.
+   * @return 64-bit hash digest.
+   */
+  [[nodiscard]] std::size_t operator()(const std::string& s) const {
+    return std::hash<std::string_view>{}(s);
+  }
+
+  /**
+   * @brief Computes standard library hash over a null-terminated C-string.
+   * @param s Null-terminated C-string key to hash.
+   * @return 64-bit hash digest.
+   */
+  [[nodiscard]] std::size_t operator()(const char* s) const {
+    return std::hash<std::string_view>{}(s);
+  }
+};
+
+/**
+ * @struct TransparentStdStringHashNoexcept
+ * @brief GCC libstdc++ gotcha variant: adding `noexcept` drops the 8-byte
+ *        cached node hash and forces `_ZSt11_Hash_bytes` re-hashing on misses.
+ */
+struct TransparentStdStringHashNoexcept {
+  using is_transparent = void;
+
+  /**
+   * @brief Computes hash over a `std::string_view` while marked `noexcept`.
+   * @param sv Zero-copy string view to hash.
+   * @return 64-bit hash digest.
+   */
+  [[nodiscard]] std::size_t operator()(std::string_view sv) const noexcept {
+    return std::hash<std::string_view>{}(sv);
+  }
+
+  /**
+   * @brief Computes hash over an owning `std::string` while marked `noexcept`.
+   * @param s Owning string key to hash.
+   * @return 64-bit hash digest.
+   */
+  [[nodiscard]] std::size_t operator()(const std::string& s) const noexcept {
+    return std::hash<std::string_view>{}(s);
+  }
+
+  /**
+   * @brief Computes hash over a null-terminated C-string while `noexcept`.
+   * @param s Null-terminated C-string key to hash.
+   * @return 64-bit hash digest.
+   */
+  [[nodiscard]] std::size_t operator()(const char* s) const noexcept {
+    return std::hash<std::string_view>{}(s);
+  }
 };
 
 /**
  * @brief Story 1A: default `std::unordered_map<std::string, uint64_t>::find`
- *        constructing a temporary `std::string` (allocating for strings > 15B).
+ *        with a C-boundary `const char*` silently constructing a temporary
+ *        `std::string` (calling `operator new` + `memcpy` + `operator delete`
+ *        for routes exceeding GCC's 15B SSO buffer).
  * @param routes Route table keyed by owning `std::string`.
- * @param path Incoming zero-copy request route slice.
+ * @param path Null-terminated incoming request route path.
  * @return Route identifier if found, or 0 otherwise.
  */
-std::uint64_t LookupRoute_DefaultAlloc(
+[[nodiscard]] std::uint64_t LookupRoute_DefaultAlloc(
     const std::unordered_map<std::string, std::uint64_t>& routes,
-    std::string_view path) {
-  const auto it = routes.find(std::string(path));
+    const char* path) {
+  const auto it = routes.find(path);
   return it != routes.end() ? it->second : 0ULL;
 }
 
 /**
  * @brief Story 1B: C++20 `P0919R3`/`P1690R1` transparent lookup with zero heap
- *        allocations and preserved libstdc++ node hash caching.
+ *        allocations and preserved libstdc++ 8-byte node hash caching.
  * @param routes Transparent route table keyed by `std::string`.
+ * @param path Null-terminated incoming request route path.
+ * @return Route identifier if found, or 0 otherwise.
+ */
+[[nodiscard]] std::uint64_t LookupRoute_Cpp20Transparent(
+    const std::unordered_map<std::string, std::uint64_t,
+                             TransparentStdStringHash, std::equal_to<>>& routes,
+    const char* path) {
+  const auto it = routes.find(path);
+  return it != routes.end() ? it->second : 0ULL;
+}
+
+/**
+ * @brief Story 1C: GCC libstdc++ `noexcept` trap — adding `noexcept` drops the
+ *        8-byte node hash cache and forces `_ZSt11_Hash_bytes` re-hashing of
+ *        stored heap strings during bucket traversal.
+ * @param routes Transparent route table with `noexcept` hasher.
  * @param path Incoming zero-copy request route slice.
  * @return Route identifier if found, or 0 otherwise.
  */
-std::uint64_t LookupRoute_Cpp20Transparent(
-    const std::unordered_map<std::string, std::uint64_t, TransparentStringHash,
-                             std::equal_to<>>& routes,
-    std::string_view path) {
+[[nodiscard]] std::uint64_t LookupRoute_GccNoexceptTrap(
+    const std::unordered_map<std::string, std::uint64_t,
+                             TransparentStdStringHashNoexcept, std::equal_to<>>&
+        routes,
+    std::string_view path) noexcept {
   const auto it = routes.find(path);
   return it != routes.end() ? it->second : 0ULL;
 }

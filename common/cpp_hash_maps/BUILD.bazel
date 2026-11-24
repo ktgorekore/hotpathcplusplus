@@ -23,6 +23,8 @@ cc_library(
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/container:inlined_vector",
         "@abseil-cpp//absl/container:node_hash_map",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/types:span",
         "@boost.unordered//:boost.unordered",
         "@folly//folly/container:f14_hash",
     ],
@@ -33,6 +35,7 @@ cc_test(
     srcs = ["cpp_hash_maps_test.cc"],
     deps = [
         ":cpp_hash_maps",
+        "@abseil-cpp//absl/types:span",
         "@googletest//:gtest_main",
     ],
 )

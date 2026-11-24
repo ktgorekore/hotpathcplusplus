@@ -29,14 +29,18 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-#include <iomanip>
-#include <iostream>
 #include <new>
 #include <string>
 #include <string_view>
 #include <unordered_map>
 #include <vector>
 
+#include "absl/flags/parse.h"
+#include "absl/log/globals.h"
+#include "absl/log/initialize.h"
+#include "absl/log/log.h"
+#include "absl/strings/str_format.h"
+#include "absl/types/span.h"
 #include "common/cpp_hash_maps/cpp_hash_maps.h"
 
 namespace {
@@ -45,6 +49,13 @@ thread_local bool g_track_allocs = false;
 thread_local std::uint64_t g_alloc_count = 0;
 thread_local std::uint64_t g_alloc_bytes = 0;
 
+/**
+ * @brief Allocates `size` bytes via `std::malloc`, recording counts while an
+ *        `AllocScope` is active on the calling thread.
+ * @param size Requested allocation size in bytes.
+ * @return Non-null pointer to allocated memory (throws `std::bad_alloc` on
+ * OOM).
+ */
 void* TrackedMalloc(std::size_t size) {
   if (g_track_allocs) {
     ++g_alloc_count;
@@ -57,6 +68,14 @@ void* TrackedMalloc(std::size_t size) {
   return ptr;
 }
 
+/**
+ * @brief Allocates `size` bytes aligned to `al` via `std::aligned_alloc`,
+ *        recording counts while an `AllocScope` is active on the calling
+ *        thread.
+ * @param size Requested allocation size in bytes.
+ * @param al Required alignment boundary.
+ * @return Non-null aligned pointer (throws `std::bad_alloc` on OOM).
+ */
 void* TrackedAlignedMalloc(std::size_t size, std::align_val_t al) {
   if (g_track_allocs) {
     ++g_alloc_count;
@@ -71,42 +90,75 @@ void* TrackedAlignedMalloc(std::size_t size, std::align_val_t al) {
   return ptr;
 }
 
-struct AllocScope {
+/**
+ * @class AllocScope
+ * @brief RAII scope guard enabling thread-local global `operator new` counting.
+ */
+class AllocScope {
+ public:
+  /** @brief Resets counters and begins tracking allocations on this thread. */
   AllocScope() {
     g_alloc_count = 0;
     g_alloc_bytes = 0;
     g_track_allocs = true;
   }
+
+  /** @brief Disables allocation tracking upon scope exit. */
   ~AllocScope() { g_track_allocs = false; }
-  std::uint64_t count() const { return g_alloc_count; }
-  std::uint64_t bytes() const { return g_alloc_bytes; }
+
+  /**
+   * @brief Returns number of tracked `operator new` calls within this scope.
+   * @return Allocation call count.
+   */
+  [[nodiscard]] std::uint64_t Count() const noexcept { return g_alloc_count; }
+
+  /**
+   * @brief Returns cumulative bytes requested within this scope.
+   * @return Total allocated bytes.
+   */
+  [[nodiscard]] std::uint64_t Bytes() const noexcept { return g_alloc_bytes; }
 };
 
 }  // namespace
 
+/** @brief Global `operator new` override forwarding to `TrackedMalloc`. */
 void* operator new(std::size_t size) { return TrackedMalloc(size); }
+/** @brief Global `operator new[]` override forwarding to `TrackedMalloc`. */
 void* operator new[](std::size_t size) { return TrackedMalloc(size); }
+/** @brief Aligned `operator new` override forwarding to `TrackedAlignedMalloc`.
+ */
 void* operator new(std::size_t size, std::align_val_t al) {
   return TrackedAlignedMalloc(size, al);
 }
+/** @brief Aligned `operator new[]` override forwarding to
+ * `TrackedAlignedMalloc`. */
 void* operator new[](std::size_t size, std::align_val_t al) {
   return TrackedAlignedMalloc(size, al);
 }
+/** @brief Global `operator delete` override forwarding to `std::free`. */
 void operator delete(void* ptr) noexcept { std::free(ptr); }
+/** @brief Global `operator delete[]` override forwarding to `std::free`. */
 void operator delete[](void* ptr) noexcept { std::free(ptr); }
+/** @brief Sized `operator delete` override forwarding to `std::free`. */
 void operator delete(void* ptr, std::size_t) noexcept { std::free(ptr); }
+/** @brief Sized `operator delete[]` override forwarding to `std::free`. */
 void operator delete[](void* ptr, std::size_t) noexcept { std::free(ptr); }
+/** @brief Aligned `operator delete` override forwarding to `std::free`. */
 void operator delete(void* ptr, std::align_val_t) noexcept { std::free(ptr); }
+/** @brief Aligned `operator delete[]` override forwarding to `std::free`. */
 void operator delete[](void* ptr, std::align_val_t) noexcept { std::free(ptr); }
+/** @brief Sized aligned `operator delete` forwarding to `std::free`. */
 void operator delete(void* ptr, std::size_t, std::align_val_t) noexcept {
   std::free(ptr);
 }
+/** @brief Sized aligned `operator delete[]` forwarding to `std::free`. */
 void operator delete[](void* ptr, std::size_t, std::align_val_t) noexcept {
   std::free(ptr);
 }
 
 namespace hotpath::episode16 {
 
+/** @brief Half-configured transparent map missing `std::equal_to<>`. */
 using StdRouteMapHalfTransparent =
     std::unordered_map<std::string, RoutePolicy, TransparentStdStringHash>;
 
@@ -120,11 +172,11 @@ using StdRouteMapHalfTransparent =
  */
 template <typename MapT>
 [[nodiscard]] std::uint64_t RunCstrRouteLookups(
-    const MapT& routes, const std::vector<const char*>& c_paths) {
+    const MapT& routes, absl::Span<const char* const> c_paths) {
   std::uint64_t sum = 0;
   std::uint64_t hits = 0;
   for (const char* path : c_paths) {
-    // Zero std::string visible here — compiles cleanly with -Wall -Wextra!
+    // Zero std::string visible here — compiles cleanly with -Wall -Wextra.
     const auto it = routes.find(path);
     if (it != routes.end()) {
       sum += DigestRoutePolicy(it->second);
@@ -141,8 +193,8 @@ template <typename MapT>
  * @return Process exit code (0 on success).
  */
 int RunAllocAudit() {
-  std::cout << "=== Story 1 Allocation Audit: 1,000,000 Route Lookups "
-               "(routes.find(const char*)) ===\n";
+  LOG(INFO) << "=== Story 1 Allocation Audit: 1,000,000 Route Lookups "
+               "(routes.find(const char*)) ===";
   const RouteTableDataset ds =
       BuildRouteTableDataset(kNumRoutes, kNumRouteQueries);
 
@@ -163,13 +215,18 @@ int RunAllocAudit() {
     c_paths.push_back(c_backing.data() + off);
   }
 
-  auto audit_route = [&](const std::string& label, auto&& fn) {
-    AllocScope scope;
-    const std::uint64_t ck = fn();
-    std::cout << std::left << std::setw(48) << label
-              << " | allocs=" << std::right << std::setw(10) << scope.count()
-              << " | bytes=" << std::setw(11) << scope.bytes() << " | ck=0x"
-              << std::hex << ck << std::dec << "\n";
+  auto audit_route = [&](std::string_view label, auto&& fn) {
+    std::uint64_t ck = 0;
+    std::uint64_t alloc_count = 0;
+    std::uint64_t alloc_bytes = 0;
+    {
+      AllocScope scope;
+      ck = fn();
+      alloc_count = scope.Count();
+      alloc_bytes = scope.Bytes();
+    }
+    LOG(INFO) << absl::StrFormat("%-48s | allocs=%10u | bytes=%11u | ck=0x%x",
+                                 label, alloc_count, alloc_bytes, ck);
   };
 
   {
@@ -208,16 +265,21 @@ int RunAllocAudit() {
                 [&] { return RunCstrRouteLookups(m, c_paths); });
   }
 
-  std::cout << "\n=== Story 2 Allocation Audit: Per-Request Small Header Map "
-               "(16 Headers, 1 Request) ===\n";
+  LOG(INFO) << "=== Story 2 Allocation Audit: Per-Request Small Header Map "
+               "(16 Headers, 1 Request) ===";
   const HttpHeaderDataset hdr16 = BuildHttpHeaderDataset(16);
-  auto audit_small = [&](const std::string& label, auto&& fn) {
-    AllocScope scope;
-    const std::uint64_t ck = fn();
-    std::cout << std::left << std::setw(48) << label
-              << " | allocs=" << std::right << std::setw(4) << scope.count()
-              << " | bytes=" << std::setw(6) << scope.bytes() << " | ck=0x"
-              << std::hex << ck << std::dec << "\n";
+  auto audit_small = [&](std::string_view label, auto&& fn) {
+    std::uint64_t ck = 0;
+    std::uint64_t alloc_count = 0;
+    std::uint64_t alloc_bytes = 0;
+    {
+      AllocScope scope;
+      ck = fn();
+      alloc_count = scope.Count();
+      alloc_bytes = scope.Bytes();
+    }
+    LOG(INFO) << absl::StrFormat("%-48s | allocs=%4u | bytes=%6u | ck=0x%x",
+                                 label, alloc_count, alloc_bytes, ck);
   };
 
   audit_small("FlatInlinedSmallMap<16> (Stack Linear Scan)", [&] {
@@ -249,4 +311,16 @@ int RunAllocAudit() {
 
 }  // namespace hotpath::episode16
 
-int main() { return hotpath::episode16::RunAllocAudit(); }
+/**
+ * @brief Entry point initializing Abseil flags and logging before auditing
+ *        `operator new` allocation counts across Stories 1 & 2.
+ * @param argc Command-line argument count.
+ * @param argv Command-line argument vector.
+ * @return Process exit code (0 on success).
+ */
+int main(int argc, char** argv) {
+  absl::ParseCommandLine(argc, argv);
+  absl::InitializeLog();
+  absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
+  return hotpath::episode16::RunAllocAudit();
+}

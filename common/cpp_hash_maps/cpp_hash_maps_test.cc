@@ -14,8 +14,8 @@
 
 /**
  * @file cpp_hash_maps_test.cc
- * @brief GoogleTest cross-container parity and pointer-stability verification
- *        suite for Episode 16 ("Production C++ Hash Maps").
+ * @brief Bit-for-bit parity and pointer-stability verification tests for all
+ *        five Episode 16 production hash-map workloads.
  */
 
 #include "common/cpp_hash_maps/cpp_hash_maps.h"
@@ -28,6 +28,8 @@
 #include <string_view>
 #include <unordered_map>
 #include <vector>
+
+#include "absl/types/span.h"
 
 namespace hotpath::episode16 {
 namespace {
@@ -47,8 +49,12 @@ TEST(CppHashMapsTest, Story1RouteTableParityAcrossAllEngines) {
   const auto folly_fast = BuildAgedRouteMap<FollyF14FastRouteMap>(ds);
   const auto folly_val = BuildAgedRouteMap<FollyF14ValueRouteMap>(ds);
   const auto boost_flat = BuildAgedRouteMap<BoostFlatRouteMap>(ds);
+  const auto absl_shared = BuildAgedRouteMap<AbslFlatRouteMapSharedHash>(ds);
+  const auto folly_shared =
+      BuildAgedRouteMap<FollyF14FastRouteMapSharedHash>(ds);
+  const auto boost_shared = BuildAgedRouteMap<BoostFlatRouteMapSharedHash>(ds);
 
-  const auto check_stream = [&](const std::vector<std::string_view>& q,
+  const auto check_stream = [&](absl::Span<const std::string_view> q,
                                 bool expect_zero) {
     const std::uint64_t c_std_def =
         Ep16StdDefaultFindRoute(std_def, q.data(), q.size());
@@ -66,6 +72,12 @@ TEST(CppHashMapsTest, Story1RouteTableParityAcrossAllEngines) {
         Ep16FollyF14ValueFindRoute(folly_val, q.data(), q.size());
     const std::uint64_t c_boost =
         Ep16BoostFlatFindRoute(boost_flat, q.data(), q.size());
+    const std::uint64_t c_absl_shared =
+        FindTransparentRouteBatch(absl_shared, q);
+    const std::uint64_t c_folly_shared =
+        FindTransparentRouteBatch(folly_shared, q);
+    const std::uint64_t c_boost_shared =
+        FindTransparentRouteBatch(boost_shared, q);
 
     if (expect_zero) {
       EXPECT_EQ(c_std_def, 0ULL);
@@ -79,6 +91,9 @@ TEST(CppHashMapsTest, Story1RouteTableParityAcrossAllEngines) {
     EXPECT_EQ(c_std_def, c_folly_fast);
     EXPECT_EQ(c_std_def, c_folly_val);
     EXPECT_EQ(c_std_def, c_boost);
+    EXPECT_EQ(c_std_def, c_absl_shared);
+    EXPECT_EQ(c_std_def, c_folly_shared);
+    EXPECT_EQ(c_std_def, c_boost_shared);
   };
 
   check_stream(ds.queries_zipf_70_30, false);
@@ -139,24 +154,15 @@ TEST(CppHashMapsTest, Story3LargeValuesLookupAndIterationParity) {
   const auto m_unique_ptr =
       BuildAgedUniquePtrFlatMap<ConnectionMetadata>(ds, MakeConnectionMetadata);
 
-  const std::uint64_t ref = FindConnectionBatch(m_std, ds.queries_80_20.data(),
-                                                ds.queries_80_20.size());
+  const std::uint64_t ref = FindConnectionBatch(m_std, ds.queries_80_20);
   EXPECT_NE(ref, 0ULL);
-  EXPECT_EQ(ref, FindConnectionBatch(m_absl_flat, ds.queries_80_20.data(),
-                                     ds.queries_80_20.size()));
-  EXPECT_EQ(ref, FindConnectionBatch(m_absl_node, ds.queries_80_20.data(),
-                                     ds.queries_80_20.size()));
-  EXPECT_EQ(ref, FindConnectionBatch(m_folly_fast, ds.queries_80_20.data(),
-                                     ds.queries_80_20.size()));
-  EXPECT_EQ(ref, FindConnectionBatch(m_folly_node, ds.queries_80_20.data(),
-                                     ds.queries_80_20.size()));
-  EXPECT_EQ(ref, FindConnectionBatch(m_boost_flat, ds.queries_80_20.data(),
-                                     ds.queries_80_20.size()));
-  EXPECT_EQ(ref, FindConnectionBatch(m_boost_node, ds.queries_80_20.data(),
-                                     ds.queries_80_20.size()));
-  EXPECT_EQ(ref,
-            FindConnectionUniquePtrBatch(m_unique_ptr, ds.queries_80_20.data(),
-                                         ds.queries_80_20.size()));
+  EXPECT_EQ(ref, FindConnectionBatch(m_absl_flat, ds.queries_80_20));
+  EXPECT_EQ(ref, FindConnectionBatch(m_absl_node, ds.queries_80_20));
+  EXPECT_EQ(ref, FindConnectionBatch(m_folly_fast, ds.queries_80_20));
+  EXPECT_EQ(ref, FindConnectionBatch(m_folly_node, ds.queries_80_20));
+  EXPECT_EQ(ref, FindConnectionBatch(m_boost_flat, ds.queries_80_20));
+  EXPECT_EQ(ref, FindConnectionBatch(m_boost_node, ds.queries_80_20));
+  EXPECT_EQ(ref, FindConnectionUniquePtrBatch(m_unique_ptr, ds.queries_80_20));
 
   // 256B UpstreamEndpointProfile iteration parity
   const auto e_absl = BuildAgedValueMap<
@@ -192,8 +198,7 @@ TEST(CppHashMapsTest, Story4SlidingWindowChurnParity) {
       map.emplace(incoming, MakeCompactFlow(incoming));
     }
     EXPECT_EQ(map.size(), ds.live_count);
-    return FindCompactFlowBatch(map, ds.post_churn_80_20.data(),
-                                ds.post_churn_80_20.size());
+    return FindCompactFlowBatch(map, ds.post_churn_80_20);
   };
 
   std::unordered_map<std::uint64_t, CompactFlowStats> m_std;
@@ -232,7 +237,7 @@ TEST(CppHashMapsTest, Story5NodeMapsPreservePointerStabilityAcrossRehash) {
   verify_stable(m_folly_node);
   verify_stable(m_boost_node);
 
-  // Value-only stability via flat_hash_map<K, std::unique_ptr<V>>
+  // Value-only stability via absl::flat_hash_map<K, std::unique_ptr<V>>
   absl::flat_hash_map<std::uint64_t, std::unique_ptr<ConnectionMetadata>>
       m_uptr;
   m_uptr.emplace(

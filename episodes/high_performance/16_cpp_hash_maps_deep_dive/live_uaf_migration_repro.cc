@@ -19,7 +19,7 @@
  *
  * Models a real production migration bug (Abseil Tip of the Week #136):
  * a gateway onboards a new tenant by copying a default policy in one line:
- *   `policies[child_id] = policies[kDefaultTenantId];`
+ *   `policies[child_id] = policies[1ULL];`
  * Under C++17 assignment sequencing (`[expr.ass]/1`), the right-hand side runs
  * first and returns a reference into the current backing array. When the
  * left-hand side inserts `child_id` and triggers a rehash:
@@ -30,23 +30,37 @@
  *     `boost::unordered_flat_map`, the backing array reallocates and frees the
  *     old slot before the copy completes—silently turning the right-hand side
  *     into a dangling Use-After-Free (caught immediately under ASan with
- *     `--trigger-uaf`).
+ *     `--trigger_uaf`).
  */
 
 #include <cstdint>
-#include <iomanip>
-#include <iostream>
 #include <memory>
-#include <string>
+#include <string_view>
 #include <unordered_map>
 
+#include "absl/flags/flag.h"
+#include "absl/flags/parse.h"
+#include "absl/log/globals.h"
+#include "absl/log/initialize.h"
+#include "absl/log/log.h"
+#include "absl/strings/str_format.h"
 #include "common/cpp_hash_maps/cpp_hash_maps.h"
+
+ABSL_FLAG(bool, trigger_uaf, false,
+          "Invoke the live 1-line C++17 flat-map migration UAF (for ASan "
+          "verification).");
 
 namespace hotpath::episode16 {
 namespace {
 
+/**
+ * @brief Inserts 2,000 new connections into `MapT` and logs whether the
+ *        address of connection `1001` remained pinned or relocated on rehash.
+ * @tparam MapT Hash map type mapping `uint64_t` to `ConnectionMetadata`.
+ * @param name Human-readable container label.
+ */
 template <typename MapT>
-void AuditAddressStability(const std::string& name) {
+void AuditAddressStability(std::string_view name) {
   MapT connections;
   connections.emplace(1001ULL, MakeConnectionMetadata(1001ULL));
   const auto* addr_before = &connections.at(1001ULL);
@@ -58,11 +72,17 @@ void AuditAddressStability(const std::string& name) {
   const auto* addr_after = &connections.at(1001ULL);
   const bool stable = (addr_before == addr_after);
 
-  std::cout << std::left << std::setw(36) << name << " | before=" << addr_before
-            << " | after=" << addr_after << " | "
-            << (stable ? "STABLE (Safe)" : "RELOCATED (Dangling Ptr!)") << "\n";
+  LOG(INFO) << absl::StrFormat(
+      "%-34s | before=%p | after=%p | %s", name,
+      static_cast<const void*>(addr_before),
+      static_cast<const void*>(addr_after),
+      stable ? "STABLE (Safe)" : "RELOCATED (Dangling Ptr!)");
 }
 
+/**
+ * @brief Audits value-only address stability for
+ *        `absl::flat_hash_map<uint64_t, std::unique_ptr<ConnectionMetadata>>`.
+ */
 void AuditUniquePtrHybrid() {
   absl::flat_hash_map<std::uint64_t, std::unique_ptr<ConnectionMetadata>>
       connections;
@@ -77,30 +97,33 @@ void AuditUniquePtrHybrid() {
   const ConnectionMetadata* addr_after = connections.at(1001ULL).get();
   const bool stable = (addr_before == addr_after);
 
-  std::cout << std::left << std::setw(36) << "absl::flat<K, unique_ptr<V>>"
-            << " | before=" << addr_before << " | after=" << addr_after << " | "
-            << (stable ? "STABLE (Value Safe)" : "RELOCATED") << "\n";
+  LOG(INFO) << absl::StrFormat("%-34s | before=%p | after=%p | %s",
+                               "absl::flat<K, unique_ptr<V>>",
+                               static_cast<const void*>(addr_before),
+                               static_cast<const void*>(addr_after),
+                               stable ? "STABLE (Value Safe)" : "RELOCATED");
 }
 
 /**
  * @brief Demonstrates the 1-line C++17 flat-map migration UAF (Abseil Tip
- *        #136): `policies[child_id] = policies[1]`. Under C++17 sequencing,
+ *        #136): `policies[child_id] = policies[1ULL]`. Under C++17 sequencing,
  *        RHS runs before LHS; when LHS rehashes and frees the old backing
- *        array, the assignment copies from freed memory. ONLY invoked when
- *        explicitly passed `--trigger-uaf` (e.g., under ASan).
+ *        array, the struct assignment reads freed memory. ONLY invoked when
+ *        explicitly passed `--trigger_uaf` (e.g. under ASan).
  */
 void TriggerFlatMapMigrationUaf() {
-  std::cout << "\n--- Triggering Live 1-Line C++17 UAF (Abseil Tip #136) ---\n";
+  LOG(INFO) << "--- Triggering Live 1-Line C++17 UAF (Abseil Tip #136) ---";
   absl::flat_hash_map<std::uint64_t, RoutePolicy> policies;
   policies.emplace(1ULL, RoutePolicy{42U, 250U, 3U, 5000U, 0xCAFEBABEULL});
 
   // Safe for years on std::unordered_map; 0 warnings under -Wall -Wextra!
-  // C++17 evaluates RHS policies[1] BEFORE LHS policies[child_id]:
+  // C++17 evaluates RHS policies[1ULL] BEFORE LHS policies[child_id]:
   for (std::uint64_t child_id = 2; child_id <= 64; ++child_id) {
     policies[child_id] = policies[1ULL];  // LHS rehash frees RHS ref!
   }
-  std::cout << "Child 64 inherited timeout_ms=" << policies.at(64ULL).timeout_ms
-            << " (expected 250; UB without ASan!)\n";
+  LOG(INFO) << absl::StrFormat(
+      "Child 64 inherited timeout_ms=%u (expected 250; UB without ASan!)",
+      policies.at(64ULL).timeout_ms);
 }
 
 }  // namespace
@@ -113,8 +136,7 @@ void TriggerFlatMapMigrationUaf() {
  * @return Process exit code (0 on success).
  */
 int RunMigrationUafRepro(bool trigger_uaf) {
-  std::cout << "=== Episode 16 Story 5: Pointer-Stability Migration Audit "
-               "===\n";
+  LOG(INFO) << "=== Episode 16 Story 5: Pointer-Stability Migration Audit ===";
   AuditAddressStability<std::unordered_map<std::uint64_t, ConnectionMetadata>>(
       "std::unordered_map");
   AuditAddressStability<absl::flat_hash_map<std::uint64_t, ConnectionMetadata>>(
@@ -141,12 +163,17 @@ int RunMigrationUafRepro(bool trigger_uaf) {
 
 }  // namespace hotpath::episode16
 
+/**
+ * @brief Entry point initializing Abseil flags and logging before running the
+ *        Story 5 pointer-stability audit and optional ASan UAF reproducer.
+ * @param argc Command-line argument count.
+ * @param argv Command-line argument vector.
+ * @return Process exit code (0 on success).
+ */
 int main(int argc, char** argv) {
-  bool trigger_uaf = false;
-  for (int i = 1; i < argc; ++i) {
-    if (std::string(argv[i]) == "--trigger-uaf") {
-      trigger_uaf = true;
-    }
-  }
-  return hotpath::episode16::RunMigrationUafRepro(trigger_uaf);
+  absl::ParseCommandLine(argc, argv);
+  absl::InitializeLog();
+  absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
+  return hotpath::episode16::RunMigrationUafRepro(
+      absl::GetFlag(FLAGS_trigger_uaf));
 }

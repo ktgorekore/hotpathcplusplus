@@ -19,58 +19,105 @@
  */
 
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
-#include <iomanip>
-#include <iostream>
 #include <memory>
 #include <string>
 #include <string_view>
-#include <type_traits>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
+#include "absl/flags/flag.h"
+#include "absl/flags/parse.h"
+#include "absl/log/globals.h"
+#include "absl/log/initialize.h"
+#include "absl/log/log.h"
+#include "absl/strings/match.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
+#include "absl/types/span.h"
 #include "common/cpp_hash_maps/cpp_hash_maps.h"
+
+ABSL_FLAG(std::string, mode, "all",
+          "Forensic workload mode (all, story1, story2, story3_5, story4, "
+          "s1_noexcept_demo, s1_shared_hash_control, s1_*, rss_*, "
+          "s3_iter256_*, s4_churn_*).");
+ABSL_FLAG(std::size_t, iters, 0,
+          "Iteration or eviction-cycle count override (0 uses mode default).");
+ABSL_FLAG(std::size_t, count, hotpath::episode16::kNumLargeEntriesPostDouble,
+          "Entry count for isolated VmRSS or Story 4 churn-band workloads.");
+ABSL_FLAG(bool, quiet, false,
+          "Suppress informational LOG(INFO) output (for clean perf stat).");
 
 namespace hotpath::episode16 {
 namespace {
 
 using Clock = std::chrono::steady_clock;
 
+/**
+ * @brief Compiler optimization barrier preventing dead-code elimination.
+ * @tparam T Value type to keep live.
+ * @param val Mutable reference to observe in inline assembly.
+ */
 template <typename T>
 inline void DoNotOptimize(T& val) {
   asm volatile("" : "+r,m"(val) : : "memory");
 }
 
-void PrintRateRow(const std::string& label, double total_ms,
-                  std::size_t total_ops, std::uint64_t checksum) {
+/**
+ * @brief Logs a formatted throughput row via Abseil `LOG(INFO)`.
+ * @param label Human-readable workload/engine label.
+ * @param total_ms Elapsed total milliseconds.
+ * @param total_ops Total completed operations.
+ * @param checksum Verification checksum proving bit-for-bit parity.
+ */
+void LogRateRow(std::string_view label, double total_ms, std::size_t total_ops,
+                std::uint64_t checksum) {
   const double ns_per_op =
       (total_ms * 1'000'000.0) / static_cast<double>(total_ops);
   const double mops = static_cast<double>(total_ops) / (total_ms * 1'000.0);
-  std::cout << std::left << std::setw(46) << label << " | " << std::right
-            << std::setw(7) << std::fixed << std::setprecision(2) << ns_per_op
-            << " ns/op | " << std::setw(7) << std::setprecision(2) << mops
-            << " M/s | checksum=0x" << std::hex << checksum << std::dec << "\n";
+  LOG(INFO) << absl::StrFormat(
+      "%-46s | %7.2f ns/op | %7.2f M/s | checksum=0x%x", label, ns_per_op, mops,
+      checksum);
 }
 
-void PrintSweepRow(const std::string& label, double total_ms,
-                   std::size_t sweeps, std::size_t live_entries,
-                   std::uint64_t checksum) {
+/**
+ * @brief Logs a formatted full-table iteration sweep row via Abseil
+ * `LOG(INFO)`.
+ * @param label Human-readable workload/engine label.
+ * @param total_ms Elapsed total milliseconds across all sweeps.
+ * @param sweeps Number of full-table sweeps executed.
+ * @param live_entries Number of live entries visited per sweep.
+ * @param checksum Verification checksum proving bit-for-bit parity.
+ */
+void LogSweepRow(std::string_view label, double total_ms, std::size_t sweeps,
+                 std::size_t live_entries, std::uint64_t checksum) {
   const double ms_per_sweep = total_ms / static_cast<double>(sweeps);
   const double mops =
       static_cast<double>(sweeps * live_entries) / (total_ms * 1'000.0);
-  std::cout << std::left << std::setw(46) << label << " | " << std::right
-            << std::setw(7) << std::fixed << std::setprecision(2)
-            << ms_per_sweep << " ms/swp | " << std::setw(7) << mops
-            << " M/s | checksum=0x" << std::hex << checksum << std::dec << "\n";
+  LOG(INFO) << absl::StrFormat(
+      "%-46s | %7.2f ms/swp | %7.2f M/s | checksum=0x%x", label, ms_per_sweep,
+      mops, checksum);
 }
 
 // -----------------------------------------------------------------------------
 // Story 1: Envoy HTTP/RPC Route Lookup (Non-SSO Strings + Transparent Lookup)
 // -----------------------------------------------------------------------------
 
+/**
+ * @brief Times repeated batches of route-table lookups and logs throughput.
+ * @tparam MapT Route table container type.
+ * @tparam FindFn Lookup kernel `(const MapT&, const string_view*, size_t)`.
+ * @param label Formatted row label.
+ * @param map Populated route table.
+ * @param queries Span of zero-copy route slices.
+ * @param iters Number of timed batch passes.
+ * @param find_fn Lookup kernel functor.
+ */
 template <typename MapT, typename FindFn>
-void TimeRouteLookups(const std::string& label, const MapT& map,
-                      const std::vector<std::string_view>& queries,
+void TimeRouteLookups(std::string_view label, const MapT& map,
+                      absl::Span<const std::string_view> queries,
                       std::size_t iters, FindFn&& find_fn) {
   const std::string_view* q_ptr = queries.data();
   const std::size_t q_len = queries.size();
@@ -83,14 +130,20 @@ void TimeRouteLookups(const std::string& label, const MapT& map,
   }
   const auto t1 = Clock::now();
   const double ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
-  PrintRateRow(label, ms, iters * q_len, sink);
+  LogRateRow(label, ms, iters * q_len, sink);
 }
 
+/**
+ * @brief Runs the complete Story 1 route lookup suite (Zipfian, Uniform, 404).
+ * @param iters Number of 1M-query passes per engine and traffic distribution.
+ */
 void RunStory1All(std::size_t iters) {
   const RouteTableDataset ds =
       BuildRouteTableDataset(kNumRoutes, kNumRouteQueries);
-  std::cout << "\n=== Story 1: Envoy HTTP/RPC Route Table (" << kNumRoutes
-            << " Non-SSO 36-42B Routes, Aged Heap) ===\n";
+  LOG(INFO) << absl::StrFormat(
+      "=== Story 1: Envoy HTTP/RPC Route Table (%u Non-SSO 78-82B Routes, "
+      "Aged Heap) ===",
+      kNumRoutes);
 
   const auto m_std_def = BuildAgedRouteMap<StdRouteMapDefault>(ds);
   const auto m_std_tr = BuildAgedRouteMap<StdRouteMapTransparent>(ds);
@@ -102,7 +155,7 @@ void RunStory1All(std::size_t iters) {
   const auto m_f14_val = BuildAgedRouteMap<FollyF14ValueRouteMap>(ds);
   const auto m_boost = BuildAgedRouteMap<BoostFlatRouteMap>(ds);
 
-  std::cout << "--- 1A. Zipfian s=0.99 Hot Skew (70% Hit / 30% 404 Miss) ---\n";
+  LOG(INFO) << "--- 1A. Zipfian s=0.99 Hot Skew (70% Hit / 30% 404 Miss) ---";
   TimeRouteLookups("std::unordered_map (Default, tmp std::string)", m_std_def,
                    ds.queries_zipf_70_30, iters, Ep16StdDefaultFindRoute);
   TimeRouteLookups("std::unordered_map (C++20 is_transparent)", m_std_tr,
@@ -121,7 +174,7 @@ void RunStory1All(std::size_t iters) {
   TimeRouteLookups("boost::unordered_flat_map (15-way + ofw)", m_boost,
                    ds.queries_zipf_70_30, iters, Ep16BoostFlatFindRoute);
 
-  std::cout << "--- 1B. Uniform Aged-Heap (70% Hit / 30% 404 Miss) ---\n";
+  LOG(INFO) << "--- 1B. Uniform Aged-Heap (70% Hit / 30% 404 Miss) ---";
   TimeRouteLookups("std::unordered_map (Default, tmp std::string)", m_std_def,
                    ds.queries_uniform_70_30, iters, Ep16StdDefaultFindRoute);
   TimeRouteLookups("std::unordered_map (C++20 is_transparent)", m_std_tr,
@@ -142,7 +195,7 @@ void RunStory1All(std::size_t iters) {
   TimeRouteLookups("boost::unordered_flat_map (15-way + ofw)", m_boost,
                    ds.queries_uniform_70_30, iters, Ep16BoostFlatFindRoute);
 
-  std::cout << "--- 1C. 100% Negative Misses (Bot Scans / 404 Flood) ---\n";
+  LOG(INFO) << "--- 1C. 100% Negative Misses (Bot Scans / 404 Flood) ---";
   TimeRouteLookups("std::unordered_map (Default, tmp std::string)", m_std_def,
                    ds.queries_100_miss, iters, Ep16StdDefaultFindRoute);
   TimeRouteLookups("std::unordered_map (C++20 is_transparent)", m_std_tr,
@@ -162,28 +215,35 @@ void RunStory1All(std::size_t iters) {
                    ds.queries_100_miss, iters, Ep16BoostFlatFindRoute);
 }
 
+/**
+ * @brief Isolated forensic proof of GCC libstdc++'s `noexcept` hash-caching
+ *        trap on 100K non-SSO routes (comparing allocating default vs. cached
+ *        transparent vs. uncached `noexcept` transparent).
+ * @param iters Number of 1M-query passes per configuration.
+ */
 void RunNoexceptHashTrapDemo(std::size_t iters) {
   const RouteTableDataset ds =
       BuildRouteTableDataset(kNumRoutes, kNumRouteQueries);
-  std::cout << "=== GCC libstdc++ noexcept Hash-Caching Audit (100K Non-SSO "
-               "36-42B Routes, 404 Misses) ===\n";
+  LOG(INFO) << "=== GCC libstdc++ noexcept Hash-Caching Audit (100K Non-SSO "
+               "78-82B Routes, 404 Misses) ===";
   const auto m_std_def = BuildAgedRouteMap<StdRouteMapDefault>(ds);
   const auto m_std_tr = BuildAgedRouteMap<StdRouteMapTransparent>(ds);
   const auto m_std_tr_noex =
       BuildAgedRouteMap<StdRouteMapTransparentNoexcept>(ds);
-  // Warm CPU turbo P-state & steady-state cache identically across all 3 maps
-  // (matching RunStory1All's Zipf/Uniform pass before 1C 404 Misses).
+
+  // Warm CPU turbo P-state and glibc tcache identically across all 3 maps.
   std::uint64_t warm_sink = 0;
-  for (int w = 0; w < 2; ++w) {
-    warm_sink ^= Ep16StdDefaultFindRoute(
-        m_std_def, ds.queries_zipf_70_30.data(), ds.queries_zipf_70_30.size());
-    warm_sink ^= Ep16StdTransparentFindRoute(
-        m_std_tr, ds.queries_zipf_70_30.data(), ds.queries_zipf_70_30.size());
-    warm_sink ^= Ep16StdTransparentNoexceptFindRoute(
-        m_std_tr_noex, ds.queries_zipf_70_30.data(),
-        ds.queries_zipf_70_30.size());
-  }
+  warm_sink ^=
+      Ep16StdDefaultFindRoute(m_std_def, ds.queries_uniform_70_30.data(),
+                              ds.queries_uniform_70_30.size());
+  warm_sink ^=
+      Ep16StdTransparentFindRoute(m_std_tr, ds.queries_uniform_70_30.data(),
+                                  ds.queries_uniform_70_30.size());
+  warm_sink ^= Ep16StdTransparentNoexceptFindRoute(
+      m_std_tr_noex, ds.queries_uniform_70_30.data(),
+      ds.queries_uniform_70_30.size());
   DoNotOptimize(warm_sink);
+
   TimeRouteLookups("std::unordered_map (default, heap allocs)", m_std_def,
                    ds.queries_100_miss, iters, Ep16StdDefaultFindRoute);
   TimeRouteLookups("std::unordered_map (transparent, cached)", m_std_tr,
@@ -193,41 +253,29 @@ void RunNoexceptHashTrapDemo(std::size_t iters) {
                    Ep16StdTransparentNoexceptFindRoute);
 }
 
+/**
+ * @brief Runs Story 1's shared-hasher control normalizing `std::unordered_map`,
+ *        `absl::flat_hash_map`, `folly::F14FastMap`, and
+ *        `boost::unordered_flat_map` onto identical
+ *        `std::hash<std::string_view>`.
+ * @param iters Number of 1M-query passes per engine and workload stream.
+ */
 void RunSharedHasherControl(std::size_t iters) {
-  using AbslSharedHashMap =
-      absl::flat_hash_map<std::string, RoutePolicy, TransparentStdStringHash,
-                          std::equal_to<>>;
-  using FollySharedHashMap =
-      folly::F14FastMap<std::string, RoutePolicy, TransparentStdStringHash,
-                        std::equal_to<>>;
-  using BoostSharedHashMap =
-      boost::unordered_flat_map<std::string, RoutePolicy,
-                                TransparentStdStringHash, std::equal_to<>>;
-
   const RouteTableDataset ds =
       BuildRouteTableDataset(kNumRoutes, kNumRouteQueries);
   const auto m_std = BuildAgedRouteMap<StdRouteMapTransparent>(ds);
-  const auto m_absl = BuildAgedRouteMap<AbslSharedHashMap>(ds);
-  const auto m_f14 = BuildAgedRouteMap<FollySharedHashMap>(ds);
-  const auto m_boost = BuildAgedRouteMap<BoostSharedHashMap>(ds);
+  const auto m_absl = BuildAgedRouteMap<AbslFlatRouteMapSharedHash>(ds);
+  const auto m_f14 = BuildAgedRouteMap<FollyF14FastRouteMapSharedHash>(ds);
+  const auto m_boost = BuildAgedRouteMap<BoostFlatRouteMapSharedHash>(ds);
 
   auto find_generic = [](const auto& map, const std::string_view* q,
                          std::size_t n) -> std::uint64_t {
-    std::uint64_t sum = 0;
-    std::uint64_t hits = 0;
-    for (std::size_t i = 0; i < n; ++i) {
-      const auto it = map.find(q[i]);
-      if (it != map.end()) {
-        sum += DigestRoutePolicy(it->second);
-        ++hits;
-      }
-    }
-    return FinalizeChecksum(sum, hits);
+    return FindTransparentRouteBatch(map, absl::MakeConstSpan(q, n));
   };
 
-  std::cout << "\n=== Story 1 Shared-Hasher Control (Identical "
-               "std::hash<std::string_view>) ===\n";
-  std::cout << "--- Zipfian 70/30 (Normalized std::hash) ---\n";
+  LOG(INFO) << "=== Story 1 Shared-Hasher Control (Identical "
+               "std::hash<std::string_view>) ===";
+  LOG(INFO) << "--- Zipfian 70/30 (Normalized std::hash) ---";
   TimeRouteLookups("std::unordered_map (std::hash)", m_std,
                    ds.queries_zipf_70_30, iters, Ep16StdTransparentFindRoute);
   TimeRouteLookups("absl::flat_hash_map (std::hash)", m_absl,
@@ -236,7 +284,7 @@ void RunSharedHasherControl(std::size_t iters) {
                    ds.queries_zipf_70_30, iters, find_generic);
   TimeRouteLookups("boost::unordered_flat_map (std::hash)", m_boost,
                    ds.queries_zipf_70_30, iters, find_generic);
-  std::cout << "--- 100% 404 Misses (Normalized std::hash) ---\n";
+  LOG(INFO) << "--- 100% 404 Misses (Normalized std::hash) ---";
   TimeRouteLookups("std::unordered_map (std::hash)", m_std, ds.queries_100_miss,
                    iters, Ep16StdTransparentFindRoute);
   TimeRouteLookups("absl::flat_hash_map (std::hash)", m_absl,
@@ -251,9 +299,15 @@ void RunSharedHasherControl(std::size_t iters) {
 // Story 2: Per-Request Small Maps Crossover Sweep (N = 4, 8, 16, 32, 64, 128)
 // -----------------------------------------------------------------------------
 
+/**
+ * @brief Times repeated per-request small-map lifecycles and logs throughput.
+ * @tparam Fn Callable executing one build + 12 lookup + destroy cycle.
+ * @param label Formatted row label.
+ * @param requests Total request lifecycles to execute.
+ * @param fn Lifecycle callable returning a verification checksum.
+ */
 template <typename Fn>
-void TimeSmallLifecycle(const std::string& label, std::size_t requests,
-                        Fn&& fn) {
+void TimeSmallLifecycle(std::string_view label, std::size_t requests, Fn&& fn) {
   std::uint64_t sink = fn();
   const auto t0 = Clock::now();
   for (std::size_t i = 0; i < requests; ++i) {
@@ -262,16 +316,20 @@ void TimeSmallLifecycle(const std::string& label, std::size_t requests,
   }
   const auto t1 = Clock::now();
   const double ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
-  PrintRateRow(label, ms, requests, sink);
+  LogRateRow(label, ms, requests, sink);
 }
 
+/**
+ * @brief Runs Story 2's per-request HTTP/2 header crossover sweep (`N=4..128`).
+ * @param requests Number of full request lifecycles per container and size.
+ */
 void RunStory2All(std::size_t requests) {
-  std::cout << "\n=== Story 2: Per-Request HTTP/2 Header Maps (Build + 12 "
-               "Lookups + Destroy) ===\n";
+  LOG(INFO) << "=== Story 2: Per-Request HTTP/2 Header Maps (Build + 12 "
+               "Lookups + Destroy) ===";
   for (std::size_t n : {4U, 8U, 16U, 32U, 64U, 128U}) {
     const HttpHeaderDataset ds = BuildHttpHeaderDataset(n);
-    std::cout << "--- N = " << n << " Headers (" << requests
-              << " full request lifecycles) ---\n";
+    LOG(INFO) << absl::StrFormat(
+        "--- N = %u Headers (%u full request lifecycles) ---", n, requests);
     TimeSmallLifecycle(
         "FlatInlinedSmallMap<16> (Stack Linear Scan)", requests, [&] {
           return RunSmallFlatMapRequestLifecycle<
@@ -309,8 +367,16 @@ void RunStory2All(std::size_t requests) {
 // Story 3 & Story 5: Isolated VmRSS, Lookups & Dense Iteration (32B/128B/256B)
 // -----------------------------------------------------------------------------
 
+/**
+ * @brief Measures isolated fresh-process `VmRSS` delta for a by-value map.
+ * @tparam MapT Target hash map storing `ValueT` inline or in nodes.
+ * @tparam FactoryFn Callable mapping `uint64_t -> ValueT`.
+ * @param label Human-readable row label.
+ * @param count Number of entries to populate.
+ * @param make_val Deterministic value synthesizer.
+ */
 template <typename MapT, typename FactoryFn>
-void MeasureIsolatedRss(const std::string& label, std::size_t count,
+void MeasureIsolatedRss(std::string_view label, std::size_t count,
                         FactoryFn&& make_val) {
   const LargeValueDataset ds = BuildLargeValueDataset(count, 1024);
   std::uint64_t rss0 = 0;
@@ -332,14 +398,21 @@ void MeasureIsolatedRss(const std::string& label, std::size_t count,
   const double mib = static_cast<double>(delta) / (1024.0 * 1024.0);
   const double b_per_entry =
       static_cast<double>(delta) / static_cast<double>(count);
-  std::cout << std::left << std::setw(48) << label << " | RSS=" << std::right
-            << std::setw(6) << std::fixed << std::setprecision(1) << mib
-            << " MiB | " << std::setw(6) << std::setprecision(1) << b_per_entry
-            << " B/entry\n";
+  LOG(INFO) << absl::StrFormat("%-48s | RSS=%6.1f MiB | %6.1f B/entry", label,
+                               mib, b_per_entry);
 }
 
+/**
+ * @brief Measures isolated fresh-process `VmRSS` delta for
+ *        `absl::flat_hash_map<uint64_t, std::unique_ptr<ValueT>>`.
+ * @tparam ValueT Target value struct type.
+ * @tparam FactoryFn Callable mapping `uint64_t -> ValueT`.
+ * @param label Human-readable row label.
+ * @param count Number of entries to populate.
+ * @param make_val Deterministic value synthesizer.
+ */
 template <typename ValueT, typename FactoryFn>
-void MeasureIsolatedUniquePtrRss(const std::string& label, std::size_t count,
+void MeasureIsolatedUniquePtrRss(std::string_view label, std::size_t count,
                                  FactoryFn&& make_val) {
   const LargeValueDataset ds = BuildLargeValueDataset(count, 1024);
   std::uint64_t rss0 = 0;
@@ -361,32 +434,50 @@ void MeasureIsolatedUniquePtrRss(const std::string& label, std::size_t count,
   const double mib = static_cast<double>(delta) / (1024.0 * 1024.0);
   const double b_per_entry =
       static_cast<double>(delta) / static_cast<double>(count);
-  std::cout << std::left << std::setw(48) << label << " | RSS=" << std::right
-            << std::setw(6) << std::fixed << std::setprecision(1) << mib
-            << " MiB | " << std::setw(6) << std::setprecision(1) << b_per_entry
-            << " B/entry\n";
+  LOG(INFO) << absl::StrFormat("%-48s | RSS=%6.1f MiB | %6.1f B/entry", label,
+                               mib, b_per_entry);
 }
 
+/**
+ * @brief Times repeated batches of large-value lookups and logs throughput.
+ * @tparam MapT Target hash map container type.
+ * @tparam FindFn Lookup kernel taking `(const MapT&, absl::Span<const
+ * uint64_t>)`.
+ * @param label Formatted row label.
+ * @param map Populated map.
+ * @param queries Span of 64-bit lookup keys.
+ * @param iters Number of timed batch passes.
+ * @param find_fn Lookup kernel callable.
+ */
 template <typename MapT, typename FindFn>
-void TimeLargeLookup(const std::string& label, const MapT& map,
-                     const std::vector<std::uint64_t>& queries,
-                     std::size_t iters, FindFn&& find_fn) {
+void TimeLargeLookup(std::string_view label, const MapT& map,
+                     absl::Span<const std::uint64_t> queries, std::size_t iters,
+                     FindFn&& find_fn) {
   const std::uint64_t* q_ptr = queries.data();
   const std::size_t q_len = queries.size();
-  std::uint64_t sink = find_fn(map, q_ptr, q_len);
+  std::uint64_t sink = find_fn(map, queries);
   const auto t0 = Clock::now();
   for (std::size_t i = 0; i < iters; ++i) {
     DoNotOptimize(q_ptr);
-    sink += find_fn(map, q_ptr, q_len);
+    sink += find_fn(map, absl::MakeConstSpan(q_ptr, q_len));
     DoNotOptimize(sink);
   }
   const auto t1 = Clock::now();
   const double ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
-  PrintRateRow(label, ms, iters * q_len, sink);
+  LogRateRow(label, ms, iters * q_len, sink);
 }
 
+/**
+ * @brief Times repeated full-table iteration sweeps and logs latency/rate.
+ * @tparam MapT Target hash map container type.
+ * @tparam IterFn Sweep kernel taking `const MapT&`.
+ * @param label Formatted row label.
+ * @param map Populated map.
+ * @param iters Number of timed sweeps.
+ * @param iter_fn Sweep kernel callable.
+ */
 template <typename MapT, typename IterFn>
-void TimeLargeIter(const std::string& label, const MapT& map, std::size_t iters,
+void TimeLargeIter(std::string_view label, const MapT& map, std::size_t iters,
                    IterFn&& iter_fn) {
   std::uint64_t sink = iter_fn(map);
   const auto t0 = Clock::now();
@@ -398,21 +489,26 @@ void TimeLargeIter(const std::string& label, const MapT& map, std::size_t iters,
   }
   const auto t1 = Clock::now();
   const double ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
-  PrintSweepRow(label, ms, iters, map.size(), sink);
+  LogSweepRow(label, ms, iters, map.size(), sink);
 }
 
+/**
+ * @brief Runs Story 3 & Story 5 1M-entry lookup and 256B full-table flush
+ *        benchmarks across flat, vector, node, and `unique_ptr` containers.
+ * @param iters Number of timed passes per container.
+ */
 void RunStory3And5Perf(std::size_t iters) {
   const LargeValueDataset ds =
       BuildLargeValueDataset(kNumLargeEntriesPostDouble, kNumLargeQueries);
-  std::cout << "\n=== Story 3 & 5: 1M ConnectionMetadata (128B) Lookups & "
-               "Pointer Stability ===\n";
+  LOG(INFO) << "=== Story 3 & 5: 1M ConnectionMetadata (128B) Lookups & "
+               "Pointer Stability ===";
 
-  auto run_conn = [&]<typename MapT>(const std::string& name) {
+  auto run_conn = [&]<typename MapT>(std::string_view name) {
     const auto map = BuildAgedValueMap<MapT>(ds, MakeConnectionMetadata);
-    TimeLargeLookup(name + " (80/20)", map, ds.queries_80_20, iters,
-                    FindConnectionBatch<MapT>);
-    TimeLargeLookup(name + " (100% Miss)", map, ds.queries_100_miss, iters,
-                    FindConnectionBatch<MapT>);
+    TimeLargeLookup(absl::StrCat(name, " (80/20)"), map, ds.queries_80_20,
+                    iters, FindConnectionBatch<MapT>);
+    TimeLargeLookup(absl::StrCat(name, " (100% Miss)"), map,
+                    ds.queries_100_miss, iters, FindConnectionBatch<MapT>);
   };
 
   run_conn.template
@@ -448,14 +544,14 @@ void RunStory3And5Perf(std::size_t iters) {
                     ds.queries_100_miss, iters, FindConnectionUniquePtrBatch);
   }
 
-  std::cout << "\n=== Story 3B: 1M UpstreamEndpointProfile (256B) Full-Table "
-               "Flush & Lookups ===\n";
-  auto run_ep = [&]<typename MapT>(const std::string& name) {
+  LOG(INFO) << "=== Story 3B: 1M UpstreamEndpointProfile (256B) Full-Table "
+               "Flush & Lookups ===";
+  auto run_ep = [&]<typename MapT>(std::string_view name) {
     const auto map = BuildAgedValueMap<MapT>(ds, MakeEndpointProfile);
-    TimeLargeIter(name + " (Iter 1M x 256B)", map, iters,
+    TimeLargeIter(absl::StrCat(name, " (Iter 1M x 256B)"), map, iters,
                   IterEndpointMap<MapT>);
-    TimeLargeLookup(name + " (80/20 256B)", map, ds.queries_80_20, iters,
-                    FindEndpointBatch<MapT>);
+    TimeLargeLookup(absl::StrCat(name, " (80/20 256B)"), map, ds.queries_80_20,
+                    iters, FindEndpointBatch<MapT>);
   };
   run_ep.template
   operator()<std::unordered_map<std::uint64_t, UpstreamEndpointProfile>>(
@@ -483,11 +579,21 @@ void RunStory3And5Perf(std::size_t iters) {
 }
 
 // -----------------------------------------------------------------------------
-// Story 4: Steady-State Sliding-Window Eviction Churn (780K Live, 4M Cycles)
+// Story 4: Steady-State Sliding-Window Eviction Churn (780K & 640K Bands)
 // -----------------------------------------------------------------------------
 
+/**
+ * @brief Executes steady-state sliding-window `erase(oldest) + emplace(newest)`
+ *        churn on one hash-map engine, capturing pre/post-churn lookup drift
+ *        and optional per-operation tail latency percentiles.
+ * @tparam MapT Target hash map type mapping `uint64_t` to `CompactFlowStats`.
+ * @param label Human-readable engine label.
+ * @param ds Pre-built `ChurnWorkloadDataset`.
+ * @param lookup_iters Number of lookup passes before and after churn.
+ * @param print_full_summary True to record per-cycle latency percentiles.
+ */
 template <typename MapT>
-void RunSingleChurnEngine(const std::string& label,
+void RunSingleChurnEngine(std::string_view label,
                           const ChurnWorkloadDataset& ds,
                           std::size_t lookup_iters, bool print_full_summary) {
   MapT map;
@@ -497,11 +603,11 @@ void RunSingleChurnEngine(const std::string& label,
   }
 
   // Pre-churn baseline lookup & 100% negative miss throughput.
-  auto measure_queries = [&](const std::vector<std::uint64_t>& q) {
-    std::uint64_t sink = FindCompactFlowBatch(map, q.data(), q.size());
+  auto measure_queries = [&](absl::Span<const std::uint64_t> q) {
+    std::uint64_t sink = FindCompactFlowBatch(map, q);
     const auto t0 = Clock::now();
     for (std::size_t i = 0; i < lookup_iters; ++i) {
-      sink += FindCompactFlowBatch(map, q.data(), q.size());
+      sink += FindCompactFlowBatch(map, q);
       DoNotOptimize(sink);
     }
     const auto t1 = Clock::now();
@@ -561,37 +667,36 @@ void RunSingleChurnEngine(const std::string& label,
   if (print_full_summary) {
     const TailPercentiles pct =
         ComputePercentiles(samples, churn_ms, post_80_ck);
-    std::cout << std::left << std::setw(32) << label
-              << " | churn=" << std::right << std::setw(6) << std::fixed
-              << std::setprecision(2) << churn_mops << " M cyc/s"
-              << " | p50=" << std::setw(4) << std::setprecision(0) << pct.p50_ns
-              << " ns | p99=" << std::setw(5) << pct.p99_ns
-              << " ns | p99.9=" << std::setw(5) << pct.p999_ns
-              << " ns | p99.99=" << std::setw(6) << pct.p9999_ns
-              << " ns | max=" << std::setw(10) << pct.max_ns << " ns\n";
-    std::cout << "    -> bucket_count=" << map.bucket_count()
-              << " load_factor=" << std::fixed << std::setprecision(3)
-              << map.load_factor() << " | 80/20: " << std::setprecision(2)
-              << pre_80_mops << " -> " << post_80_mops
-              << " M/s | 100% Miss: " << pre_miss_mops << " -> "
-              << post_miss_mops << " M/s | ck=0x" << std::hex << post_80_ck
-              << std::dec << "\n";
+    LOG(INFO) << absl::StrFormat(
+        "%-32s | churn=%5.2f M/s | p50=%4.0fns | p99=%4.0fns | "
+        "p99.9=%5.0fns | p99.99=%6.0fns | max=%9.0fns",
+        label, churn_mops, pct.p50_ns, pct.p99_ns, pct.p999_ns, pct.p9999_ns,
+        pct.max_ns);
+    LOG(INFO) << absl::StrFormat(
+        "    -> bucket_count=%u load_factor=%.3f | 80/20: %.2f -> %.2f M/s | "
+        "100%% Miss: %.2f -> %.2f M/s | ck=0x%x",
+        map.bucket_count(), map.load_factor(), pre_80_mops, post_80_mops,
+        pre_miss_mops, post_miss_mops, post_80_ck);
   } else {
-    std::cout << std::left << std::setw(32) << label
-              << " | churn=" << std::right << std::setw(6) << std::fixed
-              << std::setprecision(2) << churn_mops
-              << " M cyc/s | total=" << churn_ms << " ms | ck=0x" << std::hex
-              << post_80_ck << std::dec << "\n";
+    LOG(INFO) << absl::StrFormat(
+        "%-32s | churn=%6.2f M cyc/s | total=%.2f ms | ck=0x%x", label,
+        churn_mops, churn_ms, post_80_ck);
   }
 }
 
+/**
+ * @brief Runs Story 4's dual-band steady-state eviction churn suite across
+ *        both 780K (Band A) and 640K (Band B: F14Vector 81.4% fill).
+ * @param churn_ops Number of continuous `erase + emplace` cycles per band.
+ */
 void RunStory4All(std::size_t churn_ops) {
-  auto run_band = [&](std::size_t live_count, const std::string& band_label) {
+  auto run_band = [&](std::size_t live_count, std::string_view band_label) {
     const ChurnWorkloadDataset ds =
         BuildChurnDataset(live_count, churn_ops, kNumChurnPostQueries);
-    std::cout << "\n=== Story 4 (" << band_label << "): " << live_count
-              << " Live x 32B, " << churn_ops
-              << " Sliding-Window Erase+Insert Cycles ===\n";
+    LOG(INFO) << absl::StrFormat(
+        "=== Story 4 (%s): %u Live x 32B, %u Sliding-Window Erase+Insert "
+        "Cycles ===",
+        band_label, live_count, churn_ops);
 
     RunSingleChurnEngine<std::unordered_map<std::uint64_t, CompactFlowStats>>(
         "std::unordered_map", ds, 8, true);
@@ -609,11 +714,14 @@ void RunStory4All(std::size_t churn_ops) {
   // Band A: 780K live -> absl 74.4%, boost 79.3%, F14Value 85.0% (F14Vector
   // 50%).
   run_band(780'000, "Band A: 780K High-Fill for absl/boost/F14Value");
-  // Band B: 640K live -> F14Vector packed tight at 81.4% (9.8/12 slots/chunk!).
+  // Band B: 640K live -> F14Vector packed tight at 81.4% (9.8/12 slots/chunk).
   run_band(640'000, "Band B: 640K High-Fill for F14FastMap/Vector (81.4%)");
 }
 
-// Keep disassembly reference kernels linked and alive inside the binary.
+/**
+ * @brief Keeps `extern "C"` disassembly reference kernels linked inside the
+ *        compiled binary for `llvm-objdump` inspection.
+ */
 void TouchDisasmKernels() {
   std::unordered_map<std::uint64_t, CompactFlowStats> m_std;
   absl::flat_hash_map<std::uint64_t, CompactFlowStats> m_absl;
@@ -636,27 +744,15 @@ void TouchDisasmKernels() {
 }  // namespace
 
 /**
- * @brief Dispatches Episode 16 forensic challenge & `perf stat` modes via CLI.
- * @param argc Argument count.
- * @param argv Argument vector (`--mode=...`, `--iters=...`, `--count=...`).
- * @return Process exit code (0 on success).
+ * @brief Dispatches Episode 16 forensic challenge & `perf stat` modes via
+ *        Abseil flags (`--mode`, `--iters`, `--count`, `--quiet`).
+ * @param mode Selected forensic execution mode.
+ * @param iters Optional iteration override (0 selects mode default).
+ * @param count Entry count for isolated VmRSS or Story 4 churn workloads.
+ * @return Process exit code (0 on success, 1 on unknown mode).
  */
-int RunChallengeCli(int argc, char** argv) {
-  std::string mode = "all";
-  std::size_t iters = 0;
-  std::size_t count = kNumLargeEntriesPostDouble;
-
-  for (int i = 1; i < argc; ++i) {
-    const std::string arg = argv[i];
-    if (arg.rfind("--mode=", 0) == 0) {
-      mode = arg.substr(7);
-    } else if (arg.rfind("--iters=", 0) == 0) {
-      iters = static_cast<std::size_t>(std::stoull(arg.substr(8)));
-    } else if (arg.rfind("--count=", 0) == 0) {
-      count = static_cast<std::size_t>(std::stoull(arg.substr(8)));
-    }
-  }
-
+int RunChallengeCli(std::string_view mode, std::size_t iters,
+                    std::size_t count) {
   TouchDisasmKernels();
 
   if (mode == "all") {
@@ -677,139 +773,154 @@ int RunChallengeCli(int argc, char** argv) {
   }
 
   // Story 1 isolated modes for unmultiplexed Linux `perf stat`.
-  if (mode.rfind("s1_", 0) == 0) {
+  if (absl::StartsWith(mode, "s1_")) {
     const RouteTableDataset ds =
         BuildRouteTableDataset(kNumRoutes, kNumRouteQueries);
     const std::size_t n_it = iters > 0 ? iters : 20;
-    const bool miss_only = (mode.find("_miss") != std::string::npos);
+    const bool miss_only = absl::StrContains(mode, "_miss");
     const auto& q = miss_only ? ds.queries_100_miss : ds.queries_zipf_70_30;
-    if (mode.find("std_def") != std::string::npos) {
+    if (absl::StrContains(mode, "std_def")) {
       const auto m = BuildAgedRouteMap<StdRouteMapDefault>(ds);
       TimeRouteLookups(mode, m, q, n_it, Ep16StdDefaultFindRoute);
-    } else if (mode.find("std_tr") != std::string::npos) {
+    } else if (absl::StrContains(mode, "std_tr")) {
       const auto m = BuildAgedRouteMap<StdRouteMapTransparent>(ds);
       TimeRouteLookups(mode, m, q, n_it, Ep16StdTransparentFindRoute);
-    } else if (mode.find("pmr") != std::string::npos) {
+    } else if (absl::StrContains(mode, "pmr")) {
       const auto h = BuildPmrRouteMap(ds);
       TimeRouteLookups(mode, *h.map, q, n_it, Ep16PmrTransparentFindRoute);
-    } else if (mode.find("absl") != std::string::npos) {
+    } else if (absl::StrContains(mode, "absl")) {
       const auto m = BuildAgedRouteMap<AbslFlatRouteMap>(ds);
       TimeRouteLookups(mode, m, q, n_it, Ep16AbslFlatFindRoute);
-    } else if (mode.find("f14_fast") != std::string::npos) {
+    } else if (absl::StrContains(mode, "f14_fast")) {
       const auto m = BuildAgedRouteMap<FollyF14FastRouteMap>(ds);
       TimeRouteLookups(mode, m, q, n_it, Ep16FollyF14FastFindRoute);
-    } else if (mode.find("f14_val") != std::string::npos) {
+    } else if (absl::StrContains(mode, "f14_val")) {
       const auto m = BuildAgedRouteMap<FollyF14ValueRouteMap>(ds);
       TimeRouteLookups(mode, m, q, n_it, Ep16FollyF14ValueFindRoute);
-    } else if (mode.find("boost") != std::string::npos) {
+    } else if (absl::StrContains(mode, "boost")) {
       const auto m = BuildAgedRouteMap<BoostFlatRouteMap>(ds);
       TimeRouteLookups(mode, m, q, n_it, Ep16BoostFlatFindRoute);
     } else {
-      std::cerr << "Unknown Story 1 mode: " << mode << "\n";
+      LOG(ERROR) << "Unknown Story 1 mode: " << mode;
       return 1;
     }
     return 0;
   }
 
   // Story 3 isolated fresh-process VmRSS measurement modes.
-  if (mode.rfind("rss_", 0) == 0) {
-    const std::string tag = "(" + std::to_string(count / 1000) + "K) ";
+  if (absl::StartsWith(mode, "rss_")) {
+    const std::string tag = absl::StrCat("(", count / 1000, "K) ");
     if (mode == "rss_32_std") {
       MeasureIsolatedRss<std::unordered_map<std::uint64_t, CompactFlowStats>>(
-          tag + "32B std::unordered_map", count, MakeCompactFlow);
+          absl::StrCat(tag, "32B std::unordered_map"), count, MakeCompactFlow);
     } else if (mode == "rss_32_absl") {
       MeasureIsolatedRss<absl::flat_hash_map<std::uint64_t, CompactFlowStats>>(
-          tag + "32B absl::flat_hash_map", count, MakeCompactFlow);
+          absl::StrCat(tag, "32B absl::flat_hash_map"), count, MakeCompactFlow);
     } else if (mode == "rss_32_f14_val") {
       MeasureIsolatedRss<folly::F14ValueMap<std::uint64_t, CompactFlowStats>>(
-          tag + "32B folly::F14ValueMap", count, MakeCompactFlow);
+          absl::StrCat(tag, "32B folly::F14ValueMap"), count, MakeCompactFlow);
     } else if (mode == "rss_32_f14_fast") {
       MeasureIsolatedRss<folly::F14FastMap<std::uint64_t, CompactFlowStats>>(
-          tag + "32B folly::F14FastMap (Vector)", count, MakeCompactFlow);
+          absl::StrCat(tag, "32B folly::F14FastMap (Vector)"), count,
+          MakeCompactFlow);
     } else if (mode == "rss_32_boost") {
       MeasureIsolatedRss<
           boost::unordered_flat_map<std::uint64_t, CompactFlowStats>>(
-          tag + "32B boost::unordered_flat_map", count, MakeCompactFlow);
+          absl::StrCat(tag, "32B boost::unordered_flat_map"), count,
+          MakeCompactFlow);
     } else if (mode == "rss_128_std") {
       MeasureIsolatedRss<std::unordered_map<std::uint64_t, ConnectionMetadata>>(
-          tag + "128B std::unordered_map", count, MakeConnectionMetadata);
+          absl::StrCat(tag, "128B std::unordered_map"), count,
+          MakeConnectionMetadata);
     } else if (mode == "rss_128_absl") {
       MeasureIsolatedRss<
           absl::flat_hash_map<std::uint64_t, ConnectionMetadata>>(
-          tag + "128B absl::flat_hash_map", count, MakeConnectionMetadata);
+          absl::StrCat(tag, "128B absl::flat_hash_map"), count,
+          MakeConnectionMetadata);
     } else if (mode == "rss_128_f14_val") {
       MeasureIsolatedRss<folly::F14ValueMap<std::uint64_t, ConnectionMetadata>>(
-          tag + "128B folly::F14ValueMap", count, MakeConnectionMetadata);
+          absl::StrCat(tag, "128B folly::F14ValueMap"), count,
+          MakeConnectionMetadata);
     } else if (mode == "rss_128_f14_fast") {
       MeasureIsolatedRss<folly::F14FastMap<std::uint64_t, ConnectionMetadata>>(
-          tag + "128B folly::F14FastMap (Vector)", count,
+          absl::StrCat(tag, "128B folly::F14FastMap (Vector)"), count,
           MakeConnectionMetadata);
     } else if (mode == "rss_128_boost") {
       MeasureIsolatedRss<
           boost::unordered_flat_map<std::uint64_t, ConnectionMetadata>>(
-          tag + "128B boost::unordered_flat_map", count,
+          absl::StrCat(tag, "128B boost::unordered_flat_map"), count,
           MakeConnectionMetadata);
     } else if (mode == "rss_128_absl_node") {
       MeasureIsolatedRss<
           absl::node_hash_map<std::uint64_t, ConnectionMetadata>>(
-          tag + "128B absl::node_hash_map", count, MakeConnectionMetadata);
+          absl::StrCat(tag, "128B absl::node_hash_map"), count,
+          MakeConnectionMetadata);
     } else if (mode == "rss_128_f14_node") {
       MeasureIsolatedRss<folly::F14NodeMap<std::uint64_t, ConnectionMetadata>>(
-          tag + "128B folly::F14NodeMap", count, MakeConnectionMetadata);
+          absl::StrCat(tag, "128B folly::F14NodeMap"), count,
+          MakeConnectionMetadata);
     } else if (mode == "rss_128_boost_node") {
       MeasureIsolatedRss<
           boost::unordered_node_map<std::uint64_t, ConnectionMetadata>>(
-          tag + "128B boost::unordered_node_map", count,
+          absl::StrCat(tag, "128B boost::unordered_node_map"), count,
           MakeConnectionMetadata);
     } else if (mode == "rss_128_absl_uptr") {
       MeasureIsolatedUniquePtrRss<ConnectionMetadata>(
-          tag + "128B absl::flat<K, unique_ptr<V>>", count,
+          absl::StrCat(tag, "128B absl::flat<K, unique_ptr<V>>"), count,
           MakeConnectionMetadata);
     } else if (mode == "rss_256_std") {
       MeasureIsolatedRss<
           std::unordered_map<std::uint64_t, UpstreamEndpointProfile>>(
-          tag + "256B std::unordered_map", count, MakeEndpointProfile);
+          absl::StrCat(tag, "256B std::unordered_map"), count,
+          MakeEndpointProfile);
     } else if (mode == "rss_256_absl") {
       MeasureIsolatedRss<
           absl::flat_hash_map<std::uint64_t, UpstreamEndpointProfile>>(
-          tag + "256B absl::flat_hash_map", count, MakeEndpointProfile);
+          absl::StrCat(tag, "256B absl::flat_hash_map"), count,
+          MakeEndpointProfile);
     } else if (mode == "rss_256_f14_val") {
       MeasureIsolatedRss<
           folly::F14ValueMap<std::uint64_t, UpstreamEndpointProfile>>(
-          tag + "256B folly::F14ValueMap", count, MakeEndpointProfile);
+          absl::StrCat(tag, "256B folly::F14ValueMap"), count,
+          MakeEndpointProfile);
     } else if (mode == "rss_256_f14_fast") {
       MeasureIsolatedRss<
           folly::F14FastMap<std::uint64_t, UpstreamEndpointProfile>>(
-          tag + "256B folly::F14FastMap (Vector)", count, MakeEndpointProfile);
+          absl::StrCat(tag, "256B folly::F14FastMap (Vector)"), count,
+          MakeEndpointProfile);
     } else if (mode == "rss_256_boost") {
       MeasureIsolatedRss<
           boost::unordered_flat_map<std::uint64_t, UpstreamEndpointProfile>>(
-          tag + "256B boost::unordered_flat_map", count, MakeEndpointProfile);
+          absl::StrCat(tag, "256B boost::unordered_flat_map"), count,
+          MakeEndpointProfile);
     } else if (mode == "rss_256_absl_node") {
       MeasureIsolatedRss<
           absl::node_hash_map<std::uint64_t, UpstreamEndpointProfile>>(
-          tag + "256B absl::node_hash_map", count, MakeEndpointProfile);
+          absl::StrCat(tag, "256B absl::node_hash_map"), count,
+          MakeEndpointProfile);
     } else if (mode == "rss_256_f14_node") {
       MeasureIsolatedRss<
           folly::F14NodeMap<std::uint64_t, UpstreamEndpointProfile>>(
-          tag + "256B folly::F14NodeMap", count, MakeEndpointProfile);
+          absl::StrCat(tag, "256B folly::F14NodeMap"), count,
+          MakeEndpointProfile);
     } else if (mode == "rss_256_boost_node") {
       MeasureIsolatedRss<
           boost::unordered_node_map<std::uint64_t, UpstreamEndpointProfile>>(
-          tag + "256B boost::unordered_node_map", count, MakeEndpointProfile);
+          absl::StrCat(tag, "256B boost::unordered_node_map"), count,
+          MakeEndpointProfile);
     } else if (mode == "rss_256_absl_uptr") {
       MeasureIsolatedUniquePtrRss<UpstreamEndpointProfile>(
-          tag + "256B absl::flat<K, unique_ptr<V>>", count,
+          absl::StrCat(tag, "256B absl::flat<K, unique_ptr<V>>"), count,
           MakeEndpointProfile);
     } else {
-      std::cerr << "Unknown RSS mode: " << mode << "\n";
+      LOG(ERROR) << "Unknown RSS mode: " << mode;
       return 1;
     }
     return 0;
   }
 
   // Story 3 isolated 256B iteration modes for unmultiplexed `perf stat`.
-  if (mode.rfind("s3_iter256_", 0) == 0) {
+  if (absl::StartsWith(mode, "s3_iter256_")) {
     const LargeValueDataset ds =
         BuildLargeValueDataset(kNumLargeEntriesPostDouble, 1024);
     const std::size_t n_it = iters > 0 ? iters : 30;
@@ -846,15 +957,15 @@ int RunChallengeCli(int argc, char** argv) {
           IterEndpointMap<boost::unordered_flat_map<std::uint64_t,
                                                     UpstreamEndpointProfile>>);
     } else {
-      std::cerr << "Unknown s3_iter256 mode: " << mode << "\n";
+      LOG(ERROR) << "Unknown s3_iter256 mode: " << mode;
       return 1;
     }
     return 0;
   }
 
   // Story 4 isolated churn modes for unmultiplexed `perf stat` (without clock
-  // calls inside the tight loop!).
-  if (mode.rfind("s4_churn_", 0) == 0) {
+  // calls inside the tight loop).
+  if (absl::StartsWith(mode, "s4_churn_")) {
     const std::size_t ops = iters > 0 ? iters : kNumChurnOps;
     const std::size_t live =
         (count != kNumLargeEntriesPostDouble) ? count : kNumChurnLiveEntries;
@@ -877,7 +988,7 @@ int RunChallengeCli(int argc, char** argv) {
           boost::unordered_flat_map<std::uint64_t, CompactFlowStats>>(mode, ds,
                                                                       1, false);
     } else {
-      std::cerr << "Unknown s4_churn mode: " << mode << "\n";
+      LOG(ERROR) << "Unknown s4_churn mode: " << mode;
       return 1;
     }
     return 0;
@@ -892,7 +1003,7 @@ int RunChallengeCli(int argc, char** argv) {
   } else if (mode == "story4") {
     RunStory4All(iters > 0 ? iters : kNumChurnOps);
   } else {
-    std::cerr << "Unknown --mode=" << mode << "\n";
+    LOG(ERROR) << "Unknown --mode=" << mode;
     return 1;
   }
   return 0;
@@ -900,6 +1011,20 @@ int RunChallengeCli(int argc, char** argv) {
 
 }  // namespace hotpath::episode16
 
+/**
+ * @brief Entry point initializing Abseil flags and logging before dispatching
+ *        Episode 16 forensic workloads.
+ * @param argc Command-line argument count.
+ * @param argv Command-line argument vector.
+ * @return Process exit code (0 on success).
+ */
 int main(int argc, char** argv) {
-  return hotpath::episode16::RunChallengeCli(argc, argv);
+  absl::ParseCommandLine(argc, argv);
+  absl::InitializeLog();
+  absl::SetStderrThreshold(absl::GetFlag(FLAGS_quiet)
+                               ? absl::LogSeverityAtLeast::kError
+                               : absl::LogSeverityAtLeast::kInfo);
+  return hotpath::episode16::RunChallengeCli(absl::GetFlag(FLAGS_mode),
+                                             absl::GetFlag(FLAGS_iters),
+                                             absl::GetFlag(FLAGS_count));
 }

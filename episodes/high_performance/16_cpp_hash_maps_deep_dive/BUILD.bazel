@@ -21,6 +21,7 @@ cc_binary(
     srcs = ["benchmark.cc"],
     deps = [
         "//common/cpp_hash_maps",
+        "@abseil-cpp//absl/types:span",
         "@google_benchmark//:benchmark_main",
     ],
 )
@@ -30,6 +31,15 @@ cc_binary(
     srcs = ["challenge.cc"],
     deps = [
         "//common/cpp_hash_maps",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/flags:parse",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:flags",
+        "@abseil-cpp//absl/log:globals",
+        "@abseil-cpp//absl/log:initialize",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/types:span",
     ],
 )
 
@@ -38,6 +48,13 @@ cc_binary(
     srcs = ["live_alloc_audit.cc"],
     deps = [
         "//common/cpp_hash_maps",
+        "@abseil-cpp//absl/flags:parse",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:flags",
+        "@abseil-cpp//absl/log:globals",
+        "@abseil-cpp//absl/log:initialize",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/types:span",
     ],
 )
 
@@ -46,5 +63,12 @@ cc_binary(
     srcs = ["live_uaf_migration_repro.cc"],
     deps = [
         "//common/cpp_hash_maps",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/flags:parse",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:flags",
+        "@abseil-cpp//absl/log:globals",
+        "@abseil-cpp//absl/log:initialize",
+        "@abseil-cpp//absl/strings:str_format",
     ],
 )

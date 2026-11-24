@@ -14,13 +14,12 @@
 # limitations under the License.
 
 # ==============================================================================
-# Hot Path C++ — Episode 16: Production C++ Hash Maps Forensic Telemetry Runner
-# File: episodes/high_performance/16_cpp_hash_maps_deep_dive/run_ep16_forensics.sh
+# Hot Path Engineering (@HotPathEng) — Episode 16: Production C++ Hash Maps Forensic Telemetry Runner
 # ==============================================================================
 set -euo pipefail
 
 EP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${EP_DIR}/../../.." && pwd)"
+REPO_ROOT="$(cd "${EP_DIR}/../../.." REPO_ROOT="$(cd "${EP_DIR}/../.." && pwd)"REPO_ROOT="$(cd "${EP_DIR}/../.." && pwd)" pwd)"
 OUT_DIR="/tmp/ep16_telemetry"
 mkdir -p "${OUT_DIR}" "${EP_DIR}/assembly"
 
@@ -54,16 +53,16 @@ UAF_REPRO="${REPO_ROOT}/bazel-bin/episodes/high_performance/16_cpp_hash_maps_dee
 
 echo ""
 echo ">>> [2/7] Running Allocation Audit (Stories 1 & 2) & Pointer-Stability Reproducer (Story 5)..."
-"${ALLOC_AUDIT}" | tee "${OUT_DIR}/01_alloc_audit.txt"
-"${UAF_REPRO}" | tee "${OUT_DIR}/02_pointer_stability.txt"
+"${ALLOC_AUDIT}" 2>&1 | tee "${OUT_DIR}/01_alloc_audit.txt"
+"${UAF_REPRO}" 2>&1 | tee "${OUT_DIR}/02_pointer_stability.txt"
 
 echo ""
 echo ">>> [2B/7] Verifying Story 5 Live Migration UAF Under AddressSanitizer..."
-bazel build --copt=-fsanitize=address --linkopt=-fsanitize=address --copt=-g \
+bazel build -c opt --copt=-fsanitize=address --linkopt=-fsanitize=address --copt=-g \
   //episodes/high_performance/16_cpp_hash_maps_deep_dive:live_uaf_migration_repro
 ASAN_BIN="${REPO_ROOT}/bazel-bin/episodes/high_performance/16_cpp_hash_maps_deep_dive/live_uaf_migration_repro"
 set +e
-"${ASAN_BIN}" --trigger-uaf > "${OUT_DIR}/02b_asan_uaf_repro.txt" 2>&1
+"${ASAN_BIN}" --trigger_uaf > "${OUT_DIR}/02b_asan_uaf_repro.txt" 2>&1
 ASAN_EXIT=$?
 set -e
 echo "ASan migration UAF reproducer exited with code ${ASAN_EXIT} (expected non-zero)."
@@ -72,7 +71,9 @@ grep -E "ERROR: AddressSanitizer|SUMMARY:|TriggerFlatMapMigrationUaf" "${OUT_DIR
 # Rebuild clean -c opt binaries after ASan build so bazel-bin holds optimized artifacts.
 bazel build -c opt \
   //episodes/high_performance/16_cpp_hash_maps_deep_dive:benchmark \
-  //episodes/high_performance/16_cpp_hash_maps_deep_dive:challenge
+  //episodes/high_performance/16_cpp_hash_maps_deep_dive:challenge \
+  //episodes/high_performance/16_cpp_hash_maps_deep_dive:live_alloc_audit \
+  //episodes/high_performance/16_cpp_hash_maps_deep_dive:live_uaf_migration_repro
 
 echo ""
 echo ">>> [3/7] Running Isolated Fresh-Process VmRSS Audits (Story 3: 1M Post-Double & 800K Pre-Double)..."
@@ -84,7 +85,7 @@ echo ">>> [3/7] Running Isolated Fresh-Process VmRSS Audits (Story 3: 1M Post-Do
     rss_128_absl_node rss_128_f14_node rss_128_boost_node rss_128_absl_uptr \
     rss_256_std rss_256_absl rss_256_f14_val rss_256_f14_fast rss_256_boost \
     rss_256_absl_node rss_256_f14_node rss_256_boost_node rss_256_absl_uptr; do
-    "${CHALLENGE}" --mode="${m}" --count=1000000
+    "${CHALLENGE}" --mode="${m}" --count=1000000 2>&1
   done
   echo ""
   echo "=== Story 3B: Isolated VmRSS @ 800,000 Entries (Pre-Doubling ~76% Flat Load) ==="
@@ -94,20 +95,22 @@ echo ">>> [3/7] Running Isolated Fresh-Process VmRSS Audits (Story 3: 1M Post-Do
     rss_128_absl_uptr \
     rss_256_std rss_256_absl rss_256_f14_val rss_256_f14_fast rss_256_boost \
     rss_256_absl_uptr; do
-    "${CHALLENGE}" --mode="${m}" --count=800000
+    "${CHALLENGE}" --mode="${m}" --count=800000 2>&1
   done
 } | tee "${OUT_DIR}/03_isolated_rss.txt"
 
 echo ""
-echo ">>> [4/7] Running Full Forensic Suites (Stories 1, 2, 3, 4, 5)..."
-"${CHALLENGE}" --mode=story1 --iters=10 | tee "${OUT_DIR}/04_story1_routes.txt"
-"${CHALLENGE}" --mode=story2 --iters=250000 | tee "${OUT_DIR}/05_story2_small_maps.txt"
-"${CHALLENGE}" --mode=story3_5 --iters=10 | tee "${OUT_DIR}/06_story3_5_large_and_node.txt"
-"${CHALLENGE}" --mode=story4 --iters=4000000 | tee "${OUT_DIR}/07_story4_churn.txt"
+echo ">>> [4/7] Running Full Forensic Suites (Stories 1, 2, 3, 4, 5 + Controls)..."
+"${CHALLENGE}" --mode=story1 --iters=10 2>&1 | tee "${OUT_DIR}/04_story1_routes.txt"
+"${CHALLENGE}" --mode=s1_noexcept_demo --iters=8 2>&1 | tee "${OUT_DIR}/04b_story1_noexcept_demo.txt"
+"${CHALLENGE}" --mode=s1_shared_hash_control --iters=8 2>&1 | tee "${OUT_DIR}/04c_story1_shared_hash.txt"
+"${CHALLENGE}" --mode=story2 --iters=250000 2>&1 | tee "${OUT_DIR}/05_story2_small_maps.txt"
+"${CHALLENGE}" --mode=story3_5 --iters=10 2>&1 | tee "${OUT_DIR}/06_story3_5_large_and_node.txt"
+"${CHALLENGE}" --mode=story4 --iters=4000000 2>&1 | tee "${OUT_DIR}/07_story4_churn.txt"
 
 echo ""
 echo ">>> [5/7] Running Official Google Benchmark Suite..."
-"${BENCH}" --benchmark_min_time=0.25s | tee "${OUT_DIR}/08_google_benchmark.txt"
+"${BENCH}" --benchmark_min_time=0.25s 2>&1 | tee "${OUT_DIR}/08_google_benchmark.txt"
 
 echo ""
 echo ">>> [6/7] Running 3-Pass Unmultiplexed Linux perf stat PMU Profiling..."
@@ -120,11 +123,11 @@ run_perf_3pass() {
   shift
   echo "=== perf stat [${tag}] ==="
   echo "--- Pass 1 (Core & Branches) ---"
-  perf stat -e "${PMU_CORE}" "$@" > /dev/null
+  perf stat -e "${PMU_CORE}" "$@" --quiet > /dev/null
   echo "--- Pass 2 (L1D & dTLB) ---"
-  perf stat -e "${PMU_L1_TLB}" "$@" > /dev/null
+  perf stat -e "${PMU_L1_TLB}" "$@" --quiet > /dev/null
   echo "--- Pass 3 (LLC & Page Faults) ---"
-  perf stat -e "${PMU_LLC}" "$@" > /dev/null
+  perf stat -e "${PMU_LLC}" "$@" --quiet > /dev/null
 }
 
 {
@@ -199,9 +202,10 @@ clang++ -std=c++20 -O3 -march=znver4 -S -masm=intel -fno-asynchronous-unwind-tab
   echo "# --- 6. Live Compiled boost::unordered_flat_map U64 Lookup (15-way group15 + ofw) ---"
   llvm-objdump -d --disassemble-symbols=Ep16DisasmBoostFlatFindU64 -M intel "${CHALLENGE}" || true
   echo ""
-  echo "# --- 7. Live Compiled Story 1 Default vs Transparent Route Lookups ---"
+  echo "# --- 7. Live Compiled Story 1 Default vs Transparent vs Noexcept Route Lookups ---"
   llvm-objdump -d --disassemble-symbols=Ep16StdDefaultFindRoute -M intel "${CHALLENGE}" || true
   llvm-objdump -d --disassemble-symbols=Ep16StdTransparentFindRoute -M intel "${CHALLENGE}" || true
+  llvm-objdump -d --disassemble-symbols=Ep16StdTransparentNoexceptFindRoute -M intel "${CHALLENGE}" || true
 } > "${EP_DIR}/assembly/godbolt_comparison.s"
 
 echo ""
