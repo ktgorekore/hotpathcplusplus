@@ -14,17 +14,22 @@
   limitations under the License.
 -->
 
-# ⚡ Hot Path C++ — Production Low-Latency Systems Library
+![Hot Path Engineering Banner](docs/hotpath_engineering_banner.jpg)
 
-[![YouTube Channel](https://img.shields.io/badge/YouTube-Hot%20Path%20C%2B%2B-red?logo=youtube)](https://youtube.com/@HotPathCpp)
+# ⚡ Hot Path Engineering — Production Low-Latency Systems Library
+
+[![YouTube Channel](https://img.shields.io/badge/YouTube-Hot%20Path%20Engineering-red?logo=youtube)](https://youtube.com/@HotPathEng)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://en.cppreference.com/w/cpp/20)
-[![Bazel 9](https://img.shields.io/badge/Bazel-9.2.0-green.svg)](https://bazel.build/)
+[![Rust](https://img.shields.io/badge/Rust-1.91-orange.svg)](https://www.rust-lang.org/)
+[![Java 21](https://img.shields.io/badge/Java-21_LTS-purple.svg)](https://openjdk.org/)
+[![Bazel 9](https://img.shields.io/badge/Bazel-9.3-green.svg)](https://bazel.build/)
 [![Google Benchmark](https://img.shields.io/badge/Google_Benchmark-1.9.5-brightgreen.svg)](https://github.com/google/benchmark)
 [![CI](https://github.com/ktgorekore/hotpathcplusplus/actions/workflows/ci.yml/badge.svg)](https://github.com/ktgorekore/hotpathcplusplus/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-> **Official companion code repository for the [Hot Path C++ YouTube Channel](https://youtube.com/@HotPathCpp).**  
-> We deconstruct bare-metal systems programming, high-frequency trading (HFT) patterns, CPU microarchitecture (caches, store buffers, PMUs), compiler optimizations, and modern C++20 low-latency idioms.
+> **Official companion code repository for the [Hot Path Engineering YouTube Channel](https://youtube.com/@HotPathEng) (`@HotPathEng`).**  
+> *(Formerly **Hot Path C++** — repository URL kept as `hotpathcplusplus` so existing video links never break.)*  
+> We deconstruct bare-metal systems engineering across **C++20, Rust, and Java (JVM)** — tracing real production workloads from language semantics, compilers, and HotSpot JIT down to SIMD, CPU caches, store buffers, allocators, and Linux `perf` PMUs.
 
 ---
 
@@ -32,31 +37,31 @@
 
 All episode companion benchmarks, challenges, and hardware verification suites are organized into two dedicated tracks under [`episodes/`](episodes/) to prevent path collisions:
 
-### 🏎️ Track 1: High-Performance C++ & Bare-Metal Microarchitecture (`episodes/high_performance/`)
+### 🏎️ Track 1: High-Performance Systems & Bare-Metal Microarchitecture — C++, Rust & Java (`episodes/high_performance/`)
 
 | Episode | Title | Directory / Bazel Package | Companion Video |
 | :--- | :--- | :--- | :--- |
-| **Episode 03** | **Zero-Copy IPC at 286 GiB/s in C++20 (The Linux MMU Magic Mirror Hack!)** | [`common/shared_memory/`](common/shared_memory/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
-| **Episode 04** | **Stop Locking Your Hash Maps! (perf, pprof & 831M Ops/Sec RCU Teaser)** | [`common/concurrency/`](common/concurrency/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
-| **Episode 05** | **How to Measure C++ Performance Without Fooling Yourself (Microbenchmarks & PMUs)** | [`common/measurement/`](common/measurement/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
-| **Episode 06** | **Stop Chasing Pointers: The Cost of Abstraction (OOP vs. std::variant)** | [`episodes/high_performance/06_cost_of_abstraction/`](episodes/high_performance/06_cost_of_abstraction/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
-| **Episode 07** | **The Silicon Time Machine: Out-of-Order Execution & The Superscalar Pipeline** | [`episodes/high_performance/07_out_of_order_execution/`](episodes/high_performance/07_out_of_order_execution/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
-| **Episode 08** | **The Concurrency Mystery: Store Buffers, Total Store Order & C++20 Atomics** | [`episodes/high_performance/08_store_buffers_and_reordering/`](episodes/high_performance/08_store_buffers_and_reordering/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
-| **Episode 09** | **Inside the Silicon Switchboard: MESI Coherency, Split Locks & CAS Storms** | [`episodes/high_performance/09_mesi_and_atomics/`](episodes/high_performance/09_mesi_and_atomics/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
-| **Episode 10** | **Why a 3-Line C++ Spinlock Is 3.3x SLOWER Than `std::mutex` (And the 1-Line Fix)** | [`episodes/high_performance/10_locks_under_the_hood/`](episodes/high_performance/10_locks_under_the_hood/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
-| **Episode 11** | **Every Pointer Is a Lie: Syscalls, Page Faults & the Hardware MMU in C++20** | [`episodes/high_performance/11_syscalls_traps_and_mmu/`](episodes/high_performance/11_syscalls_traps_and_mmu/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
-| **Episode 12** | **What Actually Happens When We Call `new` in C++? (`malloc`, Arenas, Slab Pools & C++17 `std::pmr`)** | [`episodes/high_performance/12_memory_allocators_and_pmr/`](episodes/high_performance/12_memory_allocators_and_pmr/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
-| **Episode 13** | **Is C++ Actually Faster Than Java? (When the JIT Wins, Why It Loses & What 'Fast' Means in Production)** | [`episodes/high_performance/13_cpp_vs_java_jit/`](episodes/high_performance/13_cpp_vs_java_jit/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
-| **Episode 14** | **The Physics of Memory Safety: C++20 vs. Rust 1.91 vs. Java 21 (Spatial Bounds, AVX-512 & Temporal Lifetimes)** | [`episodes/high_performance/14_memory_safety_physics/`](episodes/high_performance/14_memory_safety_physics/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
-| **Episode 15** | **C++ vs. Rust vs. Java Hash Maps — How Memory Layout Decides Everything** | [`episodes/high_performance/15_hash_maps_across_languages/`](episodes/high_performance/15_hash_maps_across_languages/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
-| **Episode 16** | **Production C++ Hash Maps: Abseil vs. Folly F14 vs. Boost (And What Actually Breaks)** | [`episodes/high_performance/16_cpp_hash_maps_deep_dive/`](episodes/high_performance/16_cpp_hash_maps_deep_dive/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
+| **Episode 03** | **Zero-Copy IPC at 286 GiB/s in C++20 (The Linux MMU Magic Mirror Hack!)** | [`common/shared_memory/`](common/shared_memory/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathEng) |
+| **Episode 04** | **Stop Locking Your Hash Maps! (perf, pprof & 831M Ops/Sec RCU Teaser)** | [`common/concurrency/`](common/concurrency/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathEng) |
+| **Episode 05** | **How to Measure C++ Performance Without Fooling Yourself (Microbenchmarks & PMUs)** | [`common/measurement/`](common/measurement/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathEng) |
+| **Episode 06** | **Stop Chasing Pointers: The Cost of Abstraction (OOP vs. std::variant)** | [`episodes/high_performance/06_cost_of_abstraction/`](episodes/high_performance/06_cost_of_abstraction/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathEng) |
+| **Episode 07** | **The Silicon Time Machine: Out-of-Order Execution & The Superscalar Pipeline** | [`episodes/high_performance/07_out_of_order_execution/`](episodes/high_performance/07_out_of_order_execution/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathEng) |
+| **Episode 08** | **The Concurrency Mystery: Store Buffers, Total Store Order & C++20 Atomics** | [`episodes/high_performance/08_store_buffers_and_reordering/`](episodes/high_performance/08_store_buffers_and_reordering/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathEng) |
+| **Episode 09** | **Inside the Silicon Switchboard: MESI Coherency, Split Locks & CAS Storms** | [`episodes/high_performance/09_mesi_and_atomics/`](episodes/high_performance/09_mesi_and_atomics/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathEng) |
+| **Episode 10** | **Why a 3-Line C++ Spinlock Is 3.3x SLOWER Than `std::mutex` (And the 1-Line Fix)** | [`episodes/high_performance/10_locks_under_the_hood/`](episodes/high_performance/10_locks_under_the_hood/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathEng) |
+| **Episode 11** | **Every Pointer Is a Lie: Syscalls, Page Faults & the Hardware MMU in C++20** | [`episodes/high_performance/11_syscalls_traps_and_mmu/`](episodes/high_performance/11_syscalls_traps_and_mmu/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathEng) |
+| **Episode 12** | **What Actually Happens When We Call `new` in C++? (`malloc`, Arenas, Slab Pools & C++17 `std::pmr`)** | [`episodes/high_performance/12_memory_allocators_and_pmr/`](episodes/high_performance/12_memory_allocators_and_pmr/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathEng) |
+| **Episode 13** | **Is C++ Actually Faster Than Java? (When the JIT Wins, Why It Loses & What 'Fast' Means in Production)** | [`episodes/high_performance/13_cpp_vs_java_jit/`](episodes/high_performance/13_cpp_vs_java_jit/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathEng) |
+| **Episode 14** | **The Physics of Memory Safety: C++20 vs. Rust 1.91 vs. Java 21 (Spatial Bounds, AVX-512 & Temporal Lifetimes)** | [`episodes/high_performance/14_memory_safety_physics/`](episodes/high_performance/14_memory_safety_physics/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathEng) |
+| **Episode 15** | **C++ vs. Rust vs. Java Hash Maps — How Memory Layout Decides Everything** | [`episodes/high_performance/15_hash_maps_across_languages/`](episodes/high_performance/15_hash_maps_across_languages/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathEng) |
+| **Episode 16** | **Production C++ Hash Maps: Abseil vs. Folly F14 vs. Boost (And What Actually Breaks)** | [`episodes/high_performance/16_cpp_hash_maps_deep_dive/`](episodes/high_performance/16_cpp_hash_maps_deep_dive/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathEng) |
 
 ### 🧠 Track 2: AI & Deep Learning Systems (`episodes/ai/`)
 
 | Episode | Title | Directory / Bazel Package | Companion Video |
 | :--- | :--- | :--- | :--- |
-| **Episode 01 (AI)** | **Deep Learning Foundations & Shortcut Learning Audits (Depth vs. Shallow & Grad-CAM)** | [`episodes/ai/01_deep_learning_foundations/`](episodes/ai/01_deep_learning_foundations/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
-| **Episode 02 (AI)** | **How AI Actually Learns: Feed-Forward, Backprop, Mini-Batch SGD & C++ Kernels** | [`episodes/ai/02_how_ai_learns/`](episodes/ai/02_how_ai_learns/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathCpp) |
+| **Episode 01 (AI)** | **Deep Learning Foundations & Shortcut Learning Audits (Depth vs. Shallow & Grad-CAM)** | [`episodes/ai/01_deep_learning_foundations/`](episodes/ai/01_deep_learning_foundations/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathEng) |
+| **Episode 02 (AI)** | **How AI Actually Learns: Feed-Forward, Backprop, Mini-Batch SGD & C++ Kernels** | [`episodes/ai/02_how_ai_learns/`](episodes/ai/02_how_ai_learns/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathEng) |
 
 ---
 
@@ -358,7 +363,7 @@ BM_Trap_SetupPreAllocated              30.8 ns         30.8 ns     23280655     
 
 ### 🏆 Episode 05 Community Measurement Challenge (3 Hidden Traps)
 
-Featured in [Episode 05](https://youtube.com/@HotPathCpp), [`common/measurement/challenge.cc`](common/measurement/challenge.cc) presents three subtle, real-world microbenchmarking traps designed to audit your intuition against optimizing compilers and bare-metal CPU silicon:
+Featured in [Episode 05](https://youtube.com/@HotPathEng), [`common/measurement/challenge.cc`](common/measurement/challenge.cc) presents three subtle, real-world microbenchmarking traps designed to audit your intuition against optimizing compilers and bare-metal CPU silicon:
 
 1. **Trap 1: The Invisible Workload (Dead Code Elimination):**  
    The accumulator `sum` is never escaped outside the benchmark loop. At `-O3`, the compiler evaporates the entire 500-iteration loop under the ISO "as-if" rule into `0.00 ns` (`xor eax, eax; ret`).  
@@ -428,7 +433,7 @@ Located under [`common/dispatch/`](common/dispatch/), this package provides prod
 
 ### 🏆 Episode 06 Community Challenge: The Accidental Copy Trap
 
-Featured in [Episode 06](https://youtube.com/@HotPathCpp), [`common/dispatch/challenge.cc`](common/dispatch/challenge.cc) presents a subtle, high-impact performance bug frequently introduced when refactoring from OOP to `std::variant`:
+Featured in [Episode 06](https://youtube.com/@HotPathEng), [`common/dispatch/challenge.cc`](common/dispatch/challenge.cc) presents a subtle, high-impact performance bug frequently introduced when refactoring from OOP to `std::variant`:
 
 - **The Trap:** Writing `[](auto item) { return item.Process(); }` inside `std::visit` forces an accidental pass-by-value copy of the entire 40+ byte variant payload onto the stack on every iteration.
 - **The Silicon Fix:** Change the visitor lambda parameter signature to `[](const auto& item)` to pass variant elements directly by reference, eliminating all stack copies and memory bandwidth waste.
@@ -800,16 +805,16 @@ bazel run -c opt //episodes/high_performance/15_hash_maps_across_languages:java_
 
 Located under [`common/cpp_hash_maps/`](common/cpp_hash_maps/) and [`episodes/high_performance/16_cpp_hash_maps_deep_dive/`](episodes/high_performance/16_cpp_hash_maps_deep_dive/), this bare-metal benchmark, allocation audit, AddressSanitizer UAF reproducer, isolated `VmRSS`, unmultiplexed `perf stat` PMU, and Zen 4 disassembly suite steps inside an **Envoy-style Edge HTTP/RPC Gateway & Connection Router** comparing **C++20 `std::unordered_map` / `std::pmr`**, **Google Abseil (`20260526.0`)**, **Meta Folly F14 (`2026.08.31.00`)**, and **Boost.Unordered (`1.90.0.bcr.1`)** (Live Godbolt: [`https://godbolt.org/z/9zj7daGTq`](https://godbolt.org/z/9zj7daGTq)):
 
-- **Story 1 — Before Adding Dependencies (Hidden Lookup Allocs & GCC's `noexcept` Hash Trap):**
-  - Querying `100K` `36–42B` non-SSO routes via `std::string_view` triggers **`1,000,000` `operator new` calls (`42.43 MB`)** per million finds in *both* default `std::unordered_map` and default `boost::unordered_flat_map`. Zero-dependency C++20 `is_transparent` (`P0919R3`/`P1690R1`) drops allocations to **`0`**, cuts instructions **`-48%`**, and speeds up 404 misses **`2.19×`** (`13.02` $\rightarrow$ `28.54 M/s`)—unless the custom hasher is marked `noexcept`, which disables GCC `libstdc++` hash-code caching (`__cache_default`) and collapses 404 misses **`2.41×`** (`11.82 M/s`). A monotonic `std::pmr::unordered_map` cuts `dTLB` misses **`-87%`**, while SIMD flat maps (`absl`, `folly::F14FastMap`, `boost`) deliver **`38.3–49.2 M/s`** Zipfian lookups and **`116.6–185.8 M/s`** 404 misses (`9×–14×`).
+- **Story 1 — Before Adding Dependencies (Hidden Lookup Allocs, GCC's `noexcept` Trap & Shared-Hasher Control):**
+  - Querying `100K` `36–42B` non-SSO routes via plain `const char*` (`routes.find(path)`) triggers **`1,000,000` `operator new` calls (`42.43 MB`)** per million finds in default `std::unordered_map`, half-transparent maps missing `std::equal_to<>`, and default `boost::unordered_flat_map`. Zero-dependency C++20 `is_transparent` + `std::equal_to<>` (`P0919R3`/`P1690R1`) drops allocations to **`0`**, cuts instructions **`-48%`**, and speeds up 404 misses **`2.19×`** (`13.02` $\rightarrow$ `28.54 M/s`)—unless the custom string hasher is marked `noexcept`, which drops GCC `libstdc++`'s 8B node hash cache (`bits/hashtable.h:47-52`), forces single-linked-list bucket-boundary re-hashing of stored heap strings, and plunges 404 misses **`2.41×`** (`11.82 M/s`, slower than allocating). With default production hashers, SIMD flat maps (`absl`, `folly::F14FastMap`, `boost`) deliver **`38.3–49.2 M/s`** Zipfian lookups and **`116.6–185.8 M/s`** 404 misses (`9×–14×`); even when normalized onto identical `std::hash<std::string_view>` (`--mode=s1_shared_hash_control`), SIMD flat maps still beat transparent `std::unordered_map` **`1.6×–2.0×`** on Zipfian traffic and **`2.6×–3.2×`** on 404 misses from layout alone.
 - **Story 2 — Per-Request Small Maps (`N = 4..128` HTTP/2 Headers):**
-  - At `N = 16`, `std::unordered_map` executes **`17` heap allocations per request** (`391 ns`, `2.56 M req/s`), whereas a stack-inlined `FlatInlinedSmallMap<16>` runs in **`118 ns` (`8.49 M req/s`, `0` heap allocs — `3.3×` faster)** and leads every hash map through `N = 16`, before SIMD flat maps cross over past `N ≈ 20–24`.
+  - At `N = 16`, even with `reserve(16)`, `std::unordered_map` executes **`17` heap allocations per request** (`391 ns`, `2.56 M req/s`), whereas a stack-inlined `FlatInlinedSmallMap<16>` runs in **`118 ns` (`8.49 M req/s`, `0` heap allocs — `3.3×` faster)** and leads every hash map through `N = 16`, before SIMD flat maps cross over past `N ≈ 20–24`.
 - **Story 3 — Large-Value RAM Cliff & Dense Iteration (`1M × 32B / 128B / 256B`):**
   - On `1M × 256B` `UpstreamEndpointProfile`, inline flat maps double into **`513.9 MiB`** (`absl::flat_hash_map`) and **`481.9 MiB`** (`boost::unordered_flat_map`), whereas **`folly::F14FastMap`** auto-switches to `F14VectorMap`, cutting RSS **`-51%`** (`252.2 MiB`) and sweeping 1M entries in **`5.22 ms`** (`4.63M` LLC misses, **`3.8×–12.9×` faster**)—while inline flat maps keep a `1.6×–1.8×` edge on random `80/20` hits.
 - **Story 4 — Steady-State Eviction Churn (`4,000,000` Cycles Across Dual High-Fill Bands):**
   - Exposes the **tail-latency vs. lookup-drift triangle**: Folly F14 (`21–60 µs` max stall, zero rehashes, drifts `3.3×–3.5×` on misses if packed at `81–85%`), Boost `group15` (`211.5 -> 204.2 M/s` zero drift via `18.5–20.5 ms` anti-drift rehashes), and Abseil SwissTable (`5.3–6.2 ms` tombstone cleanups, `~2×` miss slowdown between cleanups).
-- **Story 5 — Migration UAF & SIMD Node Maps (`1M × 128B`):**
-  - Live ASan reproduction of Abseil Tip #136 (`DeallocateBackingArray` Use-After-Free) vs. **`folly::F14NodeMap` (`37.9` / `255.3 M/s`)**, **`boost::unordered_node_map` (`37.4` / `318.9 M/s`)**, and **`absl::node_hash_map` (`29.7–44.2` / `162.9 M/s`)** preserving 100% stable addresses at **`2.2×–3.2×` lookups & `5×–10×` negative misses** over `std::unordered_map`.
+- **Story 5 — 1-Line C++17 `Policy` Struct Migration UAF & SIMD Node Maps (`1M × 128B`):**
+  - Live ASan reproduction of Abseil Tip #136 (`policies[child_id] = policies[1]` under C++17 `[expr.ass]/1`, where class `operator=` binds a `const Policy&` before LHS rehash frees the backing array) vs. **`folly::F14NodeMap` (`37.9` / `255.3 M/s`)**, **`boost::unordered_node_map` (`37.4` / `318.9 M/s`)**, and **`absl::node_hash_map` (`29.7–44.2` / `162.9 M/s`)** preserving 100% stable addresses at **`2.2×–3.2×` lookups & `5×–10×` negative misses** over `std::unordered_map`.
 
 ### Running Episode 16 C++20 Tests, Benchmarks & Forensics
 
@@ -820,9 +825,11 @@ bazel test -c opt //common/cpp_hash_maps:cpp_hash_maps_test
 # Run Episode 16 Google Benchmarks
 bazel run -c opt //episodes/high_performance/16_cpp_hash_maps_deep_dive:benchmark
 
-# Run Allocation Audit, Pointer-Stability Audit & Forensic Challenge
+# Run Allocation Audit, Pointer-Stability Audit, GCC noexcept Demo & Shared-Hasher Control
 bazel run -c opt //episodes/high_performance/16_cpp_hash_maps_deep_dive:live_alloc_audit
 bazel run -c opt //episodes/high_performance/16_cpp_hash_maps_deep_dive:live_uaf_migration_repro
+bazel run -c opt //episodes/high_performance/16_cpp_hash_maps_deep_dive:challenge -- --mode=s1_noexcept_demo --iters=8
+bazel run -c opt //episodes/high_performance/16_cpp_hash_maps_deep_dive:challenge -- --mode=s1_shared_hash_control --iters=6
 bazel run -c opt //episodes/high_performance/16_cpp_hash_maps_deep_dive:challenge -- --mode=all
 ```
 

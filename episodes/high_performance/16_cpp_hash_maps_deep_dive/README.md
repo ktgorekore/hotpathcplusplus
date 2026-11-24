@@ -16,7 +16,7 @@
 
 # Episode 16: Production C++ Hash Maps — Abseil vs. Folly F14 vs. Boost (And What Actually Breaks)
 
-Welcome to **Episode 16** of **Hot Path C++** (continuing **Phase III: User-Space Application Data Structures on Bare Metal**). Stepping inside an **Envoy-style Edge HTTP/RPC Gateway & Connection Router**, this directory contains the complete reproducible C++20 benchmark, unit test, global `operator new` allocation audit, AddressSanitizer migration Use-After-Free reproducer, isolated `VmRSS` memory audit, Intel-syntax Zen 4 disassembly, and 3-pass unmultiplexed Linux `perf stat` telemetry suite across:
+Welcome to **Episode 16** of **Hot Path Engineering** (`@HotPathEng`, continuing **Phase III: User-Space Application Data Structures on Bare Metal**). Stepping inside an **Envoy-style Edge HTTP/RPC Gateway & Connection Router**, this directory contains the complete reproducible C++20 benchmark, unit test, global `operator new` allocation audit, AddressSanitizer migration Use-After-Free reproducer, isolated `VmRSS` memory audit, Intel-syntax Zen 4 disassembly, and 3-pass unmultiplexed Linux `perf stat` telemetry suite across:
 
 - **Zero-Dependency Standard C++20:** `std::unordered_map` (default vs. C++20 `is_transparent` `P0919R3`/`P1690R1` + GCC `libstdc++` `noexcept` hash-caching trap) and `std::pmr::unordered_map` (`monotonic_buffer_resource`)
 - **Stack-Inlined Small Maps:** `FlatInlinedSmallMap<16>` (`absl::InlinedVector`) & `StdVectorSmallMap` (`std::vector`)

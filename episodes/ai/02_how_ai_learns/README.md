@@ -16,7 +16,7 @@
 
 # 🧠 Episode 02: How AI Actually Learns (Feed-Forward, Backprop, Mini-Batch SGD & C++ Kernels)
 
-[![YouTube Channel](https://img.shields.io/badge/YouTube-Hot%20Path%20C%2B%2B-red?logo=youtube)](https://youtube.com/@HotPathCpp)
+[![YouTube Channel](https://img.shields.io/badge/YouTube-Hot%20Path%20Engineering-red?logo=youtube)](https://youtube.com/@HotPathEng)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://en.cppreference.com/w/cpp/20)
 [![PyTorch CUDA](https://img.shields.io/badge/PyTorch-CUDA-orange.svg)](https://pytorch.org/)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](../../../LICENSE)
