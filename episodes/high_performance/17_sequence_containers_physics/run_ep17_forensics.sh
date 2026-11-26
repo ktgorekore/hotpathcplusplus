@@ -25,7 +25,7 @@ mkdir -p "${OUT_DIR}" "${EP_DIR}/assembly"
 
 cd "${REPO_ROOT}"
 
-echo ">>> [1/7] Checking Google C++ Formatting & Running Unit Tests (GCC & Clang)..."
+echo ">>> [1/7] Checking Formatting (C++/Rust) & Running Unit Tests (GCC & Clang)..."
 clang-format --dry-run --Werror -style=Google \
   "${REPO_ROOT}/common/sequence_containers/sequence_containers.h" \
   "${REPO_ROOT}/common/sequence_containers/sequence_containers_test.cc" \
@@ -33,6 +33,7 @@ clang-format --dry-run --Werror -style=Google \
   "${EP_DIR}/challenge.cc" \
   "${EP_DIR}/live_alloc_audit.cc" \
   "${EP_DIR}/godbolt_snippets.cc"
+rustfmt --check "${EP_DIR}/rust_sequence_bench.rs"
 
 bazel test -c opt //common/sequence_containers:sequence_containers_test --test_output=errors
 CC=clang CXX=clang++ bazel test -c opt //common/sequence_containers:sequence_containers_test --test_output=errors
@@ -65,13 +66,13 @@ cat <<'EOF' > "${ASM_OUT}"
 
 # --- 1. GCC 13.3.0 (-std=c++20 -O3 -march=native -masm=intel) ---
 EOF
-g++ -std=c++20 -O3 -march=native -S -masm=intel \
+g++ -std=c++20 -O3 -march=native -Wall -Wextra -Wpessimizing-move -S -masm=intel \
   "${EP_DIR}/godbolt_snippets.cc" -o - >> "${ASM_OUT}"
 cat <<'EOF' >> "${ASM_OUT}"
 
 # --- 2. Clang 18.1.3 (-std=c++20 -O3 -march=native -masm=intel) ---
 EOF
-clang++ -std=c++20 -O3 -march=native -S -masm=intel \
+clang++ -std=c++20 -O3 -march=native -Wall -Wextra -Wpessimizing-move -S -masm=intel \
   "${EP_DIR}/godbolt_snippets.cc" -o - >> "${ASM_OUT}"
 
 echo ">>> [3/7] Building & Running GCC Optimized Suites..."
@@ -127,8 +128,8 @@ CC=clang CXX=clang++ bazel build -c opt "${PKG}:challenge"
 
 bazel build -c opt "${PKG}:benchmark" "${PKG}:challenge" "${PKG}:live_alloc_audit" "${PKG}:java_challenge"
 
-echo ">>> [6/7] Running Rust 1.91 (-C opt-level=3 -C target-cpu=native) Parity Suite..."
-rustc -C opt-level=3 -C target-cpu=native "${EP_DIR}/rust_sequence_bench.rs" -o "${OUT_DIR}/ep17_rust"
+echo ">>> [6/7] Running Rust 1.91 (-C opt-level=3 -C target-cpu=native -D warnings) Parity Suite..."
+rustc -C opt-level=3 -C target-cpu=native -D warnings "${EP_DIR}/rust_sequence_bench.rs" -o "${OUT_DIR}/ep17_rust"
 "${OUT_DIR}/ep17_rust" 2>&1 | tee "${OUT_DIR}/13_rust_opt3.txt"
 rm -f "${OUT_DIR}/ep17_rust"
 

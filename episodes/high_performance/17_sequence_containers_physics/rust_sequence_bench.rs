@@ -55,6 +55,7 @@ fn mix_order_hash(acc: u64, val: u64) -> u64 {
 // Story 1A: 64-Byte `SubscriptionRule` Table Sweep & Mid-Table Unsubscribes
 // =============================================================================
 
+/// 64-byte cache-line-aligned alert-routing rule matching C++ `SubscriptionRule`.
 #[repr(C, align(64))]
 #[derive(Clone, Copy)]
 struct SubscriptionRule {
@@ -137,6 +138,7 @@ fn build_rule_table_workload(
 // Story 1B: Safe Rust 256B `ActiveConnection` With Slab-Index Dual Hooks
 // =============================================================================
 
+/// 256-byte pinned connection record carrying embedded `u32` slab-index dual hooks.
 #[repr(C, align(64))]
 struct ActiveConnection {
     conn_id: u64,
@@ -382,6 +384,7 @@ fn run_dual_queue_vec_indices(num_connections: usize, events: &[u32]) -> u64 {
 // Story 2: 64B `OutboundMessage` & `VecDeque` Ring Buffer
 // =============================================================================
 
+/// 64-byte outbound RPC message matching C++ `OutboundMessage`.
 #[repr(C, align(64))]
 #[derive(Clone, Copy)]
 struct OutboundMessage {
@@ -422,6 +425,7 @@ fn digest_message(m: &OutboundMessage) -> u64 {
 // Story 3: Slot-Indexed `ClientSession` (`150,000` Reconnect Wave)
 // =============================================================================
 
+/// Slot-indexed client session matching C++ `SessionNoexceptRingQueue`.
 struct ClientSession {
     session_id: u64,
     account_id: u32,

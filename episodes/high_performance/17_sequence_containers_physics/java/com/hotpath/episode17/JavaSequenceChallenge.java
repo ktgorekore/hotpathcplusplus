@@ -47,6 +47,8 @@ public final class JavaSequenceChallenge {
   private static volatile long blackhole;
   private static volatile Object keepAlive;
 
+  private JavaSequenceChallenge() {}
+
   private static long splitMix64(long[] state) {
     state[0] += 0x9e3779b97f4a7c15L;
     long z = state[0];
@@ -86,7 +88,13 @@ public final class JavaSequenceChallenge {
 
     SubscriptionRule copyActive() {
       return new SubscriptionRule(
-          ruleId, tenantId, severityWeight, expiresAtMs, thresholdLimit, currentValue, triggerCount);
+          ruleId,
+          tenantId,
+          severityWeight,
+          expiresAtMs,
+          thresholdLimit,
+          currentValue,
+          triggerCount);
     }
 
     private SubscriptionRule(
@@ -295,8 +303,7 @@ public final class JavaSequenceChallenge {
 
   private static long lastChecksum;
 
-  private static double measureMedianMs(
-      int warmup, int iters, Runnable setup, LongKernel fn) {
+  private static double measureMedianMs(int warmup, int iters, Runnable setup, LongKernel fn) {
     for (int i = 0; i < warmup; ++i) {
       setup.run();
       lastChecksum = fn.run();
@@ -399,7 +406,8 @@ public final class JavaSequenceChallenge {
 
       double totalEvals = (double) reps * n;
       System.out.printf(
-          "  [Aged Scan x%d, N=%5d] ArrayList=%7.3f ms (%6.1f M/s) | LinkedList=%7.3f ms (%5.1f M/s, %.2fx slower) | parity=%s%n",
+          "  [Aged Scan x%d, N=%5d] ArrayList=%7.3f ms (%6.1f M/s) | LinkedList=%7.3f ms (%5.1f"
+              + " M/s, %.2fx slower) | parity=%s%n",
           reps,
           n,
           arrMs,
@@ -596,7 +604,8 @@ public final class JavaSequenceChallenge {
     long listUnsubCs = lastChecksum;
 
     System.out.printf(
-        "  [N=8192, 512 Unsubs + 65 Sweeps] ArrList rm=%7.3f ms | sparse=%7.3f ms | tomb+rmIf=%7.3f ms | LinkedList=%7.3f ms (%.2fx vs sparse) | cs=%016x (parity=%s)%n",
+        "  [N=8192, 512 Unsubs + 65 Sweeps] ArrList rm=%7.3f ms | sparse=%7.3f ms | tomb+rmIf=%7.3f"
+            + " ms | LinkedList=%7.3f ms (%.2fx vs sparse) | cs=%016x (parity=%s)%n",
         arrOrdMs,
         arrSparseMs,
         arrTombMs,
@@ -608,7 +617,8 @@ public final class JavaSequenceChallenge {
 
   private static void runStory1B() {
     System.out.println(
-        "=== JAVA 21 LTS STORY 1B: Caffeine-Style Intrusive Dual Links vs Array Shift (16,384 Conns, 200K Events) ===");
+        "=== JAVA 21 LTS STORY 1B: Caffeine-Style Intrusive Dual Links vs Array Shift (16,384"
+            + " Conns, 200K Events) ===");
     final int numConnections = 16384;
     final int numEvents = 200_000;
     final int hotBand = numConnections / 5;
@@ -742,10 +752,12 @@ public final class JavaSequenceChallenge {
         "  Caffeine-Style Intrusive Dual Links     | median=%7.3f ms | %6.2f M ev/s | cs=%016x%n",
         intrMs, (numEvents / (intrMs / 1000.0)) / 1e6, intrCs);
     System.out.printf(
-        "  int[] O(1) Idx + arraycopy Shift        | median=%7.3f ms | %6.2f M ev/s (%.2fx slower) | cs=%016x%n",
+        "  int[] O(1) Idx + arraycopy Shift        | median=%7.3f ms | %6.2f M ev/s (%.2fx slower)"
+            + " | cs=%016x%n",
         idxArrMs, (numEvents / (idxArrMs / 1000.0)) / 1e6, idxArrMs / intrMs, idxArrCs);
     System.out.printf(
-        "  ArrayList<ActiveConnection> (indexOf)   | median=%7.3f ms | %6.2f M ev/s (%.2fx slower) | cs=%016x%n",
+        "  ArrayList<ActiveConnection> (indexOf)   | median=%7.3f ms | %6.2f M ev/s (%.2fx slower)"
+            + " | cs=%016x%n",
         arrMs, (numEvents / (arrMs / 1000.0)) / 1e6, arrMs / intrMs, arrCs);
     if (intrCs != idxArrCs || intrCs != arrCs) {
       throw new AssertionError("Story 1B checksum mismatch");
@@ -867,7 +879,8 @@ public final class JavaSequenceChallenge {
         "  Single Queue: ArrayDeque (8M fresh)     | median=%7.3f ms | %6.2f M msgs/s | cs=%016x%n",
         adSingleMs, (cycles / (adSingleMs / 1000.0)) / 1e6, adSingleCs);
     System.out.printf(
-        "  Single Queue: LinkedList (8M fresh)     | median=%7.3f ms | %6.2f M msgs/s (%.2fx slower) | cs=%016x%n",
+        "  Single Queue: LinkedList (8M fresh)     | median=%7.3f ms | %6.2f M msgs/s (%.2fx"
+            + " slower) | cs=%016x%n",
         llSingleMs, (cycles / (llSingleMs / 1000.0)) / 1e6, llSingleMs / adSingleMs, llSingleCs);
     System.out.printf(
         "  1,024 Queues: ArrayDeque (8M fresh)     | median=%7.3f ms | %6.2f M msgs/s | cs=%016x%n",
@@ -877,7 +890,8 @@ public final class JavaSequenceChallenge {
 
   private static void runStory3() {
     System.out.println(
-        "=== JAVA 21 LTS STORY 3: Gateway Reconnect Wave — 150,000 Slot-Indexed ClientSessions ===");
+        "=== JAVA 21 LTS STORY 3: Gateway Reconnect Wave — 150,000 Slot-Indexed ClientSessions"
+            + " ===");
     final int numSessions = 150_000;
 
     // Warm C2 JIT thoroughly (6 passes + clean G1 young gen) so standalone
@@ -926,6 +940,11 @@ public final class JavaSequenceChallenge {
         resMs, (numSessions / (resMs / 1000.0)) / 1e6, resCs);
   }
 
+  /**
+   * Entry point executing the selected Episode 17 Java 21 LTS parity story suite(s).
+   *
+   * @param args optional CLI arguments supporting {@code --story=all|1a|1b|2|2a|2b|3}
+   */
   public static void main(String[] args) {
     String story = "all";
     for (String a : args) {
