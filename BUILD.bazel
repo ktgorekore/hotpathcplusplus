@@ -318,3 +318,28 @@ alias(
     name = "cpp_hash_maps_uaf_repro",
     actual = "//episodes/high_performance/16_cpp_hash_maps_deep_dive:live_uaf_migration_repro",
 )
+
+alias(
+    name = "sequence_containers",
+    actual = "//common/sequence_containers:sequence_containers",
+)
+
+alias(
+    name = "sequence_containers_benchmark",
+    actual = "//episodes/high_performance/17_sequence_containers_physics:benchmark",
+)
+
+alias(
+    name = "sequence_containers_challenge",
+    actual = "//episodes/high_performance/17_sequence_containers_physics:challenge",
+)
+
+alias(
+    name = "sequence_containers_alloc_audit",
+    actual = "//episodes/high_performance/17_sequence_containers_physics:live_alloc_audit",
+)
+
+alias(
+    name = "ep17_java_challenge",
+    actual = "//episodes/high_performance/17_sequence_containers_physics:java_challenge",
+)

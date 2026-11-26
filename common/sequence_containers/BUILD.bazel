@@ -33,6 +33,8 @@ cc_test(
     srcs = ["sequence_containers_test.cc"],
     deps = [
         ":sequence_containers",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@folly//folly:fbvector",
         "@googletest//:gtest_main",
     ],
 )

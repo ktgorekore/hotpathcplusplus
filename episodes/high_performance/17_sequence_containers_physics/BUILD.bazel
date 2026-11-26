@@ -22,6 +22,8 @@ cc_binary(
     srcs = ["benchmark.cc"],
     deps = [
         "//common/sequence_containers",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@folly//folly:fbvector",
         "@google_benchmark//:benchmark_main",
     ],
 )
@@ -31,14 +33,16 @@ cc_binary(
     srcs = ["challenge.cc"],
     deps = [
         "//common/sequence_containers",
+        "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/flags:parse",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:flags",
         "@abseil-cpp//absl/log:globals",
         "@abseil-cpp//absl/log:initialize",
-        "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
+        "@boost.circular_buffer//:boost.circular_buffer",
+        "@folly//folly:fbvector",
     ],
 )
 
@@ -47,12 +51,15 @@ cc_binary(
     srcs = ["live_alloc_audit.cc"],
     deps = [
         "//common/sequence_containers",
+        "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/flags:parse",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:flags",
         "@abseil-cpp//absl/log:globals",
         "@abseil-cpp//absl/log:initialize",
         "@abseil-cpp//absl/strings:str_format",
+        "@boost.circular_buffer//:boost.circular_buffer",
+        "@folly//folly:fbvector",
     ],
 )
 
