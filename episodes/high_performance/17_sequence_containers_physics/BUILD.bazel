@@ -1,0 +1,76 @@
+# Copyright 2026 Hot Path C++ Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+load("@rules_cc//cc:defs.bzl", "cc_binary")
+load("@rules_java//java:defs.bzl", "java_binary", "java_library")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_binary(
+    name = "benchmark",
+    srcs = ["benchmark.cc"],
+    deps = [
+        "//common/sequence_containers",
+        "@google_benchmark//:benchmark_main",
+    ],
+)
+
+cc_binary(
+    name = "challenge",
+    srcs = ["challenge.cc"],
+    deps = [
+        "//common/sequence_containers",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/flags:parse",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:flags",
+        "@abseil-cpp//absl/log:globals",
+        "@abseil-cpp//absl/log:initialize",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+    ],
+)
+
+cc_binary(
+    name = "live_alloc_audit",
+    srcs = ["live_alloc_audit.cc"],
+    deps = [
+        "//common/sequence_containers",
+        "@abseil-cpp//absl/flags:parse",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:flags",
+        "@abseil-cpp//absl/log:globals",
+        "@abseil-cpp//absl/log:initialize",
+        "@abseil-cpp//absl/strings:str_format",
+    ],
+)
+
+java_library(
+    name = "java_sequence_lib",
+    srcs = glob(["java/**/*.java"]),
+)
+
+java_binary(
+    name = "java_challenge",
+    jvm_flags = [
+        "-Xms2g",
+        "-Xmx2g",
+        "-XX:+AlwaysPreTouch",
+        "-XX:+UseG1GC",
+    ],
+    main_class = "com.hotpath.episode17.JavaSequenceChallenge",
+    runtime_deps = [
+        ":java_sequence_lib",
+    ],
+)

@@ -55,6 +55,7 @@ All episode companion benchmarks, challenges, and hardware verification suites a
 | **Episode 14** | **The Physics of Memory Safety: C++20 vs. Rust 1.91 vs. Java 21 (Spatial Bounds, AVX-512 & Temporal Lifetimes)** | [`episodes/high_performance/14_memory_safety_physics/`](episodes/high_performance/14_memory_safety_physics/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathEng) |
 | **Episode 15** | **C++ vs. Rust vs. Java Hash Maps — How Memory Layout Decides Everything** | [`episodes/high_performance/15_hash_maps_across_languages/`](episodes/high_performance/15_hash_maps_across_languages/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathEng) |
 | **Episode 16** | **Production C++ Hash Maps: Abseil vs. Folly F14 vs. Boost (And What Actually Breaks)** | [`episodes/high_performance/16_cpp_hash_maps_deep_dive/`](episodes/high_performance/16_cpp_hash_maps_deep_dive/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathEng) |
+| **Episode 17** | **Sequence Containers on Real Hardware: Arrays, Linked Lists & Ring Buffers (C++20, Rust 1.91 & Java 21)** | [`episodes/high_performance/17_sequence_containers_physics/`](episodes/high_performance/17_sequence_containers_physics/) | [![Watch on YouTube](https://img.shields.io/badge/Watch-YouTube_Video-red?logo=youtube)](https://youtube.com/@HotPathEng) |
 
 ### 🧠 Track 2: AI & Deep Learning Systems (`episodes/ai/`)
 
@@ -833,6 +834,37 @@ bazel run --copt=-fsanitize=address --linkopt=-fsanitize=address --copt=-g \
 bazel run -c opt //episodes/high_performance/16_cpp_hash_maps_deep_dive:challenge -- --mode=s1_noexcept_demo --iters=5
 bazel run -c opt //episodes/high_performance/16_cpp_hash_maps_deep_dive:challenge -- --mode=s1_shared_hash_control --iters=5
 bazel run -c opt //episodes/high_performance/16_cpp_hash_maps_deep_dive:challenge -- --mode=all
+```
+
+---
+
+## 📦 Episode 17: Sequence Containers on Real Hardware — Arrays, Linked Lists & Ring Buffers (C++20, Rust 1.91 & Java 21 LTS)
+
+Located under [`common/sequence_containers/`](common/sequence_containers/) and [`episodes/high_performance/17_sequence_containers_physics/`](episodes/high_performance/17_sequence_containers_physics/), this bare-metal benchmark, allocation auditor, isolated `VmRSS`, unmultiplexed `perf stat` PMU, and dual-compiler Zen 4 disassembly suite steps inside **`RealtimeGatewayService`** to compare **C++20 (`std::vector`, `std::list`, `std::deque`, `CompactRingDeque`, `boost::intrusive::list`, `boost::circular_buffer`, `folly::fbvector`)**, **Rust 1.91 (`Vec`, `LinkedList`, `VecDeque`, safe `u32` slab lists, `Vec<Box<T>>`)**, and **OpenJDK 21 LTS (`ArrayList`, `LinkedList`, `ArrayDeque`, Caffeine-style intrusive links)** with identical 64-bit checksums across all three languages (Live Godbolt: [`https://godbolt.org/z/9e95Kc4hh`](https://godbolt.org/z/9e95Kc4hh)):
+
+- **Story 1 — Memory Layout vs. Big-O (`SubscriptionRule` Alert Router & Dual-Queue `ActiveConnection`s):**
+  - Scanning `16,384` `64B` `SubscriptionRule` records on a pre-aged heap drops `std::list` IPC from **`2.93`** (`std::vector`, `4.54–4.85 ms`, Rust `Vec` `4.37 ms`) to **`0.22`** (`84.1–84.4 ms`, **`17.3×–18.6×` slower**) via **`33.4×` more LLC misses** and **`191.6×` more `dTLB` page-walk misses**. Across `512` mid-table unsubscribes + `65` sweeps (`N = 8,192`), **Sparse-Set `vector + map` (`0.23–0.43 ms` C++, `0.56 ms` Rust, `0.89 ms` Java)** and order-preserving **Tombstone + `std::erase_if` (`0.55–0.77 ms` C++, `0.87 ms` Rust)** decisively outpace `std::list` even with an $O(1)$ `absl::flat_hash_map` iterator index (`2.05–2.19 ms`).
+  - Conversely, when `16,384` OS-pinned `256B` `ActiveConnection` contexts move simultaneously across LRU and idle-timeout queues (`200,000` events), even an **`O(1)` indexed `std::vector<uint32_t>` shift (zero linear search)** stalls for **`362.9–464.2 ms`** (`499.8 ms` Java, `600.8 ms` Rust), whereas embedded intrusive links complete in **`1.29–1.46 ms`** in C++ (`boost::intrusive::list`, **`248×–360×` faster**), **`0.877 ms`** in Safe Rust (`u32` slab hooks, **`685×` faster**), and **`4.24 ms`** in Java 21 (Caffeine-style intrusive refs, **`118×` faster**).
+- **Story 2 — `std::deque` Cross-STL Behavior & Contiguous Ring Buffers (`100K` Idle Queues & `8M` FIFO Stream):**
+  - `100,000` empty `std::deque<OutboundMessage>` instances consume **`+68.61 MiB` `VmRSS`** on Linux `libstdc++` (`200,001` heap allocations) vs. **`+3.18 MiB`** (`21.6×` leaner) for growable `CompactRingDeque`, `0` per-queue allocations for Rust `VecDeque::new()`, and `+7.81 MiB` for Java's eager `ArrayDeque` `Object[17]` (`88B` under `4B` Compressed OOPs). Multiplexing `8,000,000` messages across `1,024` active sockets eliminates `1,000,000` chunk allocations, lifts C++ throughput **`+36%`–`+60%`**, and cuts LLC misses **`-81%` (`5.3×` fewer)**, with Rust `VecDeque` leading at **`37.16 ms` (`215.3 M msgs/s`)**.
+- **Story 3 — `150,000`-Session Reconnect Wave & The 3-Language Resize Triangle:**
+  - Embedding `std::queue` inside a Rule-of-Zero `ClientSession` triggers **`1,948,591` heap allocations (`505.85 MiB`, `182.1 ms`)** on Linux `libstdc++` (`noexcept(false)` move), leaving **`900,001` allocations (`51.4 ms`)** even with `.reserve(150'000)`. Swapping in `CompactRingDeque` drops allocations **`-76.9%`** (`450,019`, `19.2 ms`, **`9.5×` faster**; **`9.86 ms` / `15.2 M/s`** with `folly::fbvector` + `IsRelocatable`). Direct pointer-indirection controls (`std::vector<std::unique_ptr<Session>>` at `26.8 ms`, Rust `Vec<Box<ClientSession>>` at `47.1 ms`) contrast directly with **OpenJDK 21 `ArrayList<ClientSession>` (`8.68–9.13 ms`, `16.4–17.3 M/s`)** via `4B` Compressed OOP `System.arraycopy` and TLAB bump allocation.
+
+### Running Episode 17 C++20, Rust & Java 21 Tests & Benchmarks
+
+```bash
+# Run C++20 GoogleTest parity & compile-time static_assert checks (GCC & Clang)
+bazel test -c opt //common/sequence_containers:sequence_containers_test
+
+# Run Episode 17 Allocation Audit, Google Benchmarks & Bare-Metal Forensic Challenge
+bazel run -c opt //episodes/high_performance/17_sequence_containers_physics:live_alloc_audit
+bazel run -c opt //episodes/high_performance/17_sequence_containers_physics:benchmark
+bazel run -c opt //episodes/high_performance/17_sequence_containers_physics:challenge -- --mode=all
+
+# Run Rust 1.91 & OpenJDK 21 LTS 3-story parity suites
+rustc -C opt-level=3 -C target-cpu=native \
+  episodes/high_performance/17_sequence_containers_physics/rust_sequence_bench.rs -o /tmp/ep17_rust && /tmp/ep17_rust
+bazel run -c opt //episodes/high_performance/17_sequence_containers_physics:java_challenge
 ```
 
 ---
