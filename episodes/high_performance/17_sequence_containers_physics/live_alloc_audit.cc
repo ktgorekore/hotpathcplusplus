@@ -27,6 +27,7 @@
 #include <cstdlib>
 #include <deque>
 #include <new>
+#include <string>
 #include <vector>
 
 #include "absl/flags/flag.h"
@@ -47,6 +48,13 @@ thread_local bool g_track_allocs = false;
 thread_local std::uint64_t g_alloc_count = 0;
 thread_local std::uint64_t g_alloc_bytes = 0;
 
+/**
+ * @brief Allocates `size` bytes via `std::malloc`, recording counts while an
+ *        `AllocScope` is active on the calling thread.
+ * @param size Requested allocation size in bytes.
+ * @return Non-null pointer to allocated memory (throws `std::bad_alloc` on
+ *         OOM).
+ */
 void* TrackedMalloc(std::size_t size) {
   if (g_track_allocs) {
     ++g_alloc_count;
@@ -59,6 +67,14 @@ void* TrackedMalloc(std::size_t size) {
   return ptr;
 }
 
+/**
+ * @brief Allocates `size` bytes aligned to `al` via `std::aligned_alloc`,
+ *        recording counts while an `AllocScope` is active on the calling
+ *        thread.
+ * @param size Requested allocation size in bytes.
+ * @param al Required alignment boundary.
+ * @return Non-null aligned pointer (throws `std::bad_alloc` on OOM).
+ */
 void* TrackedAlignedMalloc(std::size_t size, std::align_val_t al) {
   if (g_track_allocs) {
     ++g_alloc_count;
@@ -73,37 +89,71 @@ void* TrackedAlignedMalloc(std::size_t size, std::align_val_t al) {
   return ptr;
 }
 
+/**
+ * @class AllocScope
+ * @brief RAII scope guard enabling thread-local global `operator new` counting.
+ */
 class AllocScope {
  public:
+  /** @brief Resets counters and begins tracking allocations on this thread. */
   AllocScope() {
     g_alloc_count = 0;
     g_alloc_bytes = 0;
     g_track_allocs = true;
   }
+
+  /** @brief Disables allocation tracking upon scope exit. */
   ~AllocScope() { g_track_allocs = false; }
+
+  AllocScope(const AllocScope&) = delete;
+  AllocScope& operator=(const AllocScope&) = delete;
+
+  /**
+   * @brief Returns number of tracked `operator new` calls within this scope.
+   * @return Allocation call count.
+   */
   [[nodiscard]] std::uint64_t Count() const noexcept { return g_alloc_count; }
+
+  /**
+   * @brief Returns cumulative bytes requested within this scope.
+   * @return Total allocated bytes.
+   */
   [[nodiscard]] std::uint64_t Bytes() const noexcept { return g_alloc_bytes; }
 };
 
 }  // namespace
 
+/** @brief Global `operator new` override forwarding to `TrackedMalloc`. */
 void* operator new(std::size_t size) { return TrackedMalloc(size); }
+/** @brief Global `operator new[]` override forwarding to `TrackedMalloc`. */
 void* operator new[](std::size_t size) { return TrackedMalloc(size); }
+/** @brief Aligned `operator new` override forwarding to `TrackedAlignedMalloc`.
+ */
 void* operator new(std::size_t size, std::align_val_t al) {
   return TrackedAlignedMalloc(size, al);
 }
+/** @brief Aligned `operator new[]` override forwarding to
+ * `TrackedAlignedMalloc`. */
 void* operator new[](std::size_t size, std::align_val_t al) {
   return TrackedAlignedMalloc(size, al);
 }
+/** @brief Global `operator delete` override forwarding to `std::free`. */
 void operator delete(void* ptr) noexcept { std::free(ptr); }
+/** @brief Global `operator delete[]` override forwarding to `std::free`. */
 void operator delete[](void* ptr) noexcept { std::free(ptr); }
+/** @brief Sized `operator delete` override forwarding to `std::free`. */
 void operator delete(void* ptr, std::size_t) noexcept { std::free(ptr); }
+/** @brief Sized `operator delete[]` override forwarding to `std::free`. */
 void operator delete[](void* ptr, std::size_t) noexcept { std::free(ptr); }
+/** @brief Aligned `operator delete` override forwarding to `std::free`. */
 void operator delete(void* ptr, std::align_val_t) noexcept { std::free(ptr); }
+/** @brief Aligned `operator delete[]` override forwarding to `std::free`. */
 void operator delete[](void* ptr, std::align_val_t) noexcept { std::free(ptr); }
+/** @brief Sized aligned `operator delete` forwarding to `std::free`. */
 void operator delete(void* ptr, std::size_t, std::align_val_t) noexcept {
   std::free(ptr);
 }
+/** @brief Sized aligned `operator delete[]` forwarding to `std::free`. */
 void operator delete[](void* ptr, std::size_t, std::align_val_t) noexcept {
   std::free(ptr);
 }
@@ -111,12 +161,18 @@ void operator delete[](void* ptr, std::size_t, std::align_val_t) noexcept {
 namespace hotpath::episode17 {
 namespace {
 
+/**
+ * @brief Audits heap allocations across Story 1B dual-queue engines (`16,384`
+ *        pinned `256B` connections, `200,000` events).
+ */
 void AuditStory1BDualQueue() {
   const auto wl = BuildDualQueueEventWorkload(16'384, 200'000);
   LOG(INFO) << "=== STORY 1B: 16,384 Pinned 256B Connections (Dual LRU + "
                "Timeout Queues, 200K Events) ===";
   {
-    std::uint64_t allocs = 0, bytes = 0, cs = 0;
+    std::uint64_t allocs = 0;
+    std::uint64_t bytes = 0;
+    std::uint64_t cs = 0;
     {
       AllocScope scope;
       cs = RunDualQueueIntrusive(wl);
@@ -132,7 +188,9 @@ void AuditStory1BDualQueue() {
         static_cast<unsigned long long>(cs));
   }
   {
-    std::uint64_t allocs = 0, bytes = 0, cs = 0;
+    std::uint64_t allocs = 0;
+    std::uint64_t bytes = 0;
+    std::uint64_t cs = 0;
     {
       AllocScope scope;
       cs = RunDualQueueStdListSplice(wl);
@@ -148,7 +206,9 @@ void AuditStory1BDualQueue() {
         static_cast<unsigned long long>(cs));
   }
   {
-    std::uint64_t allocs = 0, bytes = 0, cs = 0;
+    std::uint64_t allocs = 0;
+    std::uint64_t bytes = 0;
+    std::uint64_t cs = 0;
     {
       AllocScope scope;
       cs = RunDualQueueVectorIndexedRotate(wl);
@@ -165,6 +225,10 @@ void AuditStory1BDualQueue() {
   }
 }
 
+/**
+ * @brief Audits heap allocations across Story 2A (`10,000` idle queues) and
+ *        Story 2B (`8,000,000` steady-state FIFO push+pop operations).
+ */
 void AuditStory2DequeVsRing() {
   constexpr std::size_t kQueues = 10'000;
   LOG(INFO) << absl::StrFormat(
@@ -179,7 +243,8 @@ void AuditStory2DequeVsRing() {
   };
 
   {
-    std::uint64_t allocs = 0, bytes = 0;
+    std::uint64_t allocs = 0;
+    std::uint64_t bytes = 0;
     {
       AllocScope scope;
       std::vector<std::deque<OutboundMessage>> queues(kQueues);
@@ -190,7 +255,8 @@ void AuditStory2DequeVsRing() {
               sizeof(std::deque<OutboundMessage>));
   }
   {
-    std::uint64_t allocs = 0, bytes = 0;
+    std::uint64_t allocs = 0;
+    std::uint64_t bytes = 0;
     {
       using SpaceOptRing =
           boost::circular_buffer_space_optimized<OutboundMessage>;
@@ -204,7 +270,8 @@ void AuditStory2DequeVsRing() {
               sizeof(boost::circular_buffer_space_optimized<OutboundMessage>));
   }
   {
-    std::uint64_t allocs = 0, bytes = 0;
+    std::uint64_t allocs = 0;
+    std::uint64_t bytes = 0;
     {
       AllocScope scope;
       std::vector<CompactRingDeque<OutboundMessage>> queues(kQueues);
@@ -222,7 +289,9 @@ void AuditStory2DequeVsRing() {
     for (std::size_t i = 0; i < 1'024; ++i) {
       q.push_back(MakeOutboundMessage(i));
     }
-    std::uint64_t allocs = 0, bytes = 0, cs = 0x17F1F0ULL;
+    std::uint64_t allocs = 0;
+    std::uint64_t bytes = 0;
+    std::uint64_t cs = 0x17F1F0ULL;
     {
       AllocScope scope;
       for (std::size_t i = 0; i < 8'000'000; ++i) {
@@ -245,7 +314,9 @@ void AuditStory2DequeVsRing() {
     for (std::size_t i = 0; i < 1'024; ++i) {
       q.push_back(MakeOutboundMessage(i));
     }
-    std::uint64_t allocs = 0, bytes = 0, cs = 0x17F1F0ULL;
+    std::uint64_t allocs = 0;
+    std::uint64_t bytes = 0;
+    std::uint64_t cs = 0x17F1F0ULL;
     {
       AllocScope scope;
       for (std::size_t i = 0; i < 8'000'000; ++i) {
@@ -268,7 +339,9 @@ void AuditStory2DequeVsRing() {
     for (std::size_t i = 0; i < 1'024; ++i) {
       q.push_back(MakeOutboundMessage(i));
     }
-    std::uint64_t allocs = 0, bytes = 0, cs = 0x17F1F0ULL;
+    std::uint64_t allocs = 0;
+    std::uint64_t bytes = 0;
+    std::uint64_t cs = 0x17F1F0ULL;
     {
       AllocScope scope;
       for (std::size_t i = 0; i < 8'000'000; ++i) {
@@ -288,6 +361,10 @@ void AuditStory2DequeVsRing() {
   }
 }
 
+/**
+ * @brief Audits heap allocations across Story 3 `150,000`-session reconnect
+ *        wave table growth variants.
+ */
 void AuditStory3SessionGrowth() {
   constexpr std::size_t kSessions = 150'000;
   LOG(INFO) << absl::StrFormat(
@@ -296,7 +373,8 @@ void AuditStory3SessionGrowth() {
       kSessions);
 
   auto measure = [&](const char* label, auto fn) {
-    std::uint64_t allocs = 0, bytes = 0;
+    std::uint64_t allocs = 0;
+    std::uint64_t bytes = 0;
     SessionGrowthMetrics m{};
     {
       AllocScope scope;
@@ -342,6 +420,13 @@ void AuditStory3SessionGrowth() {
 }  // namespace
 }  // namespace hotpath::episode17
 
+/**
+ * @brief Entry point initializing Abseil flags/logging and auditing global
+ *        `operator new` allocation counts for the requested Episode 17 stories.
+ * @param argc Command-line argument count.
+ * @param argv Command-line argument vector.
+ * @return Process exit code (`0` on success).
+ */
 int main(int argc, char** argv) {
   absl::ParseCommandLine(argc, argv);
   absl::InitializeLog();

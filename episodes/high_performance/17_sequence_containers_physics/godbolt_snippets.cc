@@ -41,14 +41,23 @@
 
 namespace hotpath::episode17::godbolt {
 
-/** @brief Minimal 32B contiguous power-of-2 ring queue with `noexcept` move. */
+/**
+ * @struct MiniRingQueue
+ * @brief Minimal 32B contiguous power-of-2 ring queue with `noexcept` move.
+ */
 struct MiniRingQueue {
   std::uint64_t* data = nullptr;
   std::size_t cap = 0;
   std::size_t head = 0;
   std::size_t size = 0;
 
+  /** @brief Constructs an empty ring queue with zero heap allocation. */
   MiniRingQueue() noexcept = default;
+
+  /**
+   * @brief Copy-constructs a backing buffer matching `other`.
+   * @param other Source ring queue to copy from.
+   */
   MiniRingQueue(const MiniRingQueue& other)
       : data(other.cap ? new std::uint64_t[other.cap] : nullptr),
         cap(other.cap),
@@ -58,15 +67,25 @@ struct MiniRingQueue {
       data[i] = other.data[i];
     }
   }
+
+  /**
+   * @brief Unconditionally `noexcept` move constructor stealing backing buffer.
+   * @param other Source ring queue reset to empty.
+   */
   MiniRingQueue(MiniRingQueue&& other) noexcept
       : data(std::exchange(other.data, nullptr)),
         cap(std::exchange(other.cap, 0)),
         head(std::exchange(other.head, 0)),
         size(std::exchange(other.size, 0)) {}
+
+  /** @brief Frees the heap backing buffer. */
   ~MiniRingQueue() { delete[] data; }
 };
 
-/** @brief Rule-of-Zero session embedding `std::queue` (`std::deque`). */
+/**
+ * @struct SessionWithStdQueue
+ * @brief Rule-of-Zero session embedding `std::queue` (`std::deque`).
+ */
 struct SessionWithStdQueue {
   std::uint64_t session_id = 0;
   std::string endpoint_url;
@@ -74,7 +93,10 @@ struct SessionWithStdQueue {
   std::queue<std::uint64_t> pending_message_ids;
 };
 
-/** @brief Rule-of-Zero session embedding `noexcept`-movable `MiniRingQueue`. */
+/**
+ * @struct SessionWithRingQueue
+ * @brief Rule-of-Zero session embedding `noexcept`-movable `MiniRingQueue`.
+ */
 struct SessionWithRingQueue {
   std::uint64_t session_id = 0;
   std::string endpoint_url;
@@ -87,32 +109,53 @@ static_assert(!std::is_nothrow_move_constructible_v<SessionWithStdQueue>);
 #endif
 static_assert(std::is_nothrow_move_constructible_v<SessionWithRingQueue>);
 
-/** @brief Triggers vector reallocation on Rule-of-Zero `std::queue` session. */
+/**
+ * @brief Triggers vector reallocation on a Rule-of-Zero `std::queue` session.
+ * @param vec Destination session vector.
+ * @param s Session moved into `vec`.
+ */
 void PushSessionWithStdQueue(std::vector<SessionWithStdQueue>& vec,
                              SessionWithStdQueue&& s) {
   vec.push_back(std::move(s));
 }
 
-/** @brief Triggers vector reallocation on `noexcept` ring-queue session. */
+/**
+ * @brief Triggers vector reallocation on a `noexcept` ring-queue session.
+ * @param vec Destination session vector.
+ * @param s Session moved into `vec`.
+ */
 void PushSessionWithRingQueue(std::vector<SessionWithRingQueue>& vec,
                               SessionWithRingQueue&& s) {
   vec.push_back(std::move(s));
 }
 
-/** @brief Random-access read from `std::deque<uint64_t>` (2-level chunk map).
+/**
+ * @brief Random-access read from `std::deque<std::uint64_t>` (2-level chunk
+ *        map).
+ * @param dq Source standard deque.
+ * @param idx Zero-based logical element index.
+ * @return Element stored at `dq[idx]`.
  */
-std::uint64_t IndexStdDeque(const std::deque<std::uint64_t>& dq,
-                            std::size_t idx) noexcept {
+[[nodiscard]] std::uint64_t IndexStdDeque(const std::deque<std::uint64_t>& dq,
+                                          std::size_t idx) noexcept {
   return dq[idx];
 }
 
-/** @brief Random-access read from contiguous power-of-2 ring buffer. */
-std::uint64_t IndexCompactRing(const MiniRingQueue& rq,
-                               std::size_t idx) noexcept {
+/**
+ * @brief Random-access read from a contiguous power-of-2 ring buffer.
+ * @param rq Source ring queue.
+ * @param idx Zero-based logical element index.
+ * @return Element stored at logical offset `idx`.
+ */
+[[nodiscard]] std::uint64_t IndexCompactRing(const MiniRingQueue& rq,
+                                             std::size_t idx) noexcept {
   return rq.data[(rq.head + idx) & (rq.cap - 1U)];
 }
 
-/** @brief 64B SubscriptionRule for alert-routing scan codegen comparison. */
+/**
+ * @struct Rule64
+ * @brief 64B `SubscriptionRule` for alert-routing scan codegen comparison.
+ */
 struct alignas(64) Rule64 {
   std::uint64_t rule_id;
   std::int64_t severity_weight;
@@ -121,8 +164,13 @@ struct alignas(64) Rule64 {
   std::byte pad[40];
 };
 
-/** @brief Contiguous vector alert-rule table scan. */
-std::uint64_t ScanRuleVector(const std::vector<Rule64>& rules) noexcept {
+/**
+ * @brief Contiguous vector alert-rule table scan (`+64B` stride prefetching).
+ * @param rules Contiguous vector of 64-byte alert rules.
+ * @return Sum of weighted headroom scores across all rules.
+ */
+[[nodiscard]] std::uint64_t ScanRuleVector(
+    const std::vector<Rule64>& rules) noexcept {
   std::uint64_t sum = 0;
   for (const auto& r : rules) {
     sum += static_cast<std::uint64_t>(r.severity_weight) *
@@ -131,8 +179,13 @@ std::uint64_t ScanRuleVector(const std::vector<Rule64>& rules) noexcept {
   return sum;
 }
 
-/** @brief Pointer-chasing `std::list` alert-rule table scan. */
-std::uint64_t ScanRuleList(const std::list<Rule64>& rules) noexcept {
+/**
+ * @brief Pointer-chasing `std::list` alert-rule table scan.
+ * @param rules Doubly-linked list of 64-byte alert rules.
+ * @return Sum of weighted headroom scores across all rules.
+ */
+[[nodiscard]] std::uint64_t ScanRuleList(
+    const std::list<Rule64>& rules) noexcept {
   std::uint64_t sum = 0;
   for (const auto& r : rules) {
     sum += static_cast<std::uint64_t>(r.severity_weight) *

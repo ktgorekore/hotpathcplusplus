@@ -42,12 +42,12 @@
  *   - Story 2 (`std::deque` Cross-STL Behavior vs. Contiguous Ring Buffers):
  *       * 2A (Idle Per-Connection Queue Memory Footprint): `10,000` and
  *         `100,000` empty per-connection `OutboundMessage` FIFO queues
- * comparing `std::deque`, `boost::circular_buffer_space_optimized`, and
- * growable `CompactRingDeque`.
+ *         comparing `std::deque`, `boost::circular_buffer_space_optimized`, and
+ *         growable `CompactRingDeque`.
  *       * 2B (High-Volume FIFO Message Streaming): `8,000,000` `push_back` +
  *         `pop_front` operations both on a single worker channel (depth
- * `1,024`) and multiplexed across `1,024` active client sockets, verified with
- * an order-sensitive non-zero rolling hash.
+ *         `1,024`) and multiplexed across `1,024` active client sockets,
+ *         verified with an order-sensitive non-zero rolling hash.
  *   - Story 3 (`std::vector` Growth, Rule-of-Zero `std::queue`, `noexcept` &
  *     Pointer Indirection):
  *       * Growing a slot-indexed `ClientSession` registry (`150,000` sessions
@@ -67,6 +67,7 @@
 #include <cstring>
 #include <deque>
 #include <fstream>
+#include <iterator>
 #include <list>
 #include <memory>
 #include <new>
@@ -230,7 +231,10 @@ class CompactRingDeque {
     }
   }
 
-  /** @brief Copy-constructs a compact ring buffer containing all elements. */
+  /**
+   * @brief Copy-constructs a compact ring buffer containing all elements.
+   * @param other Source ring deque to copy from.
+   */
   CompactRingDeque(const CompactRingDeque& other) {
     if (other.size_ == 0) {
       return;
@@ -257,14 +261,21 @@ class CompactRingDeque {
     }
   }
 
-  /** @brief Unconditionally `noexcept` move constructor (zero allocation). */
+  /**
+   * @brief Unconditionally `noexcept` move constructor (zero allocation).
+   * @param other Source ring deque left empty after move.
+   */
   CompactRingDeque(CompactRingDeque&& other) noexcept
       : data_(std::exchange(other.data_, nullptr)),
         cap_(std::exchange(other.cap_, 0)),
         head_(std::exchange(other.head_, 0)),
         size_(std::exchange(other.size_, 0)) {}
 
-  /** @brief Copy-assignment operator with strong exception safety. */
+  /**
+   * @brief Copy-assignment operator with strong exception safety.
+   * @param other Source ring deque to copy from.
+   * @return Reference to `*this`.
+   */
   CompactRingDeque& operator=(const CompactRingDeque& other) {
     if (this != &other) {
       CompactRingDeque copy(other);
@@ -273,7 +284,11 @@ class CompactRingDeque {
     return *this;
   }
 
-  /** @brief Unconditionally `noexcept` move-assignment operator. */
+  /**
+   * @brief Unconditionally `noexcept` move-assignment operator.
+   * @param other Source ring deque left empty after move.
+   * @return Reference to `*this`.
+   */
   CompactRingDeque& operator=(CompactRingDeque&& other) noexcept {
     if (this != &other) {
       DestroyAllAndFree();
@@ -288,7 +303,10 @@ class CompactRingDeque {
   /** @brief Destroys live elements and frees the contiguous backing buffer. */
   ~CompactRingDeque() noexcept { DestroyAllAndFree(); }
 
-  /** @brief Swaps internal buffers and indices in O(1) without throwing. */
+  /**
+   * @brief Swaps internal buffers and indices in O(1) without throwing.
+   * @param other Target ring deque to swap state with.
+   */
   void Swap(CompactRingDeque& other) noexcept {
     std::swap(data_, other.data_);
     std::swap(cap_, other.cap_);
@@ -296,13 +314,22 @@ class CompactRingDeque {
     std::swap(size_, other.size_);
   }
 
-  /** @brief Returns true if the queue holds zero elements. */
+  /**
+   * @brief Checks whether the queue holds zero elements.
+   * @return `true` if the queue is empty, `false` otherwise.
+   */
   [[nodiscard]] bool empty() const noexcept { return size_ == 0; }
 
-  /** @brief Returns the number of live elements currently in the queue. */
+  /**
+   * @brief Returns the number of live elements currently in the queue.
+   * @return Current live element count.
+   */
   [[nodiscard]] size_type size() const noexcept { return size_; }
 
-  /** @brief Returns the allocated slot capacity (0 or power of two). */
+  /**
+   * @brief Returns the allocated slot capacity (0 or power of two).
+   * @return Allocated backing array capacity in elements.
+   */
   [[nodiscard]] size_type capacity() const noexcept { return cap_; }
 
   /**
@@ -352,18 +379,32 @@ class CompactRingDeque {
     --size_;
   }
 
-  /** @brief Returns mutable reference to the front element. */
+  /**
+   * @brief Accesses the front element mutably.
+   * @return Mutable reference to the front element.
+   */
   [[nodiscard]] T& front() noexcept { return data_[head_]; }
 
-  /** @brief Returns const reference to the front element. */
+  /**
+   * @brief Accesses the front element immutably.
+   * @return Const reference to the front element.
+   */
   [[nodiscard]] const T& front() const noexcept { return data_[head_]; }
 
-  /** @brief Returns mutable reference to the logical `idx`-th element. */
+  /**
+   * @brief Accesses the logical `idx`-th element mutably.
+   * @param idx Zero-based logical offset from the front.
+   * @return Mutable reference to the element at `idx`.
+   */
   [[nodiscard]] T& operator[](size_type idx) noexcept {
     return data_[(head_ + idx) & (cap_ - 1U)];
   }
 
-  /** @brief Returns const reference to the logical `idx`-th element. */
+  /**
+   * @brief Accesses the logical `idx`-th element immutably.
+   * @param idx Zero-based logical offset from the front.
+   * @return Const reference to the element at `idx`.
+   */
   [[nodiscard]] const T& operator[](size_type idx) const noexcept {
     return data_[(head_ + idx) & (cap_ - 1U)];
   }
@@ -519,6 +560,9 @@ struct IntrusiveRuleNode {
   boost::intrusive::list_member_hook<> table_hook;
 };
 
+/**
+ * @brief Intrusive doubly-linked list over `IntrusiveRuleNode::table_hook`.
+ */
 using IntrusiveRuleList = boost::intrusive::list<
     IntrusiveRuleNode,
     boost::intrusive::member_hook<IntrusiveRuleNode,
@@ -602,6 +646,7 @@ struct AgedRuleTableFixture {
     churn.ReleaseSetupNoise();
   }
 
+  /** @brief Unlinks intrusive hooks before releasing owning node storage. */
   ~AgedRuleTableFixture() { intrusive_list.clear(); }
 
   AgedRuleTableFixture(const AgedRuleTableFixture&) = delete;
@@ -949,6 +994,7 @@ struct alignas(64) ActiveConnection {
   boost::intrusive::list_member_hook<> lru_hook;
   boost::intrusive::list_member_hook<> timeout_hook;
 
+  /** @brief Default-constructs an idle, pinned connection context. */
   ActiveConnection() = default;
   ActiveConnection(const ActiveConnection&) = delete;
   ActiveConnection& operator=(const ActiveConnection&) = delete;
@@ -959,12 +1005,14 @@ struct alignas(64) ActiveConnection {
 static_assert(sizeof(ActiveConnection) == 256,
               "ActiveConnection must be exactly 256 bytes (4 cache lines)");
 
+/** @brief Intrusive LRU eviction list over `ActiveConnection::lru_hook`. */
 using ConnectionLruList = boost::intrusive::list<
     ActiveConnection,
     boost::intrusive::member_hook<ActiveConnection,
                                   boost::intrusive::list_member_hook<>,
                                   &ActiveConnection::lru_hook>>;
 
+/** @brief Intrusive timeout list over `ActiveConnection::timeout_hook`. */
 using ConnectionTimeoutList = boost::intrusive::list<
     ActiveConnection,
     boost::intrusive::member_hook<ActiveConnection,
@@ -1420,7 +1468,10 @@ struct SessionMissingNoexceptMove {
   SessionMissingNoexceptMove& operator=(const SessionMissingNoexceptMove&) =
       default;
 
-  /** @brief Intentionally omits `noexcept` to isolate `move_if_noexcept`. */
+  /**
+   * @brief Intentionally omits `noexcept` to isolate `move_if_noexcept`.
+   * @param other Source session whose resources are moved into `*this`.
+   */
   SessionMissingNoexceptMove(SessionMissingNoexceptMove&& other)
       : session_id(std::exchange(other.session_id, 0)),
         account_id(other.account_id),

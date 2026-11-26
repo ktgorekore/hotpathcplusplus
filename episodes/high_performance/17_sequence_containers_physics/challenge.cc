@@ -21,10 +21,13 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
 #include <deque>
 #include <list>
 #include <string>
+#include <type_traits>
+#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -51,6 +54,16 @@ namespace {
 
 using Clock = std::chrono::steady_clock;
 
+/**
+ * @brief Executes one warmup pass followed by `iters` timed trials with an
+ *        untimed per-trial setup callback, returning the median duration.
+ * @tparam SetupFn Callable preparing state before each timed trial.
+ * @tparam RunFn Callable returning a 64-bit verification checksum.
+ * @param iters Number of timed trials.
+ * @param setup Untimed state-reset callback invoked before each trial.
+ * @param run Timed kernel returning a deterministic verification checksum.
+ * @return Pair of `{median_ms, last_checksum}`.
+ */
 template <typename SetupFn, typename RunFn>
 std::pair<double, std::uint64_t> MeasureMedianWithSetupMs(int iters,
                                                           SetupFn&& setup,
@@ -73,11 +86,24 @@ std::pair<double, std::uint64_t> MeasureMedianWithSetupMs(int iters,
   return {samples[samples.size() / 2U], last_cs};
 }
 
+/**
+ * @brief Executes one warmup pass followed by `iters` timed trials without
+ *        per-trial setup, returning the median duration in milliseconds.
+ * @tparam Fn Callable returning a 64-bit verification checksum.
+ * @param iters Number of timed trials.
+ * @param fn Timed kernel returning a deterministic verification checksum.
+ * @return Pair of `{median_ms, last_checksum}`.
+ */
 template <typename Fn>
 std::pair<double, std::uint64_t> MeasureMedianMs(int iters, Fn&& fn) {
   return MeasureMedianWithSetupMs(iters, [] {}, std::forward<Fn>(fn));
 }
 
+/**
+ * @brief Runs Story 1A aged-heap subscription rule sweeps (`N = 1K, 4K, 16K`)
+ *        and the six-strategy mid-table unsubscribe showdown (`N = 8,192`).
+ * @param iters Number of timed trials per configuration (reports median).
+ */
 void RunStory1A(int iters) {
   LOG(INFO) << "=== STORY 1A: Active Alert-Routing Subscription Table Scan & "
                "Mid-Table Unsubscribe (Aged Heap) ===";
@@ -219,6 +245,11 @@ void RunStory1A(int iters) {
       vsp_ms);
 }
 
+/**
+ * @brief Runs Story 1B dual-queue LRU + timeout promotion across `16,384`
+ *        pinned `256B` connections and `200,000` skewed events.
+ * @param iters Number of timed trials per engine (reports median).
+ */
 void RunStory1B(int iters) {
   const auto wl = BuildDualQueueEventWorkload(16'384, 200'000);
   LOG(INFO) << "=== STORY 1B: Where Intrusive Lists Win (16,384 Pinned 256B "
@@ -254,6 +285,10 @@ void RunStory1B(int iters) {
       static_cast<unsigned long long>(vec_cs));
 }
 
+/**
+ * @brief Runs Story 2A `VmRSS` memory footprint comparison across `100,000`
+ *        idle per-connection outbound queues.
+ */
 void RunStory2ARss() {
   constexpr std::size_t kQueues = 100'000;
   LOG(INFO) << absl::StrFormat(
@@ -298,6 +333,11 @@ void RunStory2ARss() {
   }
 }
 
+/**
+ * @brief Runs Story 2B `8,000,000`-message FIFO streams (single-channel depth
+ *        `1,024` and `1,024`-socket multiplexed gateway).
+ * @param iters Number of timed trials per engine (reports median).
+ */
 void RunStory2B(int iters) {
   constexpr std::size_t kDepth = 1'024;
   constexpr std::size_t kCycles = 8'000'000;
@@ -328,6 +368,12 @@ void RunStory2B(int iters) {
   });
 }
 
+/**
+ * @brief Runs Story 3 `150,000`-session reconnect wave comparing Rule-of-Zero
+ *        `std::queue`, missing `noexcept`, `CompactRingDeque`, pointer
+ *        indirection, and `folly::fbvector` (`1.5x` & `IsRelocatable`).
+ * @param iters Number of timed trials per engine (reports median).
+ */
 void RunStory3(int iters) {
   constexpr std::size_t kSessions = 150'000;
   LOG(INFO) << absl::StrFormat(
@@ -393,6 +439,13 @@ void RunStory3(int iters) {
 }  // namespace
 }  // namespace hotpath::episode17
 
+/**
+ * @brief Entry point initializing Abseil flags/logging and dispatching the
+ *        requested Episode 17 forensic workload or Linux `perf stat` mode.
+ * @param argc Command-line argument count.
+ * @param argv Command-line argument vector.
+ * @return Process exit code (`0` on success, `1` on unknown `--mode`).
+ */
 int main(int argc, char** argv) {
   absl::ParseCommandLine(argc, argv);
   absl::InitializeLog();

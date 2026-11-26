@@ -21,8 +21,12 @@
 
 #include <gtest/gtest.h>
 
+#include <cstddef>
 #include <cstdint>
+#include <deque>
+#include <iterator>
 #include <list>
+#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
